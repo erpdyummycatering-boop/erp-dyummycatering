@@ -41,13 +41,13 @@ async function seed() {
   }
 
   // USERS
-  await q(`INSERT INTO users (name,email,password_hash,role,status) VALUES
-    ('Siti Rahayu','siti@dyummy.com','hash','CS / Sales','Aktif'),
-    ('Rina Marlina','rina@dyummy.com','hash','CS / Sales','Aktif'),
-    ('Chef Juna','chef@dyummy.com','hash','Kitchen','Aktif'),
-    ('Andi Finance','finance@dyummy.com','hash','Finance','Aktif'),
-    ('Bagas Purchasing','purchasing@dyummy.com','hash','Purchasing','Aktif'),
-    ('Super Admin','admin@dyummy.com','hash','Super Admin','Aktif')`);
+  await q(`INSERT INTO users (name,email,role,status) VALUES
+    ('Siti Rahayu','siti@dyummy.com','CS / Sales','Aktif'),
+    ('Rina Marlina','rina@dyummy.com','CS / Sales','Aktif'),
+    ('Chef Juna','chef@dyummy.com','Kitchen','Aktif'),
+    ('Andi Finance','finance@dyummy.com','Finance','Aktif'),
+    ('Bagas Purchasing','purchasing@dyummy.com','Purchasing','Aktif'),
+    ('Super Admin','admin@dyummy.com','Super Admin','Aktif')`);
   console.log("✓ Users");
 
   // PRODUCT CATEGORIES

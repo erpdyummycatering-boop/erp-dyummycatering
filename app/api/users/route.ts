@@ -13,16 +13,16 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { name, email, role, password } = body;
+  const { name, email, role, status } = body;
   if (!name || !email || !role) {
     return NextResponse.json({ error: "name, email, role required" }, { status: 400 });
   }
   const client = await pool.connect();
   try {
     const res = await client.query(
-      `INSERT INTO users (name, email, password_hash, role, status)
-       VALUES ($1,$2,$3,$4,'Aktif') RETURNING id, name, email, role, status`,
-      [name, email, password || "hashed_default", role]
+      `INSERT INTO users (name, email, role, status)
+       VALUES ($1,$2,$3,$4) RETURNING id, name, email, role, status`,
+      [name, email, role, status || "Aktif"]
     );
     return NextResponse.json(res.rows[0], { status: 201 });
   } finally { client.release(); }

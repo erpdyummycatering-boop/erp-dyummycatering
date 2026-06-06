@@ -1,6 +1,5 @@
 import { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
-import CredentialsProvider from "next-auth/providers/credentials";
 import pool from "./db";
 
 export const authOptions: NextAuthOptions = {
@@ -9,45 +8,6 @@ export const authOptions: NextAuthOptions = {
       clientId: process.env.GOOGLE_CLIENT_ID || "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
     }),
-    CredentialsProvider({
-      name: "Credentials",
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" }
-      },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
-        
-        const client = await pool.connect();
-        try {
-          // Check if user exists and is active
-          const res = await client.query(
-            "SELECT * FROM users WHERE email = $1 AND status = 'Aktif'",
-            [credentials.email]
-          );
-          
-          if (res.rows.length > 0) {
-            const user = res.rows[0];
-            // Compare passwords. For simulation/demo speed, we allow comparison against database password_hash.
-            const isMatch = credentials.password === user.password_hash;
-            if (isMatch || credentials.password === "password" || user.password_hash === "google_sso") {
-              return {
-                id: String(user.id),
-                name: user.name,
-                email: user.email,
-                role: user.role,
-              };
-            }
-          }
-          return null;
-        } catch (e) {
-          console.error("Auth error:", e);
-          return null;
-        } finally {
-          client.release();
-        }
-      }
-    })
   ],
   callbacks: {
     async signIn({ user, account }) {

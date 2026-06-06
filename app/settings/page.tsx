@@ -11,7 +11,7 @@ import { statusBadgeColor, roleColor } from "@/lib/utils";
 
 const C = { primary: "#5005A6" };
 
-const EMPTY_FORM = { name: "", email: "", role: "CS / Sales", status: "Aktif", password: "" };
+const EMPTY_FORM = { name: "", email: "", role: "CS / Sales", status: "Aktif" };
 
 export default function SettingsPage() {
   const [users, setUsers] = useState<any[]>([]);
@@ -28,7 +28,7 @@ export default function SettingsPage() {
   const openAdd = () => { setEditItem(null); setForm(EMPTY_FORM); setShowModal(true); };
   const openEdit = (u: any) => {
     setEditItem(u);
-    setForm({ name: u.name, email: u.email, role: u.role, status: u.status, password: "" });
+    setForm({ name: u.name, email: u.email, role: u.role, status: u.status });
     setShowModal(true);
   };
 
@@ -117,17 +117,13 @@ export default function SettingsPage() {
               menuPortalTarget={typeof document !== "undefined" ? document.body : null}
             />
           </FormField>
-          {editItem ? (
-            <FormField label="Status">
-              <SearchableSelect 
-                value={form.status} onChange={v => setForm((f) => ({ ...f, status: v }))}
-                options={["Aktif", "Nonaktif"].map(s => ({ value: s, label: s }))}
-                menuPortalTarget={typeof document !== "undefined" ? document.body : null}
-              />
-            </FormField>
-          ) : (
-            <FormField label="Password Awal"><input type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} placeholder="Min. 8 karakter" /></FormField>
-          )}
+          <FormField label="Status">
+            <SearchableSelect 
+              value={form.status} onChange={v => setForm((f) => ({ ...f, status: v }))}
+              options={["Aktif", "Nonaktif"].map(s => ({ value: s, label: s }))}
+              menuPortalTarget={typeof document !== "undefined" ? document.body : null}
+            />
+          </FormField>
         </FormRow>
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
           <button className="btn btn-secondary" onClick={() => setShowModal(false)}>Batal</button>

@@ -8,7 +8,7 @@
 -- -------------------------------------------------------------
 
 
-DROP TABLE IF EXISTS "public"."customers";
+DROP TABLE IF EXISTS "public"."customers" CASCADE;
 -- Sequence and defined type
 CREATE SEQUENCE IF NOT EXISTS customers_id_seq;
 
@@ -26,7 +26,7 @@ CREATE TABLE "public"."customers" (
     PRIMARY KEY ("id")
 );
 
-DROP TABLE IF EXISTS "public"."leads";
+DROP TABLE IF EXISTS "public"."leads" CASCADE;
 -- Sequence and defined type
 CREATE SEQUENCE IF NOT EXISTS leads_id_seq;
 
@@ -45,7 +45,7 @@ CREATE TABLE "public"."leads" (
     PRIMARY KEY ("id")
 );
 
-DROP TABLE IF EXISTS "public"."users";
+DROP TABLE IF EXISTS "public"."users" CASCADE;
 -- Sequence and defined type
 CREATE SEQUENCE IF NOT EXISTS users_id_seq;
 
@@ -54,7 +54,6 @@ CREATE TABLE "public"."users" (
     "id" int8 NOT NULL DEFAULT nextval('users_id_seq'::regclass),
     "name" varchar(255) NOT NULL,
     "email" varchar(255) NOT NULL,
-    "password_hash" varchar(255) NOT NULL,
     "role" varchar(50) NOT NULL,
     "status" varchar(50) DEFAULT 'Aktif'::character varying,
     "created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
@@ -62,7 +61,7 @@ CREATE TABLE "public"."users" (
     PRIMARY KEY ("id")
 );
 
-DROP TABLE IF EXISTS "public"."product_categories";
+DROP TABLE IF EXISTS "public"."product_categories" CASCADE;
 -- Sequence and defined type
 CREATE SEQUENCE IF NOT EXISTS product_categories_id_seq;
 
@@ -74,7 +73,7 @@ CREATE TABLE "public"."product_categories" (
     PRIMARY KEY ("id")
 );
 
-DROP TABLE IF EXISTS "public"."products";
+DROP TABLE IF EXISTS "public"."products" CASCADE;
 -- Sequence and defined type
 CREATE SEQUENCE IF NOT EXISTS products_id_seq;
 
@@ -92,7 +91,7 @@ CREATE TABLE "public"."products" (
     PRIMARY KEY ("id")
 );
 
-DROP TABLE IF EXISTS "public"."recipes";
+DROP TABLE IF EXISTS "public"."recipes" CASCADE;
 -- Sequence and defined type
 CREATE SEQUENCE IF NOT EXISTS recipes_id_seq;
 
@@ -108,7 +107,7 @@ CREATE TABLE "public"."recipes" (
     PRIMARY KEY ("id")
 );
 
-DROP TABLE IF EXISTS "public"."orders";
+DROP TABLE IF EXISTS "public"."orders" CASCADE;
 -- Sequence and defined type
 CREATE SEQUENCE IF NOT EXISTS orders_id_seq;
 
@@ -132,7 +131,7 @@ CREATE TABLE "public"."orders" (
     PRIMARY KEY ("id")
 );
 
-DROP TABLE IF EXISTS "public"."order_items";
+DROP TABLE IF EXISTS "public"."order_items" CASCADE;
 -- Sequence and defined type
 CREATE SEQUENCE IF NOT EXISTS order_items_id_seq;
 
@@ -150,7 +149,7 @@ CREATE TABLE "public"."order_items" (
     PRIMARY KEY ("id")
 );
 
-DROP TABLE IF EXISTS "public"."production_schedules";
+DROP TABLE IF EXISTS "public"."production_schedules" CASCADE;
 -- Sequence and defined type
 CREATE SEQUENCE IF NOT EXISTS production_schedules_id_seq;
 
@@ -168,7 +167,7 @@ CREATE TABLE "public"."production_schedules" (
     PRIMARY KEY ("id")
 );
 
-DROP TABLE IF EXISTS "public"."schedule_orders";
+DROP TABLE IF EXISTS "public"."schedule_orders" CASCADE;
 -- Table Definition
 CREATE TABLE "public"."schedule_orders" (
     "schedule_id" int8 NOT NULL,
@@ -176,7 +175,7 @@ CREATE TABLE "public"."schedule_orders" (
     PRIMARY KEY ("schedule_id","order_id")
 );
 
-DROP TABLE IF EXISTS "public"."schedule_menus";
+DROP TABLE IF EXISTS "public"."schedule_menus" CASCADE;
 -- Sequence and defined type
 CREATE SEQUENCE IF NOT EXISTS schedule_menus_id_seq;
 
@@ -191,7 +190,7 @@ CREATE TABLE "public"."schedule_menus" (
     PRIMARY KEY ("id")
 );
 
-DROP TABLE IF EXISTS "public"."purchase_requests";
+DROP TABLE IF EXISTS "public"."purchase_requests" CASCADE;
 -- Sequence and defined type
 CREATE SEQUENCE IF NOT EXISTS purchase_requests_id_seq;
 
@@ -206,7 +205,7 @@ CREATE TABLE "public"."purchase_requests" (
     PRIMARY KEY ("id")
 );
 
-DROP TABLE IF EXISTS "public"."pr_items";
+DROP TABLE IF EXISTS "public"."pr_items" CASCADE;
 -- Sequence and defined type
 CREATE SEQUENCE IF NOT EXISTS pr_items_id_seq;
 
@@ -223,7 +222,7 @@ CREATE TABLE "public"."pr_items" (
     PRIMARY KEY ("id")
 );
 
-DROP TABLE IF EXISTS "public"."purchase_orders";
+DROP TABLE IF EXISTS "public"."purchase_orders" CASCADE;
 -- Sequence and defined type
 CREATE SEQUENCE IF NOT EXISTS purchase_orders_id_seq;
 
@@ -243,7 +242,7 @@ CREATE TABLE "public"."purchase_orders" (
     PRIMARY KEY ("id")
 );
 
-DROP TABLE IF EXISTS "public"."overheads";
+DROP TABLE IF EXISTS "public"."overheads" CASCADE;
 -- Sequence and defined type
 CREATE SEQUENCE IF NOT EXISTS overheads_id_seq;
 
@@ -313,15 +312,15 @@ INSERT INTO "public"."leads" ("id", "customer_id", "pic_id", "lead_date", "sourc
 (38, 9, 2, '2026-05-22', 'Website', 'Reject', 'personal', 'Terlalu mahal', '2026-05-27 08:50:52.532755', '2026-05-27 08:50:52.532755'),
 (39, 10, 2, '2026-05-23', 'Referral', 'Prospek', 'startup', 'Ngobrol awal', '2026-05-27 08:50:52.532755', '2026-05-27 08:50:52.532755');
 
-INSERT INTO "public"."users" ("id", "name", "email", "password_hash", "role", "status", "created_at", "updated_at") VALUES
-(1, 'Siti Rahayu', 'irvanadrian151@gmail.com', 'hash', 'CS / Sales', 'Aktif', '2026-05-27 08:50:52.373982', '2026-06-04 13:53:31.424321'),
-(2, 'Rina Marlina', 'irvan@cnt.id', 'hash', 'CS / Sales', 'Aktif', '2026-05-27 08:50:52.373982', '2026-06-04 13:53:19.279919'),
-(3, 'Chef Juna', 'chef@dyummy.com', 'hash', 'Kitchen', 'Aktif', '2026-05-27 08:50:52.373982', '2026-05-27 08:50:52.373982'),
-(4, 'Andi Finance', 'finance@dyummy.com', 'hash', 'Finance', 'Aktif', '2026-05-27 08:50:52.373982', '2026-05-27 08:50:52.373982'),
-(5, 'Bagas Purchasing', 'purchasing@dyummy.com', 'hash', 'Purchasing', 'Aktif', '2026-05-27 08:50:52.373982', '2026-05-27 08:50:52.373982'),
-(6, 'Super Admin', 'admin@dyummy.com', 'hash', 'Super Admin', 'Aktif', '2026-05-27 08:50:52.373982', '2026-05-27 08:50:52.373982'),
-(7, 'Subranto', 'absubranto@gmail.com', '12345678', 'Super Admin', 'Aktif', '2026-06-04 13:21:15.169437', '2026-06-04 13:21:15.169437'),
-(8, 'Irvan', 'irvan.freelance@gmail.com', '12345678', 'Super Admin', 'Aktif', '2026-06-04 13:21:57.860278', '2026-06-04 13:21:57.860278');
+INSERT INTO "public"."users" ("id", "name", "email", "role", "status", "created_at", "updated_at") VALUES
+(1, 'Siti Rahayu', 'irvanadrian151@gmail.com', 'CS / Sales', 'Aktif', '2026-05-27 08:50:52.373982', '2026-06-04 13:53:31.424321'),
+(2, 'Rina Marlina', 'irvan@cnt.id', 'CS / Sales', 'Aktif', '2026-05-27 08:50:52.373982', '2026-06-04 13:53:19.279919'),
+(3, 'Chef Juna', 'chef@dyummy.com', 'Kitchen', 'Aktif', '2026-05-27 08:50:52.373982', '2026-05-27 08:50:52.373982'),
+(4, 'Andi Finance', 'finance@dyummy.com', 'Finance', 'Aktif', '2026-05-27 08:50:52.373982', '2026-05-27 08:50:52.373982'),
+(5, 'Bagas Purchasing', 'purchasing@dyummy.com', 'Purchasing', 'Aktif', '2026-05-27 08:50:52.373982', '2026-05-27 08:50:52.373982'),
+(6, 'Super Admin', 'admin@dyummy.com', 'Super Admin', 'Aktif', '2026-05-27 08:50:52.373982', '2026-05-27 08:50:52.373982'),
+(7, 'Subranto', 'absubranto@gmail.com', 'Super Admin', 'Aktif', '2026-06-04 13:21:15.169437', '2026-06-04 13:21:15.169437'),
+(8, 'Irvan', 'irvan.freelance@gmail.com', 'Super Admin', 'Aktif', '2026-06-04 13:21:57.860278', '2026-06-04 13:21:57.860278');
 
 INSERT INTO "public"."product_categories" ("id", "name", "created_at") VALUES
 (1, 'Nasi Box', '2026-05-27 08:50:52.402846'),

@@ -14,10 +14,10 @@ async function seed() {
   try {
     // 1. Insert Users
     await db.insert(schema.users).values([
-      { name: 'Siti (CS 1)', email: 'siti@catering.com', password_hash: 'hashed_pw_here', role: 'CS / Sales', status: 'Aktif' },
-      { name: 'Budi (CS 2)', email: 'budi@catering.com', password_hash: 'hashed_pw_here', role: 'CS / Sales', status: 'Aktif' },
-      { name: 'Andi Finance', email: 'finance@catering.com', password_hash: 'hashed_pw_here', role: 'Finance', status: 'Aktif' },
-      { name: 'Super Admin', email: 'admin@catering.com', password_hash: 'hashed_pw_here', role: 'Super Admin', status: 'Aktif' },
+      { name: 'Siti (CS 1)', email: 'siti@catering.com', role: 'CS / Sales', status: 'Aktif' },
+      { name: 'Budi (CS 2)', email: 'budi@catering.com', role: 'CS / Sales', status: 'Aktif' },
+      { name: 'Andi Finance', email: 'finance@catering.com', role: 'Finance', status: 'Aktif' },
+      { name: 'Super Admin', email: 'admin@catering.com', role: 'Super Admin', status: 'Aktif' },
     ]);
     console.log('Users seeded');
 

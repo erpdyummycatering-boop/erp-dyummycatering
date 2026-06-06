@@ -28,7 +28,6 @@ CREATE TABLE users (
     id BIGSERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
     role VARCHAR(50) NOT NULL, 
     status VARCHAR(50) DEFAULT 'Aktif', 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -212,12 +211,12 @@ CREATE TABLE overheads (
 -- ==============================================================================
 
 -- 1. Insert Users
-INSERT INTO users (id, name, email, password_hash, role, status) VALUES
-(1, 'Siti (CS 1)', 'siti@catering.com', 'hashed_pw', 'CS / Sales', 'Aktif'),
-(2, 'Andi Finance', 'finance@catering.com', 'hashed_pw', 'Finance', 'Aktif'),
-(3, 'Super Admin', 'admin@catering.com', 'hashed_pw', 'Super Admin', 'Aktif'),
-(4, 'Chef Juna', 'chef@catering.com', 'hashed_pw', 'Kitchen', 'Aktif'),
-(5, 'Bagas Purchasing', 'purchasing@catering.com', 'hashed_pw', 'Purchasing', 'Aktif');
+INSERT INTO users (id, name, email, role, status) VALUES
+(1, 'Siti (CS 1)', 'siti@catering.com', 'CS / Sales', 'Aktif'),
+(2, 'Andi Finance', 'finance@catering.com', 'Finance', 'Aktif'),
+(3, 'Super Admin', 'admin@catering.com', 'Super Admin', 'Aktif'),
+(4, 'Chef Juna', 'chef@catering.com', 'Kitchen', 'Aktif'),
+(5, 'Bagas Purchasing', 'purchasing@catering.com', 'Purchasing', 'Aktif');
 SELECT setval('users_id_seq', 5);
 
 -- 1.5 Insert Product Categories
