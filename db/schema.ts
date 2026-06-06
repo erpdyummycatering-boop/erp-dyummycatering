@@ -18,6 +18,7 @@ export const customers = pgTable('customers', {
   type: varchar('type', { length: 100 }),
   address: text('address'),
   notes: text('notes'),
+  created_by: varchar('created_by', { length: 255 }),
   created_at: timestamp('created_at').defaultNow(),
   updated_at: timestamp('updated_at').defaultNow(),
 });

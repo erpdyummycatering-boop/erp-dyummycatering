@@ -18,6 +18,15 @@ const EMPTY_FORM = {
   name: "", phone: "", email: "", type: "Perorangan", address: "", notes: "",
 };
 
+const formatWaLink = (phone: string) => {
+  if (!phone) return "";
+  let clean = phone.replace(/\D/g, "");
+  if (clean.startsWith("0")) {
+    clean = "62" + clean.slice(1);
+  }
+  return `https://wa.me/${clean}`;
+};
+
 export default function CustomersPage() {
   const [rows, setRows] = useState<any[]>([]);
   const [meta, setMeta] = useState({ total: 0, page: 1, limit: 10, totalPages: 1 });
@@ -136,12 +145,12 @@ export default function CustomersPage() {
                 <thead>
                   <tr>
                     <th>No.</th><th>Nama</th><th>Telepon</th><th>Tipe</th><th>Email</th>
-                    <th>Terakhir Order</th><th>Aksi</th>
+                    <th>Input Oleh</th><th>Terakhir Order</th><th>Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.length === 0 ? (
-                    <tr><td colSpan={7} style={{ textAlign: "center", padding: "24px", color: "#6b7280" }}>Tidak ada data</td></tr>
+                    <tr><td colSpan={8} style={{ textAlign: "center", padding: "24px", color: "#6b7280" }}>Tidak ada data</td></tr>
                   ) : rows.map((c: any, idx: number) => (
                     <tr key={c.id}>
                       <td style={{ fontSize: 12, color: "#6b7280" }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
@@ -161,13 +170,27 @@ export default function CustomersPage() {
                           </div>
                         </div>
                       </td>
-                      <td style={{ fontFamily: "monospace", fontSize: 12 }}>{c.phone || "-"}</td>
+                      <td style={{ fontFamily: "monospace", fontSize: 12 }}>
+                        {c.phone ? (
+                          <a
+                            href={formatWaLink(c.phone)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ color: "#378ADD", textDecoration: "underline" }}
+                          >
+                            {c.phone}
+                          </a>
+                        ) : (
+                          "-"
+                        )}
+                      </td>
                       <td>
                         <Badge color={c.type === "Corporate" ? "blue" : c.type === "Instansi" ? "purple" : "gray"}>
                           {c.type || "Perorangan"}
                         </Badge>
                       </td>
                       <td style={{ fontSize: 12, color: "#6b7280" }}>{c.email || "-"}</td>
+                      <td style={{ fontSize: 12, color: "#6b7280" }}>{c.created_by || "-"}</td>
                       <td style={{ fontSize: 12 }}>
                         {c.last_order ? String(c.last_order).slice(0, 10) : <span style={{ color: "#6b7280" }}>Belum pernah</span>}
                       </td>

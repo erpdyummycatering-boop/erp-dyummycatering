@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth";
 import pool from "@/lib/db";
 
 export async function GET(req: NextRequest) {
@@ -10,7 +12,7 @@ export async function GET(req: NextRequest) {
   const type = p.get("type") || "";
 
   const wheres: string[] = [];
-  const vals: any[] = [];
+  const vals: unknown[] = [];
   let idx = 1;
 
   if (search) { wheres.push(`(name ILIKE $${idx} OR phone ILIKE $${idx} OR email ILIKE $${idx})`); vals.push(`%${search}%`); idx++; }
@@ -29,13 +31,18 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  const createdBy = session?.user
+    ? `${session.user.name || ""} | ${(session.user as { name?: string; role?: string }).role || ""}`.trim()
+    : null;
+
   const { name, phone, email, type, address, notes } = await req.json();
   if (!name) return NextResponse.json({ error: "Nama wajib diisi" }, { status: 400 });
   const client = await pool.connect();
   try {
     const res = await client.query(
-      `INSERT INTO customers (name,phone,email,type,address,notes) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [name, phone, email, type, address, notes]
+      `INSERT INTO customers (name, phone, email, type, address, notes, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [name, phone, email, type, address, notes, createdBy]
     );
     return NextResponse.json(res.rows[0], { status: 201 });
   } finally { client.release(); }

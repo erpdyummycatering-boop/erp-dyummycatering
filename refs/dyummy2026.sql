@@ -21,6 +21,7 @@ CREATE TABLE "public"."customers" (
     "type" varchar(100),
     "address" text,
     "notes" text,
+    "created_by" varchar(255),
     "created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
     "updated_at" timestamp DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY ("id")

@@ -1,9 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth";
 import pool from "@/lib/db";
 
 export async function POST(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  const createdBy = session?.user
+    ? `${session.user.name || ""} | ${(session.user as { name?: string; role?: string }).role || ""}`.trim()
+    : null;
+
   const body = await req.json();
-  const rows: any[] = body.rows;
+  const rows: {
+    name?: string;
+    phone?: string;
+    email?: string;
+    type?: string;
+    address?: string;
+    notes?: string;
+  }[] = body.rows;
 
   if (!Array.isArray(rows) || rows.length === 0) {
     return NextResponse.json({ error: "Data tidak boleh kosong" }, { status: 400 });
@@ -46,17 +60,17 @@ export async function POST(req: NextRequest) {
       }
 
       await client.query(
-        `INSERT INTO customers (name, phone, email, type, address, notes) VALUES ($1,$2,$3,$4,$5,$6)`,
-        [name, phone || null, email || null, type, address || null, notes || null]
+        `INSERT INTO customers (name, phone, email, type, address, notes, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [name, phone || null, email || null, type, address || null, notes || null, createdBy]
       );
       inserted++;
     }
 
     await client.query("COMMIT");
     return NextResponse.json({ inserted, skipped, errors, total: rows.length });
-  } catch (err: any) {
+  } catch (err) {
     await client.query("ROLLBACK");
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
   } finally {
     client.release();
   }

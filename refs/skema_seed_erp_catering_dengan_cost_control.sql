@@ -42,6 +42,7 @@ CREATE TABLE customers (
     type VARCHAR(100),
     address TEXT,
     notes TEXT,
+    created_by VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
