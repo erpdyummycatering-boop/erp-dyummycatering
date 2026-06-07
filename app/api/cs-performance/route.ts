@@ -25,248 +25,187 @@ export async function GET(req: NextRequest) {
 
   const client = await pool.connect();
   try {
-    let dailyStats;
-    let recentCustomers;
-    let recentOrders;
-    let csData: any[] = [];
-    let chartData = [];
+    // 1. Fetch active CS List
+    const activeCsRes = await client.query(
+      `SELECT id, name FROM users WHERE role = 'CS / Sales' AND status = 'Aktif' ORDER BY id`
+    );
+    const activeCsList = activeCsRes.rows;
 
+    // 2. Determine selected CS ID
+    let selectedCsId: string | null = null;
     if (userRole === "CS / Sales") {
-      // 1. Daily Stats (scoped to CS)
-      const dailyLeadsRes = await client.query(`SELECT COUNT(*) FROM leads WHERE lead_date >= $1 AND lead_date <= $2 AND pic_id = $3`, [startDate, endDate, userId]);
-      const dailyOrdersRes = await client.query(`SELECT COUNT(*) FROM orders WHERE order_date >= $1 AND order_date <= $2 AND pic_id = $3`, [startDate, endDate, userId]);
-      const dailyRevenueRes = await client.query(`SELECT SUM(grand_total) FROM orders WHERE order_date >= $1 AND order_date <= $2 AND pic_id = $3`, [startDate, endDate, userId]);
-      
-      const dailyLeads = Number(dailyLeadsRes.rows[0].count) || 0;
-      const dailyOrders = Number(dailyOrdersRes.rows[0].count) || 0;
-      const dailyRevenue = Number(dailyRevenueRes.rows[0].sum) || 0;
-      const closingRate = dailyLeads > 0 ? ((dailyOrders / dailyLeads) * 100).toFixed(1) : 0;
-
-      dailyStats = {
-        leads: dailyLeads,
-        orders: dailyOrders,
-        closingRate: Number(closingRate),
-        revenue: dailyRevenue
-      };
-
-      // 2. Recent Customers for this CS
-      const recentCustomersRes = await client.query(`
-        SELECT DISTINCT c.id, c.name, c.phone, 
-          (SELECT COUNT(*) FROM orders o WHERE o.customer_id = c.id AND o.pic_id = $3) as total_order
-        FROM customers c
-        JOIN orders o ON o.customer_id = c.id
-        WHERE DATE(c.created_at) >= $1 AND DATE(c.created_at) <= $2 AND o.pic_id = $3
-        ORDER BY c.id DESC LIMIT 5
-      `, [startDate, endDate, userId]);
-      recentCustomers = recentCustomersRes.rows;
-
-      // 3. Recent Orders for this CS
-      const recentOrdersRes = await client.query(`
-        SELECT o.id, c.name as customer, o.grand_total as harga, o.delivery_date,
-          (SELECT COALESCE(SUM(quantity), 0) FROM order_items oi WHERE oi.order_id = o.id) as porsi
-        FROM orders o
-        JOIN customers c ON o.customer_id = c.id
-        WHERE o.order_date >= $1 AND o.order_date <= $2 AND o.pic_id = $3
-        ORDER BY o.created_at DESC LIMIT 5
-      `, [startDate, endDate, userId]);
-      recentOrders = recentOrdersRes.rows;
-
-      // Summary per CS (only self)
-      const monthRes = await client.query(`
-        SELECT
-          u.id, u.name,
-          COUNT(l.id) AS total_leads,
-          COUNT(CASE WHEN l.status='Closing' THEN 1 END) AS total_closing,
-          ROUND(COUNT(CASE WHEN l.status='Closing' THEN 1 END)::numeric / NULLIF(COUNT(l.id),0) * 100, 1) AS closing_rate
-        FROM users u
-        LEFT JOIN leads l ON l.pic_id = u.id
-          AND l.lead_date >= $1 AND l.lead_date <= $2
-        WHERE u.id = $3 AND u.status = 'Aktif'
-        GROUP BY u.id, u.name`,
-        [startDate, endDate, userId]
-      );
-
-      // Weekly breakdown inside range (ensuring zero weeks are included)
-      const weeklyChartRes = await client.query(`
-        WITH weeks AS (
-          SELECT generate_series(
-            date_trunc('week', $1::date)::date,
-            date_trunc('week', $2::date)::date,
-            '1 week'::interval
-          )::date AS week_start
-        )
-        SELECT 
-          w.week_start::text AS week_start,
-          u.id as cs_id,
-          u.name as cs_name,
-          COUNT(l.id) as leads,
-          COUNT(CASE WHEN l.status='Closing' THEN 1 END) as closing
-        FROM weeks w
-        CROSS JOIN users u
-        LEFT JOIN leads l ON l.pic_id = u.id 
-          AND date_trunc('week', l.lead_date)::date = w.week_start
-          AND l.lead_date >= $1 AND l.lead_date <= $2
-        WHERE u.id = $3 AND u.status = 'Aktif'
-        GROUP BY w.week_start, u.id, u.name
-        ORDER BY w.week_start ASC
-      `, [startDate, endDate, userId]);
-
-      const weeksSet = new Set<string>();
-      weeklyChartRes.rows.forEach(r => { if (r.week_start) weeksSet.add(r.week_start); });
-      const sortedWeeks = Array.from(weeksSet).sort();
-
-      const weeklyData: Record<number, any[]> = {};
-      for (const cs of monthRes.rows) {
-        weeklyData[cs.id] = sortedWeeks.map((week_start, i) => {
-          const row = weeklyChartRes.rows.find(r => r.cs_id === cs.id && r.week_start === week_start);
-          const leads = row ? Number(row.leads) : 0;
-          const closing = row ? Number(row.closing) : 0;
-          return {
-            week: `Pekan ${i + 1}`,
-            dateRange: formatDateRange(week_start),
-            leads,
-            closing,
-            rate: leads > 0 ? Number(((closing / leads) * 100).toFixed(1)) : 0
-          };
-        });
-      }
-
-      csData = monthRes.rows.map((cs: any) => ({
-        id: cs.id,
-        name: cs.name,
-        monthLeads: Number(cs.total_leads),
-        monthClosing: Number(cs.total_closing),
-        monthRate: Number(cs.closing_rate) || 0,
-        weekly: weeklyData[cs.id] || [],
-      }));
-
-      chartData = sortedWeeks.map((week_start, i) => {
-        const row: Record<string, any> = { week: `Pekan ${i + 1}` };
-        for (const cs of csData) {
-          row[cs.name.split(" ")[0]] = cs.weekly[i]?.rate || 0;
-        }
-        return row;
-      });
+      selectedCsId = String(userId);
     } else {
-      // Original full logic (Admin/Owner)
-      const dailyLeadsRes = await client.query(`SELECT COUNT(*) FROM leads WHERE lead_date >= $1 AND lead_date <= $2`, [startDate, endDate]);
-      const dailyOrdersRes = await client.query(`SELECT COUNT(*) FROM orders WHERE order_date >= $1 AND order_date <= $2`, [startDate, endDate]);
-      const dailyRevenueRes = await client.query(`SELECT SUM(grand_total) FROM orders WHERE order_date >= $1 AND order_date <= $2`, [startDate, endDate]);
-      
-      const dailyLeads = Number(dailyLeadsRes.rows[0].count) || 0;
-      const dailyOrders = Number(dailyOrdersRes.rows[0].count) || 0;
-      const dailyRevenue = Number(dailyRevenueRes.rows[0].sum) || 0;
-      const closingRate = dailyLeads > 0 ? ((dailyOrders / dailyLeads) * 100).toFixed(1) : 0;
+      const queryCsId = searchParams.get("csId");
+      if (queryCsId) {
+        selectedCsId = queryCsId;
+      } else if (activeCsList.length > 0) {
+        selectedCsId = String(activeCsList[0].id);
+      }
+    }
+
+    const selectedCsName = activeCsList.find(c => String(c.id) === selectedCsId)?.name || "Semua CS";
+
+    // 3. Compute dailyStats (Dashboard KPIs) for the selected CS
+    let dailyStats = {
+      leads: 0,
+      newOrders: 0,
+      repeatOrders: 0,
+      newOrdersValue: 0,
+      repeatOrdersValue: 0,
+      totalClosing: 0,
+      totalOmzet: 0,
+      closingRate: 0
+    };
+
+    let transactions: any[] = [];
+
+    if (selectedCsId) {
+      // Leads Count
+      const leadsRes = await client.query(
+        `SELECT COUNT(*) FROM leads WHERE lead_date >= $1 AND lead_date <= $2 AND pic_id = $3`,
+        [startDate, endDate, selectedCsId]
+      );
+      const leadsCount = Number(leadsRes.rows[0].count) || 0;
+
+      // New Orders Count & Value
+      const newOrdersRes = await client.query(
+        `SELECT COUNT(*), COALESCE(SUM(grand_total), 0) as total_value 
+         FROM orders 
+         WHERE order_date >= $1 AND order_date <= $2 AND pic_id = $3 AND jenis_order = 'New Order'`,
+        [startDate, endDate, selectedCsId]
+      );
+      const newOrdersCount = Number(newOrdersRes.rows[0].count) || 0;
+      const newOrdersValue = Number(newOrdersRes.rows[0].total_value) || 0;
+
+      // Repeat Orders Count & Value
+      const repeatOrdersRes = await client.query(
+        `SELECT COUNT(*), COALESCE(SUM(grand_total), 0) as total_value 
+         FROM orders 
+         WHERE order_date >= $1 AND order_date <= $2 AND pic_id = $3 AND jenis_order = 'Repeat Order'`,
+        [startDate, endDate, selectedCsId]
+      );
+      const repeatOrdersCount = Number(repeatOrdersRes.rows[0].count) || 0;
+      const repeatOrdersValue = Number(repeatOrdersRes.rows[0].total_value) || 0;
+
+      const totalClosing = newOrdersCount + repeatOrdersCount;
+      const totalOmzet = newOrdersValue + repeatOrdersValue;
+      const closingRate = leadsCount > 0 ? Number(((newOrdersCount / leadsCount) * 100).toFixed(1)) : 0;
 
       dailyStats = {
-        leads: dailyLeads,
-        orders: dailyOrders,
-        closingRate: Number(closingRate),
-        revenue: dailyRevenue
+        leads: leadsCount,
+        newOrders: newOrdersCount,
+        repeatOrders: repeatOrdersCount,
+        newOrdersValue,
+        repeatOrdersValue,
+        totalClosing,
+        totalOmzet,
+        closingRate
       };
 
-      const recentCustomersRes = await client.query(`
-        SELECT c.id, c.name, c.phone, 
-          (SELECT COUNT(*) FROM orders o WHERE o.customer_id = c.id) as total_order
-        FROM customers c
-        WHERE DATE(c.created_at) >= $1 AND DATE(c.created_at) <= $2
-        ORDER BY c.created_at DESC LIMIT 5
-      `, [startDate, endDate]);
-      recentCustomers = recentCustomersRes.rows;
-
-      const recentOrdersRes = await client.query(`
-        SELECT o.id, c.name as customer, o.grand_total as harga, o.delivery_date,
-          (SELECT COALESCE(SUM(quantity), 0) FROM order_items oi WHERE oi.order_id = o.id) as porsi
-        FROM orders o
-        JOIN customers c ON o.customer_id = c.id
-        WHERE o.order_date >= $1 AND o.order_date <= $2
-        ORDER BY o.created_at DESC LIMIT 5
-      `, [startDate, endDate]);
-      recentOrders = recentOrdersRes.rows;
-
-      const monthRes = await client.query(`
-        SELECT
-          u.id, u.name,
-          COUNT(l.id) AS total_leads,
-          COUNT(CASE WHEN l.status='Closing' THEN 1 END) AS total_closing,
-          ROUND(COUNT(CASE WHEN l.status='Closing' THEN 1 END)::numeric / NULLIF(COUNT(l.id),0) * 100, 1) AS closing_rate
-        FROM users u
-        LEFT JOIN leads l ON l.pic_id = u.id
-          AND l.lead_date >= $1 AND l.lead_date <= $2
-        WHERE u.role = 'CS / Sales' AND u.status = 'Aktif'
-        GROUP BY u.id, u.name
-        ORDER BY closing_rate DESC NULLS LAST`,
-        [startDate, endDate]
+      // Transactions List for selected CS
+      const transRes = await client.query(
+        `SELECT 
+          o.id,
+          COALESCE(o.closing_date, o.order_date) as closing_date,
+          c.id as customer_id,
+          c.name as customer_name,
+          c.phone as whatsapp,
+          o.jenis_order,
+          o.grand_total as nilai_order
+         FROM orders o
+         JOIN customers c ON o.customer_id = c.id
+         WHERE o.order_date >= $1 AND o.order_date <= $2 AND o.pic_id = $3
+         ORDER BY o.order_date DESC, o.id DESC`,
+        [startDate, endDate, selectedCsId]
       );
+      transactions = transRes.rows;
+    }
 
-      const weeklyChartRes = await client.query(`
-        WITH weeks AS (
-          SELECT generate_series(
-            date_trunc('week', $1::date)::date,
-            date_trunc('week', $2::date)::date,
-            '1 week'::interval
-          )::date AS week_start
-        )
-        SELECT 
-          w.week_start::text AS week_start,
-          u.id as cs_id,
-          u.name as cs_name,
-          COUNT(l.id) as leads,
-          COUNT(CASE WHEN l.status='Closing' THEN 1 END) as closing
-        FROM weeks w
-        CROSS JOIN users u
-        LEFT JOIN leads l ON l.pic_id = u.id 
-          AND date_trunc('week', l.lead_date)::date = w.week_start
-          AND l.lead_date >= $1 AND l.lead_date <= $2
-        WHERE u.role = 'CS / Sales' AND u.status = 'Aktif'
-        GROUP BY w.week_start, u.id, u.name
-        ORDER BY w.week_start ASC
-      `, [startDate, endDate]);
+    // 4. Compute csData (Comparison/Evaluation List) for all active CSs
+    const monthRes = await client.query(
+      `SELECT
+        u.id, u.name,
+        (SELECT COUNT(*) FROM leads l WHERE l.pic_id = u.id AND l.lead_date >= $1 AND l.lead_date <= $2) AS total_leads,
+        (SELECT COUNT(*) FROM orders o WHERE o.pic_id = u.id AND o.order_date >= $1 AND o.order_date <= $2 AND o.jenis_order = 'New Order') AS total_closing
+      FROM users u
+      WHERE u.role = 'CS / Sales' AND u.status = 'Aktif'
+      ORDER BY id ASC`,
+      [startDate, endDate]
+    );
 
-      const weeksSet = new Set<string>();
-      weeklyChartRes.rows.forEach(r => { if (r.week_start) weeksSet.add(r.week_start); });
-      const sortedWeeks = Array.from(weeksSet).sort();
+    // 5. Generate Weekly Chart Data
+    const weeklyChartRes = await client.query(`
+      WITH weeks AS (
+        SELECT generate_series(
+          date_trunc('week', $1::date)::date,
+          date_trunc('week', $2::date)::date,
+          '1 week'::interval
+        )::date AS week_start
+      )
+      SELECT 
+        w.week_start::text AS week_start,
+        u.id as cs_id,
+        u.name as cs_name,
+        (SELECT COUNT(*) FROM leads l WHERE l.pic_id = u.id AND date_trunc('week', l.lead_date)::date = w.week_start AND l.lead_date >= $1 AND l.lead_date <= $2) as leads,
+        (SELECT COUNT(*) FROM orders o WHERE o.pic_id = u.id AND date_trunc('week', o.order_date)::date = w.week_start AND o.order_date >= $1 AND o.order_date <= $2 AND o.jenis_order = 'New Order') as closing
+      FROM weeks w
+      CROSS JOIN users u
+      WHERE u.role = 'CS / Sales' AND u.status = 'Aktif'
+      ORDER BY w.week_start ASC
+    `, [startDate, endDate]);
 
-      const weeklyData: Record<number, any[]> = {};
-      for (const cs of monthRes.rows) {
-        weeklyData[cs.id] = sortedWeeks.map((week_start, i) => {
-          const row = weeklyChartRes.rows.find(r => r.cs_id === cs.id && r.week_start === week_start);
-          const leads = row ? Number(row.leads) : 0;
-          const closing = row ? Number(row.closing) : 0;
-          return {
-            week: `Pekan ${i + 1}`,
-            dateRange: formatDateRange(week_start),
-            leads,
-            closing,
-            rate: leads > 0 ? Number(((closing / leads) * 100).toFixed(1)) : 0
-          };
-        });
-      }
+    const weeksSet = new Set<string>();
+    weeklyChartRes.rows.forEach(r => { if (r.week_start) weeksSet.add(r.week_start); });
+    const sortedWeeks = Array.from(weeksSet).sort();
 
-      csData = monthRes.rows.map((cs: any) => ({
-        id: cs.id,
-        name: cs.name,
-        monthLeads: Number(cs.total_leads),
-        monthClosing: Number(cs.total_closing),
-        monthRate: Number(cs.closing_rate) || 0,
-        weekly: weeklyData[cs.id] || [],
-      }));
-
-      chartData = sortedWeeks.map((week_start, i) => {
-        const row: Record<string, any> = { week: `Pekan ${i + 1}` };
-        for (const cs of csData) {
-          row[cs.name.split(" ")[0]] = cs.weekly[i]?.rate || 0;
-        }
-        return row;
+    const weeklyData: Record<number, any[]> = {};
+    for (const cs of monthRes.rows) {
+      const csIdNum = Number(cs.id);
+      weeklyData[csIdNum] = sortedWeeks.map((week_start, i) => {
+        const row = weeklyChartRes.rows.find(r => Number(r.cs_id) === csIdNum && r.week_start === week_start);
+        const leads = row ? Number(row.leads) : 0;
+        const closing = row ? Number(row.closing) : 0;
+        return {
+          week: `Pekan ${i + 1}`,
+          dateRange: formatDateRange(week_start),
+          leads,
+          closing,
+          rate: leads > 0 ? Number(((closing / leads) * 100).toFixed(1)) : 0
+        };
       });
     }
+
+    const csData = monthRes.rows.map((cs: any) => {
+      const csIdNum = Number(cs.id);
+      const leads = Number(cs.total_leads);
+      const closing = Number(cs.total_closing);
+      return {
+        id: cs.id,
+        name: cs.name,
+        monthLeads: leads,
+        monthClosing: closing,
+        monthRate: leads > 0 ? Number(((closing / leads) * 100).toFixed(1)) : 0,
+        weekly: weeklyData[csIdNum] || [],
+      };
+    });
+
+    const chartData = sortedWeeks.map((week_start, i) => {
+      const row: Record<string, any> = { week: `Pekan ${i + 1}` };
+      for (const cs of csData) {
+        row[cs.name.split(" ")[0]] = cs.weekly[i]?.rate || 0;
+      }
+      return row;
+    });
 
     return NextResponse.json({ 
       csData, 
       chartData, 
       dailyStats,
-      recentCustomers,
-      recentOrders,
+      transactions,
+      selectedCsId,
+      selectedCsName,
+      activeCsList,
       startDate,
       endDate
     });

@@ -1,0 +1,391 @@
+--- Page 1 ---
+D'Yummy  Catering  —  Dokumen  Spesifikasi  CRMKonfidensial
+ 
+D'YUMMY  CATERING 
+──────────────────────────────── 
+DOKUMEN  SPESIFIKASI  BISNIS
+ 
+Sistem  CRM  —  Closing  Rate  &  Bonus  Customer  Service 
+──────────────────────────────── 
+Dipersiapkan  untuk  Tim  Developer Versi  1.0   |   2026  
+Halaman  1 dari  10
+ 
+--- Page 2 ---
+D'Yummy  Catering  —  Dokumen  Spesifikasi  CRMKonfidensial
+ 
+1.  Pendahuluan  
+ Dokumen  ini  merupakan  panduan  bisnis  resmi  untuk  tim  developer  dalam  membangun  fitur  CRM  
+(Customer
+ 
+Relationship
+ 
+Management)
+ 
+D'Yummy
+ 
+Catering.
+ 
+Dokumen
+ 
+mencakup:
+  •  Definisi  dan  kategori  jenis  order  •  Aturan  perhitungan  Closing  Rate  CS  •  Aturan  perhitungan  Bonus  CS  •  Kebutuhan  field  data  transaksi  di  CRM  •  Spesifikasi  tampilan  Dashboard  CS  •  Indikator  performa  dan  panduan  warna   
+⚠  Catatan  Penting  untuk  Developer D'Yummy  Catering  menggunakan  DUA  KPI  yang  berbeda:  Closing  Rate  dan  Bonus  CS.  Kedua  metrik  ini  memiliki  rumus  dan  tujuan  yang  tidak  sama,  dan  TIDAK  boleh  dicampur  dalam  satu  perhitungan.  Sistem  CRM  wajib  menampilkan  keduanya  secara  terpisah.    
+2.  Definisi  Jenis  Order  
+ CRM  D'Yummy  Catering  WAJIB  membedakan  setiap  transaksi  ke  dalam  dua  kategori  berikut:   
+🆕   ORDER  BARU  (New  Order) 🔁   REPEAT  ORDER 
+Definisi:  Order  dari  customer  yang  BELUM  PERNAH  melakukan  transaksi  sebelumnya  dengan  D'Yummy  Catering.   Kriteria:  •  Nomor  WhatsApp  belum  pernah  memiliki  riwayat  transaksi  •  Merupakan  transaksi  PERTAMA  dari  customer  tersebut  
+Definisi:  Order  dari  customer  yang  SUDAH  PERNAH  melakukan  transaksi  sebelumnya  dengan  D'Yummy  Catering.   Kriteria:  •  Nomor  WhatsApp  sudah  memiliki  riwayat  transaksi  •  Customer  melakukan  pemesanan  kembali  
+🔍  Cara  Identifikasi: Cek  nomor  WhatsApp  customer  pada  database.  Jika  TIDAK  ADA  riwayat  →  New  Order.  
+🔍  Cara  Identifikasi: Cek  nomor  WhatsApp  customer  pada  database.  Jika  ADA  riwayat  →  Repeat  Order.     
+Halaman  2 dari  10
+ 
+--- Page 3 ---
+D'Yummy  Catering  —  Dokumen  Spesifikasi  CRMKonfidensial
+ 
+3.  Aturan  Perhitungan  Closing  Rate  
+ Closing  Rate  adalah  KPI  yang  mengukur  kemampuan  Customer  Service  dalam  mengonversi  lead  baru  
+menjadi
+ 
+transaksi
+ 
+nyata
+ 
+(Order
+ 
+Baru).
+  
+3.1   Rumus  Closing  Rate   
+CLOSING  RATE  (%) 
+Jumlah  Order  Baru  Closing  Hari  Ini   ÷   Jumlah  Lead  Baru  Hari  Ini   ×   100% 
+ 
+3.2   Yang  Dihitung  dan  Tidak  Dihitung   
+✅  DIHITUNG  sebagai  Closing  Rate ❌  TIDAK  DIHITUNG  sebagai  Closing  Rate 
+✅  Order  Baru  (New  Order)  
+❌  Repeat  Order  Alasan:  Repeat  Order  terjadi  karena  customer  sudah  pernah  membeli  sebelumnya,  sehingga  tidak  mencerminkan  kemampuan  CS  dalam  mengonversi  lead  baru.  
+3.3   Contoh  Perhitungan   
+📅   Contoh  Kasus  —  1  Agustus 
+Lead  Baru  Masuk  10  Lead  
+Order  Baru  Closing  3  Order  
+Repeat  Order  4  Order  (tidak  dihitung)  
+Perhitungan  (3  ÷  10)  ×  100%  =  30% 
+HASIL  CLOSING  RATE 30%  —  Competent  ✅ 
+    
+Halaman  3 dari  10
+ 
+--- Page 4 ---
+D'Yummy  Catering  —  Dokumen  Spesifikasi  CRMKonfidensial
+ 
+4.  Aturan  Perhitungan  Bonus  Customer  Service  
+ Bonus  CS  digunakan  untuk  mengukur  kontribusi  total  penjualan  yang  berhasil  ditutup  oleh  Customer  
+Service,
+ 
+terlepas
+ 
+dari
+ 
+jenis
+ 
+order-nya.
+  
+4.1   Rumus  Bonus  CS   
+TOTAL  CLOSING  UNTUK  BONUS 
+Order  Baru   +   Repeat  Order   =   Total  Closing  Bonus 
+ 
+4.2   Yang  Dihitung  dan  Tidak  Dihitung   
+✅  DIHITUNG  untuk  Bonus ❌  TIDAK  DIHITUNG  untuk  Bonus 
+✅  Order  Baru  (New  Order)  ✅  Repeat  Order  
+❌  Lead  Masuk  (yang  belum  closing)  ❌  Chat  Masuk  ❌  Prospek  (belum  closing)   
+4.3   Contoh  Perhitungan   
+📅   Contoh  Kasus  —  1  Agustus 
+Order  Baru  3  transaksi  
+Repeat  Order  4  transaksi  
+Total  Closing  Bonus  3  +  4  =  7  transaksi 
+Total  Omzet  untuk  Bonus Total  omzet  dari  7  transaksi         
+Halaman  4 dari  10
+ 
+--- Page 5 ---
+D'Yummy  Catering  —  Dokumen  Spesifikasi  CRMKonfidensial
+ 
+5.  Perbandingan  Dua  KPI  —  Closing  Rate  vs  Bonus  CS  
+ Berikut  adalah  ringkasan  perbedaan  mendasar  antara  dua  KPI  yang  digunakan  oleh  D'Yummy  
+Catering:
+  
+Aspek
+ Closing  Rate
+ Bonus  CS
+ 
+Tujuan  
+Mengukur  kemampuan  CS  mengonversi  lead  baru  
+Mengukur  kontribusi  total  penjualan  CS  
+Rumus  Order  Baru  ÷  Lead  Baru  ×  100%  Order  Baru  +  Repeat  Order  
+Dihitung  dari  Hanya  Order  Baru  Order  Baru  +  Repeat  Order  
+Lead  Masuk  Sebagai  PEMBAGI  (denominator)  TIDAK  dihitung  sama  sekali  
+Repeat  Order  TIDAK  dihitung  DIHITUNG  
+Format  Hasil  Persentase  (%)  Jumlah  transaksi  &  total  omzet   
+💡  Skenario  Penting  untuk  Developer Seorang  CS  dapat  memiliki  Closing  Rate  RENDAH  tetapi  Bonus  TINGGI  jika  ia  menghasilkan  banyak  Repeat  Order.  Sebaliknya,  CS  bisa  memiliki  Closing  Rate  TINGGI  tetapi  Bonus  LEBIH  RENDAH  jika  jumlah  transaksi  totalnya  masih  sedikit.  Karena  itu,  CRM  WAJIB  menampilkan  Closing  Rate,  Order  Baru,  dan  Repeat  Order  sebagai  metrik  yang  TERPISAH.                 
+Halaman  5 dari  10
+ 
+--- Page 6 ---
+D'Yummy  Catering  —  Dokumen  Spesifikasi  CRMKonfidensial
+ 
+6.  Kebutuhan  Data  CRM  —  Field  Wajib  Transaksi  
+ Setiap  transaksi  yang  dicatat  di  CRM  wajib  memiliki  field  berikut:   
+No
+ 
+Nama  Field
+ Tipe  Data  /  Format
+ Keterangan
+ 
+1  Customer  ID VARCHAR  /  UUID
+ 
+ID  unik  customer  —  dihasilkan  otomatis  oleh  sistem  
+2  Nama  Customer VARCHAR  (255)
+ 
+Nama  lengkap  customer/jika  customer  belum  mau  ngasih  nama  tulis  tgl  dan  bulan  lead.  nanti  bisa  di  edit  jika  sudah  dapat  namanya  
+3  Nomor  WhatsApp VARCHAR  (20)
+ 
+Nomor  WA  aktif  —  digunakan  sebagai  KUNCI  identifikasi  New  Order  vs  Repeat  Order  
+4  Tanggal  Lead  Masuk DATE  /  DATETIME
+ 
+Tanggal  dan  waktu  pertama  kali  lead  masuk  ke  CRM  
+5  Tanggal  Closing DATE  /  DATETIME
+ 
+Tanggal  transaksi  berhasil  ditutup  (closing)  
+6  Jenis  Order 
+ENUM:  'New  Order',  'Repeat  Order'
+ 
+Sistem  otomatis  mengisi  berdasarkan  riwayat  nomor  WA  customer  
+7  CS  PIC VARCHAR  /  FK  ke  tabel  CS
+ 
+Customer  Service  penanggung  jawab  transaksi  
+8  Nilai  Order DECIMAL  (15,2)
+ Nilai  nominal  transaksi  dalam  Rupiah   
+🔧  Catatan  Teknis  untuk  Developer Logika  otomatis  WAJIB  diimplementasikan:  Saat  transaksi  baru  masuk,  sistem  harus  memeriksa  apakah  nomor  WhatsApp  sudah  pernah  ada  di  database  transaksi  yang  sudah  closing.  Jika  BELUM  ADA  →  Jenis  Order  =  New  Order.  Jika  SUDAH  ADA  →  Jenis  Order  =  Repeat  Order.           
+Halaman  6 dari  10
+ 
+--- Page 7 ---
+D'Yummy  Catering  —  Dokumen  Spesifikasi  CRMKonfidensial
+ 
+7.  Indikator  Performa  Closing  Rate  CS  
+ Sistem  CRM  wajib  menampilkan  status  performa  CS  berdasarkan  Closing  Rate  dengan  indikator  warna  
+berikut:
+  
+Closing  Rate
+ Tingkat  Performa
+ Warna
+ Keterangan
+ 
+Tindakan  yang  Direkomendasikan
+ 
+<  20%  Under  Perform 
+██ 
+Performa  di  bawah  
+standar
+ 
+perusahaan
+ 
+Coaching  intensif,  bimbingan  rutin,  handling  objection
+ 
+20%  –  25%  Developing 
+██ 
+Dalam  tahap  pengembangan,  belum  
+konsisten
+ 
+Motivasi,  pendampingan,  evaluasi  berkala
+ 
+25%  –  30%  Competent 
+██ 
+Memenuhi  standar  
+kinerja
+ 
+perusahaan
+ 
+Pertahankan  performa,  tingkatkan  kecepatan  respon
+ 
+>  30%  Excellent 
+██ 
+Kinerja  sangat  baik,  
+melampaui
+ 
+standar
+ 
+Pertahankan  konsistensi,  bagikan  best  practice  ke  tim
+   
+8.  Panduan  Warna  Brand  D'Yummy  Catering  
+ Seluruh  tampilan  CRM  mengikuti  panduan  warna  brand  resmi  D'Yummy  Catering  berikut:   
+Kategori
+ Nama  Warna
+ Kode  HEX
+ Aturan  Penggunaan
+ 
+Warna  Dasar  Ungu  
+#B10FBD
+  
+██ 
+Dominan  —  header,  tombol  utama,  aksen 
+Kombinasi  Putih  #FFFFFF   
+██ 
+Maksimal  90%  dari  total  desain 
+Kombinasi  Pink  
+#EC008C
+  
+██ 
+Maksimal  30%  dari  warna  dasar 
+Warna  Aksen  Kuning  
+#FFF200
+  
+██ 
+Maksimal  10%  dari  warna  dasar     
+Halaman  7 dari  10
+ 
+--- Page 8 ---
+D'Yummy  Catering  —  Dokumen  Spesifikasi  CRMKonfidensial
+ 
+9.  Spesifikasi  Dashboard  Customer  Service  
+ Berikut  adalah  spesifikasi  dan  ilustrasi  tampilan  Dashboard  CS  yang  wajib  diimplementasikan  dalam  
+CRM
+ 
+D'Yummy
+ 
+Catering.
+  
+9.1   Filter  Periode  Dashboard  menampilkan  data  secara  default  untuk  Hari  Ini,  dengan  filter  untuk:  •  Hari  Ini  (default)  •  Bulan  Ini  •  Periode  Tertentu  (custom  date  range)   
+9.2   Ilustrasi  Dashboard   Ilustrasi  berikut  menggambarkan  tampilan  dashboard  CRM  yang  harus  diimplementasikan:   
+D'YUMMY  CATERING   |   CRM  Dashboard Customer  Service  Performance [  Hari  Ini  ▼  ]    [  Bulan  Ini  ▼  ]    [  Periode  Tertentu:  __  s/d  __  ▼  ]
+ 
+  📊   KPI  CLOSING  RATE 
+Lead  Baru  Hari  Ini 
+10 total  lead  masuk
+ 
+Order  Baru  Hari  Ini 
+3 new  order  closing
+ 
+Closing  Rate  Hari  Ini 
+30% 🟡  COMPETENT 25%–30%  =  Competent
+ 
+  💰   KPI  BONUS  CUSTOMER  SERVICE 
+Order  Baru
+ 
+3 transaksi
+ 
+Repeat  Order
+ 
+4 transaksi  
+Rp  4.500.000 
+Total  Closing
+ 
+7 transaksi  
+Rp  10.000.000 
+Total  Omzet
+ 
+Rp  14.500.000 dari  7  transaksi
+ 
+Halaman  8 dari  10
+ 
+--- Page 9 ---
+D'Yummy  Catering  —  Dokumen  Spesifikasi  CRMKonfidensial
+ 
+Status  Performa  CS:  Siti  Aminah   🟡  COMPETENT   
+🔴   <  20%   Under  Perform
+ 🟠   20–25%   Developing
+ 🟡   25–30%   Competent
+ 🟢   >  30%   Excellent
+   
+9.3   Tabel  Daftar  Transaksi  (Contoh  Tampilan)   Bagian  bawah  dashboard  menampilkan  riwayat  transaksi  dengan  kolom  berikut:   
+Tgl  Closing
+ 
+Customer  ID
+ 
+Nama  Customer
+ 
+No.  WA
+ Jenis  Order
+ Nilai  Order
+  
+01/08
+ 
+CUS-001
+ 
+Budi
+ 
+Santoso
+ 
+0812-xxx
+ NEW  ORDER
+ 
+Rp  
+2.500.000
+ 
+ 
+01/08
+ 
+CUS-047
+ 
+Dewi
+ 
+Lestari
+ 
+0878-xxx
+ 
+REPEAT  ORDER
+ 
+Rp  
+3.200.000
+ 
+ 
+01/08
+ 
+CUS-089
+ 
+Andi
+ 
+Wijaya
+ 
+0856-xxx
+ NEW  ORDER
+ 
+Rp  
+1.800.000
+ 
+ 
+01/08
+ 
+CUS-112
+ 
+Rina
+ 
+Sari
+ 
+0821-xxx
+ 
+REPEAT  ORDER
+ 
+Rp  
+4.100.000
+ 
+ 
+  
+10.  Catatan  Penutup  untuk  Developer  
+ 
+1 
+Logika  klasifikasi  New  Order  vs  Repeat  Order  harus  dijalankan  OTOMATIS  oleh  sistem  berdasarkan  nomor  WhatsApp.  
+2 
+Closing  Rate  dan  Bonus  CS  adalah  dua  KPI  yang  TERPISAH.  Tidak  boleh  ada  percampuran  data  di  antara  keduanya.  
+3 Dashboard  wajib  memiliki  filter  periode:  Hari  Ini  (default),  Bulan  Ini,  dan  Periode  Tertentu.  
+4 
+Indikator  warna  performa  (merah/oranye/kuning/hijau)  wajib  ditampilkan  di  samping  nilai  Closing  Rate.  
+5 
+Seluruh  tampilan  UI  mengikuti  panduan  warna  brand  D'Yummy  Catering  (Ungu  #B10FBD,  Pink  #EC008C,  Kuning  #FFF200,  Putih).  
+Halaman  9 dari  10
+ 
+--- Page 10 ---
+D'Yummy  Catering  —  Dokumen  Spesifikasi  CRMKonfidensial
+ 
+6 
+Tabel  transaksi  harus  membedakan  tampilan  New  Order  (hijau)  dan  Repeat  Order  (ungu)  secara  visual.  
+7 
+Dokumen  ini  adalah  aturan  bisnis  resmi  D'Yummy  Catering  dan  menjadi  acuan  utama  pengembangan  fitur  CRM.    
+D'Yummy  Catering   •   Dokumen  Resmi  Spesifikasi  CRM   •   2025
+ 
+Halaman  10 dari  10
+ 

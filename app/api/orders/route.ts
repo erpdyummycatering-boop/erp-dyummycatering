@@ -79,10 +79,28 @@ export async function POST(req: NextRequest) {
     }
 
     const grandTotal = (items || []).reduce((s: number, i: any) => s + (i.price * i.quantity - (i.discount || 0)), 0);
+    
+    // Check if repeat customer
+    const customerRes = await client.query("SELECT phone FROM customers WHERE id = $1", [customer_id]);
+    const phone = customerRes.rows[0]?.phone;
+    let jenis_order = "New Order";
+    if (phone) {
+      const prevOrderRes = await client.query(
+        `SELECT COUNT(*) FROM orders o 
+         JOIN customers c ON o.customer_id = c.id 
+         WHERE c.phone = $1 AND (o.status_order = 'Selesai' OR o.status_payment = 'Lunas')`,
+        [phone]
+      );
+      if (Number(prevOrderRes.rows[0].count) > 0) {
+        jenis_order = "Repeat Order";
+      }
+    }
+    const final_order_date = order_date || new Date().toISOString().split("T")[0];
+
     const orderRes = await client.query(
-      `INSERT INTO orders (customer_id,pic_id,order_date,delivery_date,departure_time,arrival_time,venue,order_notes,status_payment,grand_total,status_order)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'Baru') RETURNING *`,
-      [customer_id, final_pic_id || null, order_date || new Date().toISOString().split("T")[0], delivery_date, departure_time || null, arrival_time || null, venue, order_notes, status_payment || "Belum Lunas", grandTotal]
+      `INSERT INTO orders (customer_id,pic_id,order_date,delivery_date,departure_time,arrival_time,venue,order_notes,status_payment,grand_total,status_order,jenis_order,closing_date)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'Baru',$11,$12) RETURNING *`,
+      [customer_id, final_pic_id || null, final_order_date, delivery_date, departure_time || null, arrival_time || null, venue, order_notes, status_payment || "Belum Lunas", grandTotal, jenis_order, final_order_date]
     );
     const orderId = orderRes.rows[0].id;
     for (const item of (items || [])) {

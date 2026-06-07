@@ -495,11 +495,11 @@ export default function OrdersPage() {
             <div style={{ overflowX: "auto" }}>
               <table>
                 <thead>
-                  <tr><th>No.</th><th>No. Order</th><th>Customer</th><th>PIC CS</th><th>Tgl Kirim</th><th>Item</th><th>Total</th><th>Status</th><th>Bayar</th><th>Aksi</th></tr>
+                  <tr><th>No.</th><th>No. Order</th><th>Customer</th><th>PIC CS</th><th>Tgl Kirim</th><th>Tgl Closing</th><th>Jenis</th><th>Item</th><th>Total</th><th>Status</th><th>Bayar</th><th>Aksi</th></tr>
                 </thead>
                 <tbody>
                   {rows.length === 0 ? (
-                    <tr><td colSpan={10} style={{ textAlign: "center", padding: 24, color: "#6b7280" }}>Tidak ada order</td></tr>
+                    <tr><td colSpan={12} style={{ textAlign: "center", padding: 24, color: "#6b7280" }}>Tidak ada order</td></tr>
                   ) : rows.map((o: any, idx: number) => (
                     <tr key={o.id}>
                       <td style={{ fontSize: 12, color: "#6b7280" }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
@@ -507,6 +507,16 @@ export default function OrdersPage() {
                       <td style={{ fontWeight: 500 }}>{o.customer_name}</td>
                       <td style={{ fontSize: 12, color: "#6b7280" }}>{o.pic_name || "-"}</td>
                       <td style={{ fontSize: 12 }}>{String(o.delivery_date || "").slice(0, 10)}</td>
+                      <td style={{ fontSize: 12 }}>{o.closing_date ? String(o.closing_date).slice(0, 10) : "-"}</td>
+                      <td style={{ fontSize: 12 }}>
+                        {o.jenis_order ? (
+                          <Badge color={o.jenis_order === "New Order" ? "green" : "purple"}>
+                            {o.jenis_order}
+                          </Badge>
+                        ) : (
+                          <span style={{ color: "#9ca3af" }}>-</span>
+                        )}
+                      </td>
                       <td style={{ fontSize: 11, color: "#6b7280" }}>{(o.items || []).length} item</td>
                       <td style={{ fontWeight: 700, color: "#5005A6" }}>{fmt(o.grand_total)}</td>
                       <td><Badge color={statusBadgeColor(o.status_order)}>{o.status_order}</Badge></td>
