@@ -29,7 +29,10 @@ export async function GET(req: NextRequest) {
     const activeCsRes = await client.query(
       `SELECT id, name FROM users WHERE role = 'CS / Sales' AND status = 'Aktif' ORDER BY id`
     );
-    const activeCsList = activeCsRes.rows;
+    let activeCsList = activeCsRes.rows;
+    if (userRole === "CS / Sales") {
+      activeCsList = activeCsList.filter(c => String(c.id) === String(userId));
+    }
 
     // 2. Determine selected CS ID
     let selectedCsId: string | null = null;
@@ -122,38 +125,66 @@ export async function GET(req: NextRequest) {
       transactions = transRes.rows;
     }
 
-    // 4. Compute csData (Comparison/Evaluation List) for all active CSs
-    const monthRes = await client.query(
-      `SELECT
-        u.id, u.name,
-        (SELECT COUNT(*) FROM leads l WHERE l.pic_id = u.id AND l.lead_date >= $1 AND l.lead_date <= $2) AS total_leads,
-        (SELECT COUNT(*) FROM orders o WHERE o.pic_id = u.id AND o.order_date >= $1 AND o.order_date <= $2 AND o.jenis_order = 'New Order') AS total_closing
-      FROM users u
-      WHERE u.role = 'CS / Sales' AND u.status = 'Aktif'
-      ORDER BY id ASC`,
-      [startDate, endDate]
-    );
+    // 4. Compute csData (Comparison/Evaluation List)
+    const monthQuery = userRole === "CS / Sales"
+      ? `SELECT
+          u.id, u.name,
+          (SELECT COUNT(*) FROM leads l WHERE l.pic_id = u.id AND l.lead_date >= $1 AND l.lead_date <= $2) AS total_leads,
+          (SELECT COUNT(*) FROM orders o WHERE o.pic_id = u.id AND o.order_date >= $1 AND o.order_date <= $2 AND o.jenis_order = 'New Order') AS total_closing
+        FROM users u
+        WHERE u.id = $3 AND u.status = 'Aktif'`
+      : `SELECT
+          u.id, u.name,
+          (SELECT COUNT(*) FROM leads l WHERE l.pic_id = u.id AND l.lead_date >= $1 AND l.lead_date <= $2) AS total_leads,
+          (SELECT COUNT(*) FROM orders o WHERE o.pic_id = u.id AND o.order_date >= $1 AND o.order_date <= $2 AND o.jenis_order = 'New Order') AS total_closing
+        FROM users u
+        WHERE u.role = 'CS / Sales' AND u.status = 'Aktif'
+        ORDER BY id ASC`;
+    const monthParams = userRole === "CS / Sales"
+      ? [startDate, endDate, userId]
+      : [startDate, endDate];
+    const monthRes = await client.query(monthQuery, monthParams);
 
     // 5. Generate Weekly Chart Data
-    const weeklyChartRes = await client.query(`
-      WITH weeks AS (
-        SELECT generate_series(
-          date_trunc('week', $1::date)::date,
-          date_trunc('week', $2::date)::date,
-          '1 week'::interval
-        )::date AS week_start
-      )
-      SELECT 
-        w.week_start::text AS week_start,
-        u.id as cs_id,
-        u.name as cs_name,
-        (SELECT COUNT(*) FROM leads l WHERE l.pic_id = u.id AND date_trunc('week', l.lead_date)::date = w.week_start AND l.lead_date >= $1 AND l.lead_date <= $2) as leads,
-        (SELECT COUNT(*) FROM orders o WHERE o.pic_id = u.id AND date_trunc('week', o.order_date)::date = w.week_start AND o.order_date >= $1 AND o.order_date <= $2 AND o.jenis_order = 'New Order') as closing
-      FROM weeks w
-      CROSS JOIN users u
-      WHERE u.role = 'CS / Sales' AND u.status = 'Aktif'
-      ORDER BY w.week_start ASC
-    `, [startDate, endDate]);
+    const weeklyQuery = userRole === "CS / Sales"
+      ? `WITH weeks AS (
+          SELECT generate_series(
+            date_trunc('week', $1::date)::date,
+            date_trunc('week', $2::date)::date,
+            '1 week'::interval
+          )::date AS week_start
+        )
+        SELECT 
+          w.week_start::text AS week_start,
+          u.id as cs_id,
+          u.name as cs_name,
+          (SELECT COUNT(*) FROM leads l WHERE l.pic_id = u.id AND date_trunc('week', l.lead_date)::date = w.week_start AND l.lead_date >= $1 AND l.lead_date <= $2) as leads,
+          (SELECT COUNT(*) FROM orders o WHERE o.pic_id = u.id AND date_trunc('week', o.order_date)::date = w.week_start AND o.order_date >= $1 AND o.order_date <= $2 AND o.jenis_order = 'New Order') as closing
+        FROM weeks w
+        CROSS JOIN users u
+        WHERE u.id = $3 AND u.status = 'Aktif'
+        ORDER BY w.week_start ASC`
+      : `WITH weeks AS (
+          SELECT generate_series(
+            date_trunc('week', $1::date)::date,
+            date_trunc('week', $2::date)::date,
+            '1 week'::interval
+          )::date AS week_start
+        )
+        SELECT 
+          w.week_start::text AS week_start,
+          u.id as cs_id,
+          u.name as cs_name,
+          (SELECT COUNT(*) FROM leads l WHERE l.pic_id = u.id AND date_trunc('week', l.lead_date)::date = w.week_start AND l.lead_date >= $1 AND l.lead_date <= $2) as leads,
+          (SELECT COUNT(*) FROM orders o WHERE o.pic_id = u.id AND date_trunc('week', o.order_date)::date = w.week_start AND o.order_date >= $1 AND o.order_date <= $2 AND o.jenis_order = 'New Order') as closing
+        FROM weeks w
+        CROSS JOIN users u
+        WHERE u.role = 'CS / Sales' AND u.status = 'Aktif'
+        ORDER BY w.week_start ASC`;
+    const weeklyParams = userRole === "CS / Sales"
+      ? [startDate, endDate, userId]
+      : [startDate, endDate];
+    const weeklyChartRes = await client.query(weeklyQuery, weeklyParams);
 
     const weeksSet = new Set<string>();
     weeklyChartRes.rows.forEach(r => { if (r.week_start) weeksSet.add(r.week_start); });
