@@ -129,7 +129,7 @@ export default function CSPerformancePage() {
         actions={
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
             {/* CS Selector Dropdown for Admin/Owner */}
-            {activeRole !== "CS / Sales" && activeCsList.length > 0 && (
+            {activeRole !== "cs_sales" && activeCsList.length > 0 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ fontSize: 13, fontWeight: 600, color: '#475569' }}>Pilih CS:</span>
                 <select 
@@ -467,7 +467,7 @@ export default function CSPerformancePage() {
       {activeTab === 'evaluasi' && (
         <div style={{ animation: "fadeIn 0.3s ease" }}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12, marginBottom: 24 }}>
-            {activeRole !== "CS / Sales" && (
+            {activeRole !== "cs_sales" && (
               <>
                 {/* CS Terbaik Card */}
                 <div style={{ backgroundColor: "white", border: "1px solid #e2e8f0", borderRadius: 12, padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
