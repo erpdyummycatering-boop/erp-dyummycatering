@@ -524,7 +524,7 @@ export default function OrdersPage() {
                         <div style={{ display: "flex", gap: 4 }}>
                           <Link href={`/orders/${o.id}`}>
                             <button className="btn btn-secondary btn-sm" title="Detail / Edit">
-                              <Eye size={11} /> Detail
+                              <Eye size={11} /> Edit
                             </button>
                           </Link>
                           <button className="btn btn-secondary btn-sm" onClick={() => window.open(`/print/konfirmasi/${o.id}`, "_blank")} title="Konfirmasi PDF">
