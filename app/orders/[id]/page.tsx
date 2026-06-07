@@ -265,13 +265,6 @@ export default function OrderDetailPage() {
                 options={STATUS_ORDER.map(s => ({ value: s, label: s }))}
               />
             </FormField>
-            <FormField label="Status Bayar">
-              <SearchableSelect 
-                value={form.status_payment} 
-                onChange={v => setForm((f: any) => ({ ...f, status_payment: v }))}
-                options={STATUS_PAY.map(s => ({ value: s, label: s }))}
-              />
-            </FormField>
           </FormRow>
 
           <FormField label="Venue / Lokasi" style={{ marginBottom: 14 }}>

@@ -6,11 +6,11 @@ function formatIndoDate(dateStr: Date | string) {
   const date = new Date(dateStr);
   const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
   const dayName = days[date.getDay()];
-  
+
   const dd = String(date.getDate()).padStart(2, "0");
   const mm = String(date.getMonth() + 1).padStart(2, "0");
   const yyyy = date.getFullYear();
-  
+
   return `${dayName} / ${dd}-${mm}-${yyyy}`;
 }
 
@@ -50,10 +50,10 @@ export default async function OrderConfirmationPrintPage({ params }: { params: P
 
     return (
       <div style={{ padding: "20px", maxWidth: "800px", margin: "0 auto", fontFamily: "sans-serif", color: "#000", backgroundColor: "white" }}>
-        
+
         {/* Header Title */}
         <div style={{ marginBottom: "15px" }}>
-          <p style={{ margin: 0, fontSize: "16px", fontWeight: "bold", borderBottom: "2px solid #000", paddingBottom: "6px" }}>
+          <p style={{ margin: 0, fontSize: "16px", fontWeight: "bold", borderBottom: "0px solid #000", paddingBottom: "6px" }}>
             Konfirmasi Pemesanan - {order.pic_name || "Admin"}
           </p>
         </div>
@@ -191,9 +191,10 @@ export default async function OrderConfirmationPrintPage({ params }: { params: P
 
         {/* Auto Print Script */}
         <script dangerouslySetInnerHTML={{ __html: `window.onload = function() { window.print(); }` }} />
-        
+
         {/* CSS for print */}
-        <style dangerouslySetInnerHTML={{ __html: `
+        <style dangerouslySetInnerHTML={{
+          __html: `
           @media print {
             @page { margin: 0; size: A4; }
             body { margin: 1cm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }

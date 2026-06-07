@@ -13,8 +13,8 @@ import { fmt, statusBadgeColor } from "@/lib/utils";
 import { exportToExcel } from "@/lib/export";
 import * as XLSX from "xlsx";
 
-const STATUS_ORDER = ["Baru","Diproses","Selesai","Batal"];
-const STATUS_PAY = ["Belum Lunas","DP 50%","Lunas"];
+const STATUS_ORDER = ["Baru", "Diproses", "Selesai", "Batal"];
+const STATUS_PAY = ["Belum Lunas", "DP 50%", "Lunas"];
 
 const emptyItem = () => ({ product_id: "", product_name: "", price: 0, quantity: 50, discount: 0, subtotal: 0, custom_menu: "" });
 const emptyForm = (userRole?: string, userId?: string) => ({ customer_id: "", pic_id: userRole === "CS / Sales" ? String(userId) : "", order_date: new Date().toISOString().split("T")[0], delivery_date: "", departure_time: "", venue: "", order_notes: "", status_payment: "Belum Lunas", items: [emptyItem()] });
@@ -198,12 +198,12 @@ export default function OrdersPage() {
     const ws = XLSX.utils.table_to_sheet(table);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Template Order");
-    
+
     // Generate array buffer
     const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     const blob = new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const url = URL.createObjectURL(blob);
-    
+
     const a = document.createElement("a");
     a.href = url;
     a.download = "Template_Upload_Order.xlsx";
@@ -361,15 +361,15 @@ export default function OrdersPage() {
     fetch("/api/customers?limit=100", { signal: controller.signal })
       .then(r => r.json())
       .then(d => setCustomers(d.data || []))
-      .catch(() => {});
+      .catch(() => { });
     fetch("/api/users", { signal: controller.signal })
       .then(r => r.json())
       .then(setUsers)
-      .catch(() => {});
+      .catch(() => { });
     fetch("/api/products?limit=100", { signal: controller.signal })
       .then(r => r.json())
       .then(d => setProducts(d.data || []))
-      .catch(() => {});
+      .catch(() => { });
     return () => controller.abort();
   }, []);
 
@@ -398,7 +398,7 @@ export default function OrdersPage() {
     if (!form.customer_id || !form.delivery_date) return alert("Customer dan tanggal kirim wajib");
     if (!form.items.some(i => i.product_id)) return alert("Minimal 1 item produk");
     const validItems = form.items.filter(i => i.product_id);
-    
+
     const finalForm = { ...form };
     if (userRole === "CS / Sales") {
       finalForm.pic_id = String(userId);
@@ -473,15 +473,15 @@ export default function OrdersPage() {
       <div className="erp-card" style={{ marginBottom: 12, padding: "12px 16px" }}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <input value={searchInput} onChange={e => setSearchInput(e.target.value)} placeholder="🔍 Customer / venue..." style={{ width: 200 }} />
-          <SearchableSelect 
-            value={fStatus} onChange={setFStatus} 
-            options={[{ value: "", label: "Semua Status Order" }, ...STATUS_ORDER.map(s => ({ value: s, label: s }))]} 
-            style={{ width: 160 }} 
+          <SearchableSelect
+            value={fStatus} onChange={setFStatus}
+            options={[{ value: "", label: "Semua Status Order" }, ...STATUS_ORDER.map(s => ({ value: s, label: s }))]}
+            style={{ width: 160 }}
           />
-          <SearchableSelect 
-            value={fPay} onChange={setFPay} 
-            options={[{ value: "", label: "Semua Pembayaran" }, ...STATUS_PAY.map(s => ({ value: s, label: s }))]} 
-            style={{ width: 160 }} 
+          <SearchableSelect
+            value={fPay} onChange={setFPay}
+            options={[{ value: "", label: "Semua Pembayaran" }, ...STATUS_PAY.map(s => ({ value: s, label: s }))]}
+            style={{ width: 160 }}
           />
           <input type="date" value={fDateFrom} onChange={e => setFDateFrom(e.target.value)} style={{ width: 140 }} title="Kirim dari" />
           <input type="date" value={fDateTo} onChange={e => setFDateTo(e.target.value)} style={{ width: 140 }} title="Kirim sampai" />
@@ -495,11 +495,11 @@ export default function OrdersPage() {
             <div style={{ overflowX: "auto" }}>
               <table>
                 <thead>
-                  <tr><th>No.</th><th>No. Order</th><th>Customer</th><th>PIC CS</th><th>Tgl Kirim</th><th>Tgl Closing</th><th>Jenis</th><th>Item</th><th>Total</th><th>Status</th><th>Bayar</th><th>Aksi</th></tr>
+                  <tr><th>No.</th><th>No. Order</th><th>Customer</th><th>PIC CS</th><th>Tgl Kirim</th><th>Tgl Closing</th><th>Jenis</th><th>Item</th><th>Total</th><th>Status</th><th>Aksi</th></tr>
                 </thead>
                 <tbody>
                   {rows.length === 0 ? (
-                    <tr><td colSpan={12} style={{ textAlign: "center", padding: 24, color: "#6b7280" }}>Tidak ada order</td></tr>
+                    <tr><td colSpan={11} style={{ textAlign: "center", padding: 24, color: "#6b7280" }}>Tidak ada order</td></tr>
                   ) : rows.map((o: any, idx: number) => (
                     <tr key={o.id}>
                       <td style={{ fontSize: 12, color: "#6b7280" }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
@@ -520,7 +520,6 @@ export default function OrdersPage() {
                       <td style={{ fontSize: 11, color: "#6b7280" }}>{(o.items || []).length} item</td>
                       <td style={{ fontWeight: 700, color: "#5005A6" }}>{fmt(o.grand_total)}</td>
                       <td><Badge color={statusBadgeColor(o.status_order)}>{o.status_order}</Badge></td>
-                      <td><Badge color={statusBadgeColor(o.status_payment)}>{o.status_payment}</Badge></td>
                       <td>
                         <div style={{ display: "flex", gap: 4 }}>
                           <Link href={`/orders/${o.id}`}>
@@ -530,9 +529,6 @@ export default function OrdersPage() {
                           </Link>
                           <button className="btn btn-secondary btn-sm" onClick={() => window.open(`/print/konfirmasi/${o.id}`, "_blank")} title="Konfirmasi PDF">
                             <FileText size={11} /> Konfirmasi
-                          </button>
-                          <button className="btn btn-secondary btn-sm" onClick={() => window.open(`/print/order/${o.id}`, "_blank")} title="Print Invoice">
-                            <Printer size={11} /> Invoice
                           </button>
                           <button className="btn btn-secondary btn-sm" onClick={() => setItemToDelete(o)} title="Hapus">
                             <Trash2 size={11} color="#E24B4A" />
@@ -544,9 +540,9 @@ export default function OrdersPage() {
                 </tbody>
               </table>
             </div>
-            <Pagination 
-              page={meta.page} totalPages={meta.totalPages} total={meta.total} limit={meta.limit} 
-              onChange={(p) => fetchOrders(p, meta.limit)} 
+            <Pagination
+              page={meta.page} totalPages={meta.totalPages} total={meta.total} limit={meta.limit}
+              onChange={(p) => fetchOrders(p, meta.limit)}
               onLimitChange={(lim) => fetchOrders(1, lim)}
             />
           </>
@@ -557,7 +553,7 @@ export default function OrdersPage() {
       <Modal show={showModal} onClose={() => setShowModal(false)} title="Buat Order Baru" width={680}>
         <FormRow>
           <FormField label="Customer">
-            <SearchableSelect 
+            <SearchableSelect
               value={form.customer_id} onChange={v => setForm(f => ({ ...f, customer_id: v }))}
               options={[
                 { value: "", label: "-- Pilih Customer --" },
@@ -568,7 +564,7 @@ export default function OrdersPage() {
           </FormField>
           {userRole !== "CS / Sales" && (
             <FormField label="PIC CS">
-              <SearchableSelect 
+              <SearchableSelect
                 value={form.pic_id} onChange={v => setForm(f => ({ ...f, pic_id: v }))}
                 options={[
                   { value: "", label: "-- Pilih CS --" },
@@ -585,13 +581,6 @@ export default function OrdersPage() {
         </FormRow>
         <FormRow>
           <FormField label="Jam Berangkat"><input type="time" value={form.departure_time} onChange={e => setForm(f => ({ ...f, departure_time: e.target.value }))} /></FormField>
-          <FormField label="Status Bayar">
-            <SearchableSelect 
-              value={form.status_payment} onChange={v => setForm(f => ({ ...f, status_payment: v }))}
-              options={STATUS_PAY.map(s => ({ value: s, label: s }))}
-              menuPortalTarget={typeof document !== "undefined" ? document.body : null}
-            />
-          </FormField>
         </FormRow>
         <FormField label="Venue / Lokasi" style={{ marginBottom: 14 }}>
           <input value={form.venue} onChange={e => setForm(f => ({ ...f, venue: e.target.value }))} placeholder="Gedung, alamat lengkap..." />
@@ -610,8 +599,8 @@ export default function OrdersPage() {
                 {form.items.map((item, idx) => (
                   <tr key={idx}>
                     <td>
-                      <SearchableSelect 
-                        value={item.product_id} onChange={v => updateItem(idx, "product_id", v)} 
+                      <SearchableSelect
+                        value={item.product_id} onChange={v => updateItem(idx, "product_id", v)}
                         options={[
                           { value: "", label: "-- Pilih Produk --" },
                           ...products.map((p: any) => ({ value: p.id, label: p.name, category: p.category }))
