@@ -60,6 +60,7 @@ export const ROLES: RoleConfig[] = [
       "/customers",
       "/orders",
       "/cs-performance",
+      "/products",
     ],
   },
   {

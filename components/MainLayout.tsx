@@ -166,7 +166,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         style={{
           width: sidebarOpen ? 224 : 0,
           minWidth: sidebarOpen ? 224 : 0,
-          background: "#3b047a",
+          background: "#B10FBD",
           display: "flex",
           flexDirection: "column",
           overflowX: "hidden",

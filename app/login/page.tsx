@@ -24,7 +24,7 @@ function LoginForm() {
   return (
     <div style={{
       minHeight: "100vh",
-      background: "linear-gradient(135deg, #0d011e 0%, #3b047a 50%, #1a0235 100%)",
+      background: "#B10FBD",
       display: "flex",
       flexDirection: "column",
       alignItems: "center",
@@ -133,7 +133,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div style={{ minHeight: "100vh", background: "linear-gradient(135deg, #0d011e 0%, #3b047a 50%, #1a0235 100%)" }} />}>
+    <Suspense fallback={<div style={{ minHeight: "100vh", background: "#B10FBD" }} />}>
       <LoginForm />
     </Suspense>
   );
