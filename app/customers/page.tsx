@@ -16,6 +16,10 @@ const C = { primary: "#5005A6" };
 
 const EMPTY_FORM = {
   name: "", phone: "", email: "", type: "Perorangan", address: "", notes: "",
+  lead_date: new Date().toISOString().split("T")[0],
+  source: "WhatsApp",
+  status: "Prospek",
+  tags: "",
 };
 
 const formatWaLink = (phone: string) => {
@@ -72,7 +76,18 @@ export default function CustomersPage() {
   const openAdd = () => { setEditItem(null); setForm(EMPTY_FORM); setShowModal(true); };
   const openEdit = (c: any) => {
     setEditItem(c);
-    setForm({ name: c.name, phone: c.phone || "", email: c.email || "", type: c.type || "Perorangan", address: c.address || "", notes: c.notes || "" });
+    setForm({
+      name: c.name,
+      phone: c.phone || "",
+      email: c.email || "",
+      type: c.type || "Perorangan",
+      address: c.address || "",
+      notes: c.notes || "",
+      lead_date: "",
+      source: "",
+      status: "",
+      tags: ""
+    });
     setShowModal(true);
   };
 
@@ -253,6 +268,39 @@ export default function CustomersPage() {
         </FormRow>
         <FormField label="Alamat" style={{ marginBottom: 14 }}><input value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} placeholder="Alamat lengkap" /></FormField>
         <FormField label="Catatan" style={{ marginBottom: 14 }}><textarea rows={2} value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} /></FormField>
+        
+        {!editItem && (
+          <>
+            <h3 style={{ fontSize: 13, fontWeight: 700, marginTop: 16, marginBottom: 8, borderTop: "1px solid #e5e7eb", paddingTop: 12, color: "#374151" }}>
+              Data Lead Pertama (Otomatis Dibuat)
+            </h3>
+            <FormRow>
+              <FormField label="Tanggal Lead">
+                <input type="date" value={form.lead_date} onChange={(e) => setForm((f) => ({ ...f, lead_date: e.target.value }))} />
+              </FormField>
+              <FormField label="Sumber Lead">
+                <SearchableSelect 
+                  value={form.source} onChange={v => setForm((f) => ({ ...f, source: v }))}
+                  options={["WhatsApp", "Instagram", "Website", "Referral", "Walk-in"].map(s => ({ value: s, label: s }))}
+                  menuPortalTarget={typeof document !== "undefined" ? document.body : null}
+                />
+              </FormField>
+            </FormRow>
+            <FormRow>
+              <FormField label="Status Lead">
+                <SearchableSelect 
+                  value={form.status} onChange={v => setForm((f) => ({ ...f, status: v }))}
+                  options={["Prospek", "Follow Up", "Negosiasi", "Konfirmasi", "Closing", "Reject"].map(s => ({ value: s, label: s }))}
+                  menuPortalTarget={typeof document !== "undefined" ? document.body : null}
+                />
+              </FormField>
+              <FormField label="Tags Lead">
+                <input value={form.tags} onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))} placeholder="pernikahan, korporat..." />
+              </FormField>
+            </FormRow>
+          </>
+        )}
+
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
           <button className="btn btn-secondary" onClick={() => setShowModal(false)}>Batal</button>
           <button className="btn btn-primary" onClick={handleSave}>{editItem ? "Simpan Perubahan" : "Simpan"}</button>

@@ -17,7 +17,19 @@ const STATUS_ORDER = ["Baru", "Diproses", "Selesai", "Batal"];
 const STATUS_PAY = ["Belum Lunas", "DP 50%", "Lunas"];
 
 const emptyItem = () => ({ product_id: "", product_name: "", price: 0, quantity: 50, discount: 0, subtotal: 0, custom_menu: "" });
-const emptyForm = (userRole?: string, userId?: string) => ({ customer_id: "", pic_id: userRole === "CS / Sales" ? String(userId) : "", order_date: new Date().toISOString().split("T")[0], delivery_date: "", departure_time: "", venue: "", order_notes: "", status_payment: "Belum Lunas", items: [emptyItem()] });
+const emptyForm = (userRole?: string, userId?: string) => ({
+  customer_id: "",
+  customer_name: "",
+  customer_phone: "",
+  pic_id: userRole === "CS / Sales" ? String(userId) : "",
+  order_date: new Date().toISOString().split("T")[0],
+  delivery_date: "",
+  departure_time: "",
+  venue: "",
+  order_notes: "",
+  status_payment: "Belum Lunas",
+  items: [emptyItem()]
+});
 
 export default function OrdersPage() {
   const { data: session } = useSession();
@@ -33,6 +45,32 @@ export default function OrdersPage() {
   const [showModal, setShowModal] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<any>(null);
   const [form, setForm] = useState(() => emptyForm(userRole, userId));
+
+  const [showQuickCust, setShowQuickCust] = useState(false);
+  const [quickCustForm, setQuickCustForm] = useState({ name: "", phone: "", type: "Perorangan", email: "", address: "", notes: "" });
+
+  const openQuickCust = (name = "") => {
+    setQuickCustForm({ name, phone: "", type: "Perorangan", email: "", address: "", notes: "" });
+    setShowQuickCust(true);
+  };
+
+  const handleSaveQuickCust = async () => {
+    if (!quickCustForm.name) return alert("Nama wajib diisi");
+    const res = await fetch("/api/customers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...quickCustForm, create_lead: true }),
+    });
+    if (res.ok) {
+      const newCust = await res.json();
+      setCustomers((prev) => [...prev, newCust]);
+      setForm((f) => ({ ...f, customer_id: newCust.id }));
+      setShowQuickCust(false);
+    } else {
+      const err = await res.json();
+      alert("Gagal menambahkan kontak: " + (err.error || "Unknown error"));
+    }
+  };
 
   useEffect(() => {
     if (userRole === "CS / Sales" && !form.pic_id) {
@@ -396,6 +434,7 @@ export default function OrdersPage() {
 
   const handleSave = async () => {
     if (!form.customer_id || !form.delivery_date) return alert("Customer dan tanggal kirim wajib");
+    if (form.customer_id === "new" && !form.customer_name) return alert("Nama customer baru wajib diisi");
     if (!form.items.some(i => i.product_id)) return alert("Minimal 1 item produk");
     const validItems = form.items.filter(i => i.product_id);
 
@@ -405,7 +444,12 @@ export default function OrdersPage() {
     }
 
     const res = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...finalForm, items: validItems }) });
-    if (res.ok) { setShowModal(false); setForm(emptyForm(userRole, userId)); fetchOrders(1); }
+    if (res.ok) { 
+      setShowModal(false); 
+      setForm(emptyForm(userRole, userId)); 
+      fetchOrders(1); 
+      fetch("/api/customers?limit=100").then(r => r.json()).then(d => setCustomers(d.data || []));
+    }
   };
 
   const executeDelete = async () => {
@@ -553,14 +597,29 @@ export default function OrdersPage() {
       <Modal show={showModal} onClose={() => setShowModal(false)} title="Buat Order Baru" width={680}>
         <FormRow>
           <FormField label="Customer">
-            <SearchableSelect
-              value={form.customer_id} onChange={v => setForm(f => ({ ...f, customer_id: v }))}
-              options={[
-                { value: "", label: "-- Pilih Customer --" },
-                ...customers.map((c: any) => ({ value: c.id, label: c.name }))
-              ]}
-              menuPortalTarget={typeof document !== "undefined" ? document.body : null}
-            />
+            <div style={{ display: "flex", gap: 6, width: "100%" }}>
+              <div style={{ flex: 1 }}>
+                <SearchableSelect
+                  value={form.customer_id} onChange={v => setForm(f => ({ ...f, customer_id: v }))}
+                  options={[
+                    { value: "", label: "-- Pilih Customer --" },
+                    { value: "new", label: "+ Tambah Baru (via WA)", color: "#5005A6", isBold: true },
+                    ...customers.map((c: any) => ({ value: c.id, label: c.name }))
+                  ]}
+                  onCreateClick={(typedText) => openQuickCust(typedText)}
+                  menuPortalTarget={typeof document !== "undefined" ? document.body : null}
+                />
+              </div>
+              <button 
+                type="button"
+                className="btn btn-secondary" 
+                style={{ padding: "0 10px", height: 34, display: "flex", alignItems: "center", justifyContent: "center" }}
+                onClick={() => openQuickCust("")}
+                title="Tambah Kontak Baru"
+              >
+                <Plus size={14} />
+              </button>
+            </div>
           </FormField>
           {userRole !== "CS / Sales" && (
             <FormField label="PIC CS">
@@ -575,6 +634,17 @@ export default function OrdersPage() {
             </FormField>
           )}
         </FormRow>
+
+        {form.customer_id === "new" && (
+          <FormRow>
+            <FormField label="Nama Customer Baru">
+              <input value={form.customer_name} onChange={e => setForm(f => ({ ...f, customer_name: e.target.value }))} placeholder="Nama Lengkap / Instansi" />
+            </FormField>
+            <FormField label="Nomor WhatsApp">
+              <input value={form.customer_phone} onChange={e => setForm(f => ({ ...f, customer_phone: e.target.value }))} placeholder="08123456789" />
+            </FormField>
+          </FormRow>
+        )}
         <FormRow>
           <FormField label="Tanggal Order"><input type="date" value={form.order_date} onChange={e => setForm(f => ({ ...f, order_date: e.target.value }))} /></FormField>
           <FormField label="Tanggal Kirim"><input type="date" value={form.delivery_date} onChange={e => setForm(f => ({ ...f, delivery_date: e.target.value }))} /></FormField>
@@ -787,6 +857,40 @@ export default function OrdersPage() {
           >
             {importing ? "Mengimpor..." : "Konfirmasi Simpan ke DB"}
           </button>
+        </div>
+      </Modal>
+
+      {/* Quick Customer Modal */}
+      <Modal show={showQuickCust} onClose={() => setShowQuickCust(false)} title="Tambah Kontak Cepat">
+        <FormRow>
+          <FormField label="Nama *">
+            <input value={quickCustForm.name} onChange={(e) => setQuickCustForm((f) => ({ ...f, name: e.target.value }))} placeholder="Nama / kode customer" />
+          </FormField>
+          <FormField label="No. Telepon / WA">
+            <input value={quickCustForm.phone} onChange={(e) => setQuickCustForm((f) => ({ ...f, phone: e.target.value }))} placeholder="08xx..." />
+          </FormField>
+        </FormRow>
+        <FormRow>
+          <FormField label="Tipe Customer">
+            <SearchableSelect 
+              value={quickCustForm.type} onChange={v => setQuickCustForm((f) => ({ ...f, type: v }))}
+              options={["Perorangan", "Corporate", "Instansi"].map(t => ({ value: t, label: t }))}
+              menuPortalTarget={typeof document !== "undefined" ? document.body : null}
+            />
+          </FormField>
+          <FormField label="Email">
+            <input type="email" value={quickCustForm.email} onChange={(e) => setQuickCustForm((f) => ({ ...f, email: e.target.value }))} placeholder="email@domain.com" />
+          </FormField>
+        </FormRow>
+        <FormField label="Alamat" style={{ marginBottom: 14 }}>
+          <input value={quickCustForm.address} onChange={(e) => setQuickCustForm((f) => ({ ...f, address: e.target.value }))} placeholder="Alamat lengkap" />
+        </FormField>
+        <FormField label="Catatan" style={{ marginBottom: 14 }}>
+          <textarea rows={2} value={quickCustForm.notes} onChange={(e) => setQuickCustForm((f) => ({ ...f, notes: e.target.value }))} />
+        </FormField>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button className="btn btn-secondary" onClick={() => setShowQuickCust(false)}>Batal</button>
+          <button className="btn btn-primary" onClick={handleSaveQuickCust}>Simpan</button>
         </div>
       </Modal>
     </div>

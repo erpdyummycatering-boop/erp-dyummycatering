@@ -59,6 +59,9 @@ export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   const userRole = (session?.user as any)?.role;
   const userId = (session?.user as any)?.id;
+  const createdBy = session?.user
+    ? `${session.user.name || ""} | ${(session.user as { name?: string; role?: string }).role || ""}`.trim()
+    : null;
 
   const { customer_id, customer_name, customer_phone, pic_id, lead_date, source, status, tags, notes } = await req.json();
   const client = await pool.connect();
@@ -72,8 +75,8 @@ export async function POST(req: NextRequest) {
         final_customer_id = exist.rows[0].id;
       } else {
         const ins = await client.query(
-          "INSERT INTO customers (name, phone, type) VALUES ($1, $2, $3) RETURNING id",
-          [customer_name || "Customer Baru", customer_phone, "Personal"]
+          "INSERT INTO customers (name, phone, type, notes, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+          [customer_name || "Customer Baru", customer_phone, "Perorangan", notes || null, createdBy]
         );
         final_customer_id = ins.rows[0].id;
       }

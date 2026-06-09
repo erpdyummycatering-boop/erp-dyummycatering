@@ -35,15 +35,41 @@ export async function POST(req: NextRequest) {
   const createdBy = session?.user
     ? `${session.user.name || ""} | ${(session.user as { name?: string; role?: string }).role || ""}`.trim()
     : null;
+  const userId = (session?.user as any)?.id;
 
-  const { name, phone, email, type, address, notes } = await req.json();
+  const { name, phone, email, type, address, notes, create_lead, lead_date, source, status, tags } = await req.json();
   if (!name) return NextResponse.json({ error: "Nama wajib diisi" }, { status: 400 });
   const client = await pool.connect();
   try {
+    await client.query("BEGIN");
+    
     const res = await client.query(
       `INSERT INTO customers (name, phone, email, type, address, notes, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [name, phone, email, type, address, notes, createdBy]
+      [name, phone || null, email || null, type || "Perorangan", address || null, notes || null, createdBy]
     );
-    return NextResponse.json(res.rows[0], { status: 201 });
+    const newCustomer = res.rows[0];
+
+    // Auto-create first lead unless explicitly set to false
+    if (create_lead !== false) {
+      await client.query(
+        `INSERT INTO leads (customer_id, pic_id, lead_date, source, status, tags, notes) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          newCustomer.id,
+          userId || null,
+          lead_date || new Date().toISOString().split("T")[0],
+          source || "WhatsApp",
+          status || "Prospek",
+          tags || null,
+          notes || null
+        ]
+      );
+    }
+
+    await client.query("COMMIT");
+    return NextResponse.json(newCustomer, { status: 201 });
+  } catch (err: any) {
+    await client.query("ROLLBACK");
+    console.error("Gagal menyimpan customer & lead:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   } finally { client.release(); }
 }

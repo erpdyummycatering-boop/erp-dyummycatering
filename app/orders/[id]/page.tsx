@@ -7,6 +7,7 @@ import { useSession } from "next-auth/react";
 import { Trash2, Save, ArrowLeft, Plus, CheckCircle2 } from "lucide-react";
 import { PageHeader, FormRow, FormField } from "@/components/ui/PageHeader";
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
+import { Modal } from "@/components/ui/Modal";
 import { fmt } from "@/lib/utils";
 
 const STATUS_ORDER = ["Baru", "Diproses", "Selesai", "Batal"];
@@ -49,6 +50,32 @@ export default function OrderDetailPage() {
     status_payment: "Belum Lunas",
     items: []
   });
+
+  const [showQuickCust, setShowQuickCust] = useState(false);
+  const [quickCustForm, setQuickCustForm] = useState({ name: "", phone: "", type: "Perorangan", email: "", address: "", notes: "" });
+
+  const openQuickCust = (name = "") => {
+    setQuickCustForm({ name, phone: "", type: "Perorangan", email: "", address: "", notes: "" });
+    setShowQuickCust(true);
+  };
+
+  const handleSaveQuickCust = async () => {
+    if (!quickCustForm.name) return alert("Nama wajib diisi");
+    const res = await fetch("/api/customers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...quickCustForm, create_lead: true }),
+    });
+    if (res.ok) {
+      const newCust = await res.json();
+      setCustomers((prev) => [...prev, newCust]);
+      setForm((f: any) => ({ ...f, customer_id: String(newCust.id) }));
+      setShowQuickCust(false);
+    } else {
+      const err = await res.json();
+      alert("Gagal menambahkan kontak: " + (err.error || "Unknown error"));
+    }
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -216,14 +243,28 @@ export default function OrderDetailPage() {
           
           <FormRow>
             <FormField label="Customer">
-              <SearchableSelect 
-                value={form.customer_id} 
-                onChange={v => setForm((f: any) => ({ ...f, customer_id: v }))}
-                options={[
-                  { value: "", label: "-- Pilih Customer --" },
-                  ...customers.map((c: any) => ({ value: String(c.id), label: c.name }))
-                ]}
-              />
+              <div style={{ display: "flex", gap: 6, width: "100%" }}>
+                <div style={{ flex: 1 }}>
+                  <SearchableSelect 
+                    value={form.customer_id} 
+                    onChange={v => setForm((f: any) => ({ ...f, customer_id: v }))}
+                    options={[
+                      { value: "", label: "-- Pilih Customer --" },
+                      ...customers.map((c: any) => ({ value: String(c.id), label: c.name }))
+                    ]}
+                    onCreateClick={(typedText) => openQuickCust(typedText)}
+                  />
+                </div>
+                <button 
+                  type="button"
+                  className="btn btn-secondary" 
+                  style={{ padding: "0 10px", height: 34, display: "flex", alignItems: "center", justifyContent: "center" }}
+                  onClick={() => openQuickCust("")}
+                  title="Tambah Kontak Baru"
+                >
+                  <Plus size={14} />
+                </button>
+              </div>
             </FormField>
             {userRole !== "CS / Sales" && (
               <FormField label="PIC CS">
@@ -355,6 +396,40 @@ export default function OrderDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Quick Customer Modal */}
+      <Modal show={showQuickCust} onClose={() => setShowQuickCust(false)} title="Tambah Kontak Cepat">
+        <FormRow>
+          <FormField label="Nama *">
+            <input value={quickCustForm.name} onChange={(e) => setQuickCustForm((f) => ({ ...f, name: e.target.value }))} placeholder="Nama / kode customer" />
+          </FormField>
+          <FormField label="No. Telepon / WA">
+            <input value={quickCustForm.phone} onChange={(e) => setQuickCustForm((f) => ({ ...f, phone: e.target.value }))} placeholder="08xx..." />
+          </FormField>
+        </FormRow>
+        <FormRow>
+          <FormField label="Tipe Customer">
+            <SearchableSelect 
+              value={quickCustForm.type} onChange={v => setQuickCustForm((f) => ({ ...f, type: v }))}
+              options={["Perorangan", "Corporate", "Instansi"].map(t => ({ value: t, label: t }))}
+              menuPortalTarget={typeof document !== "undefined" ? document.body : null}
+            />
+          </FormField>
+          <FormField label="Email">
+            <input type="email" value={quickCustForm.email} onChange={(e) => setQuickCustForm((f) => ({ ...f, email: e.target.value }))} placeholder="email@domain.com" />
+          </FormField>
+        </FormRow>
+        <FormField label="Alamat" style={{ marginBottom: 14 }}>
+          <input value={quickCustForm.address} onChange={(e) => setQuickCustForm((f) => ({ ...f, address: e.target.value }))} placeholder="Alamat lengkap" />
+        </FormField>
+        <FormField label="Catatan" style={{ marginBottom: 14 }}>
+          <textarea rows={2} value={quickCustForm.notes} onChange={(e) => setQuickCustForm((f) => ({ ...f, notes: e.target.value }))} />
+        </FormField>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button className="btn btn-secondary" onClick={() => setShowQuickCust(false)}>Batal</button>
+          <button className="btn btn-primary" onClick={handleSaveQuickCust}>Simpan</button>
+        </div>
+      </Modal>
     </div>
   );
 }

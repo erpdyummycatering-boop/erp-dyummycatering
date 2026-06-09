@@ -65,8 +65,11 @@ export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   const userRole = (session?.user as any)?.role;
   const userId = (session?.user as any)?.id;
+  const createdBy = session?.user
+    ? `${session.user.name || ""} | ${(session.user as { name?: string; role?: string }).role || ""}`.trim()
+    : null;
 
-  const { customer_id, pic_id, order_date, delivery_date, departure_time, arrival_time, venue, order_notes, status_payment, items } = await req.json();
+  const { customer_id, customer_name, customer_phone, pic_id, order_date, delivery_date, departure_time, arrival_time, venue, order_notes, status_payment, items } = await req.json();
   if (!customer_id || !delivery_date) return NextResponse.json({ error: "customer_id dan delivery_date wajib" }, { status: 400 });
 
   const client = await pool.connect();
@@ -78,10 +81,41 @@ export async function POST(req: NextRequest) {
       final_pic_id = userId;
     }
 
+    let final_customer_id = customer_id;
+    if (final_customer_id === "new") {
+      if (!customer_name) {
+        await client.query("ROLLBACK");
+        return NextResponse.json({ error: "Nama customer baru wajib diisi" }, { status: 400 });
+      }
+      const exist = await client.query("SELECT id FROM customers WHERE phone = $1", [customer_phone]);
+      if (exist.rows.length > 0) {
+        final_customer_id = exist.rows[0].id;
+      } else {
+        const ins = await client.query(
+          "INSERT INTO customers (name, phone, type, notes, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+          [customer_name, customer_phone || null, "Perorangan", order_notes || null, createdBy]
+        );
+        final_customer_id = ins.rows[0].id;
+
+        // Auto-create lead since it's the contact's first entry
+        await client.query(
+          `INSERT INTO leads (customer_id, pic_id, lead_date, source, status, notes) VALUES ($1, $2, $3, $4, $5, $6)`,
+          [
+            final_customer_id,
+            final_pic_id || null,
+            order_date || new Date().toISOString().split("T")[0],
+            "WhatsApp",
+            "Prospek",
+            order_notes || null
+          ]
+        );
+      }
+    }
+
     const grandTotal = (items || []).reduce((s: number, i: any) => s + (i.price * i.quantity - (i.discount || 0)), 0);
     
     // Check if repeat customer
-    const customerRes = await client.query("SELECT phone FROM customers WHERE id = $1", [customer_id]);
+    const customerRes = await client.query("SELECT phone FROM customers WHERE id = $1", [final_customer_id]);
     const phone = customerRes.rows[0]?.phone;
     let jenis_order = "New Order";
     if (phone) {
@@ -100,7 +134,7 @@ export async function POST(req: NextRequest) {
     const orderRes = await client.query(
       `INSERT INTO orders (customer_id,pic_id,order_date,delivery_date,departure_time,arrival_time,venue,order_notes,status_payment,grand_total,status_order,jenis_order,closing_date)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'Baru',$11,$12) RETURNING *`,
-      [customer_id, final_pic_id || null, final_order_date, delivery_date, departure_time || null, arrival_time || null, venue, order_notes, status_payment || "Belum Lunas", grandTotal, jenis_order, final_order_date]
+      [final_customer_id, final_pic_id || null, final_order_date, delivery_date, departure_time || null, arrival_time || null, venue, order_notes, status_payment || "Belum Lunas", grandTotal, jenis_order, final_order_date]
     );
     const orderId = orderRes.rows[0].id;
     for (const item of (items || [])) {

@@ -18,9 +18,10 @@ interface Props {
   style?: React.CSSProperties;
   disabled?: boolean;
   menuPortalTarget?: HTMLElement | null;
+  onCreateClick?: (typedText: string) => void;
 }
 
-export function SearchableSelect({ options, value, onChange, placeholder, className, style, disabled, menuPortalTarget }: Props) {
+export function SearchableSelect({ options, value, onChange, placeholder, className, style, disabled, menuPortalTarget, onCreateClick }: Props) {
   const selectedObj = options.find(o => String(o.value) === String(value)) || null;
 
   return (
@@ -33,6 +34,36 @@ export function SearchableSelect({ options, value, onChange, placeholder, classN
         placeholder={placeholder || "-- Pilih --"}
         isClearable
         menuPortalTarget={menuPortalTarget}
+        noOptionsMessage={({ inputValue }) => {
+          if (onCreateClick && inputValue.trim()) {
+            return (
+              <div style={{ padding: "4px 8px", color: "#6b7280" }}>
+                Tidak ditemukan.{" "}
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onCreateClick(inputValue);
+                  }}
+                  style={{
+                    color: "#5005A6",
+                    fontWeight: 600,
+                    textDecoration: "underline",
+                    cursor: "pointer",
+                    background: "none",
+                    border: "none",
+                    padding: 0,
+                    font: "inherit",
+                  }}
+                >
+                  + Tambah Kontak "{inputValue}"
+                </button>
+              </div>
+            );
+          }
+          return "Tidak ditemukan";
+        }}
         formatOptionLabel={(option: OptionType) => (
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
             <span>{option.label}</span>
