@@ -103,6 +103,8 @@ CREATE TABLE orders (
     status_order VARCHAR(50) DEFAULT 'Baru',
     status_payment VARCHAR(50) DEFAULT 'Belum Lunas',
     grand_total DECIMAL(15, 2) DEFAULT 0,
+    shipping_fee DECIMAL(15, 2) DEFAULT 0,
+    additional_menu_price DECIMAL(15, 2) DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

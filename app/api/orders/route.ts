@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
     ? `${session.user.name || ""} | ${(session.user as { name?: string; role?: string }).role || ""}`.trim()
     : null;
 
-  const { customer_id, customer_name, customer_phone, pic_id, order_date, delivery_date, departure_time, arrival_time, venue, order_notes, status_payment, items } = await req.json();
+  const { customer_id, customer_name, customer_phone, pic_id, order_date, delivery_date, departure_time, arrival_time, shipping_fee, additional_menu_price, venue, order_notes, status_payment, items } = await req.json();
   if (!customer_id || !delivery_date) return NextResponse.json({ error: "customer_id dan delivery_date wajib" }, { status: 400 });
 
   const client = await pool.connect();
@@ -112,7 +112,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const grandTotal = (items || []).reduce((s: number, i: any) => s + (i.price * i.quantity - (i.discount || 0)), 0);
+    const grandTotal = (items || []).reduce((s: number, i: any) => s + (i.price * i.quantity - (i.discount || 0)), 0) + Number(shipping_fee || 0) + Number(additional_menu_price || 0);
     
     // Check if repeat customer
     const customerRes = await client.query("SELECT phone FROM customers WHERE id = $1", [final_customer_id]);
@@ -132,9 +132,9 @@ export async function POST(req: NextRequest) {
     const final_order_date = order_date || new Date().toISOString().split("T")[0];
 
     const orderRes = await client.query(
-      `INSERT INTO orders (customer_id,pic_id,order_date,delivery_date,departure_time,arrival_time,venue,order_notes,status_payment,grand_total,status_order,jenis_order,closing_date)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'Baru',$11,$12) RETURNING *`,
-      [final_customer_id, final_pic_id || null, final_order_date, delivery_date, departure_time || null, arrival_time || null, venue, order_notes, status_payment || "Belum Lunas", grandTotal, jenis_order, final_order_date]
+      `INSERT INTO orders (customer_id,pic_id,order_date,delivery_date,departure_time,arrival_time,shipping_fee,additional_menu_price,venue,order_notes,status_payment,grand_total,status_order,jenis_order,closing_date)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'Baru',$13,$14) RETURNING *`,
+      [final_customer_id, final_pic_id || null, final_order_date, delivery_date, departure_time || null, arrival_time || null, Number(shipping_fee || 0), Number(additional_menu_price || 0), venue, order_notes, status_payment || "Belum Lunas", grandTotal, jenis_order, final_order_date]
     );
     const orderId = orderRes.rows[0].id;
     for (const item of (items || [])) {

@@ -44,6 +44,8 @@ export default function OrderDetailPage() {
     delivery_date: "",
     departure_time: "",
     arrival_time: "",
+    shipping_fee: 0,
+    additional_menu_price: 0,
     venue: "",
     order_notes: "",
     status_order: "Baru",
@@ -112,6 +114,8 @@ export default function OrderDetailPage() {
           order_notes: d.order_notes || "",
           status_order: d.status_order || "Baru",
           status_payment: d.status_payment || "Belum Lunas",
+          shipping_fee: Number(d.shipping_fee || 0),
+          additional_menu_price: Number(d.additional_menu_price || 0),
           items: (d.items || []).map((i: any) => ({
             ...i,
             product_id: String(i.product_id),
@@ -154,7 +158,7 @@ export default function OrderDetailPage() {
     setForm((f: any) => ({ ...f, items }));
   };
 
-  const grandTotal = form.items.reduce((s: number, i: any) => s + (Number(i.subtotal) || 0), 0);
+  const grandTotal = form.items.reduce((s: number, i: any) => s + (Number(i.subtotal) || 0), 0) + Number(form.shipping_fee || 0) + Number(form.additional_menu_price || 0);
 
   const handleSave = async () => {
     if (!form.customer_id || !form.delivery_date) {
@@ -305,6 +309,15 @@ export default function OrderDetailPage() {
                 onChange={v => setForm((f: any) => ({ ...f, status_order: v }))}
                 options={STATUS_ORDER.map(s => ({ value: s, label: s }))}
               />
+            </FormField>
+          </FormRow>
+
+          <FormRow>
+            <FormField label="Biaya Ongkir (Rp)">
+              <input type="number" value={form.shipping_fee || ""} onChange={e => setForm((f: any) => ({ ...f, shipping_fee: Number(e.target.value) }))} placeholder="0" />
+            </FormField>
+            <FormField label="Tambahan Harga Menu (Rp)">
+              <input type="number" value={form.additional_menu_price || ""} onChange={e => setForm((f: any) => ({ ...f, additional_menu_price: Number(e.target.value) }))} placeholder="0" />
             </FormField>
           </FormRow>
 

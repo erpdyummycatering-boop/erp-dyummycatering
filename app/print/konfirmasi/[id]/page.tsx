@@ -141,6 +141,26 @@ export default async function OrderConfirmationPrintPage({ params }: { params: P
               </td>
             </tr>
 
+            {/* Biaya Ongkir */}
+            {Number(order.shipping_fee) > 0 && (
+              <tr>
+                <td style={{ border: "1px solid #000", padding: "10px 12px", fontSize: "14px" }}>Biaya Ongkir (Ongkos Kirim)</td>
+                <td style={{ border: "1px solid #000", padding: "10px 12px", fontSize: "14px" }}>
+                  {formatRupiah(order.shipping_fee)}
+                </td>
+              </tr>
+            )}
+
+            {/* Tambahan Harga Menu */}
+            {Number(order.additional_menu_price) > 0 && (
+              <tr>
+                <td style={{ border: "1px solid #000", padding: "10px 12px", fontSize: "14px" }}>Tambahan Harga Menu</td>
+                <td style={{ border: "1px solid #000", padding: "10px 12px", fontSize: "14px" }}>
+                  {formatRupiah(order.additional_menu_price)}
+                </td>
+              </tr>
+            )}
+
             {/* Total Pemesanan (Grand Total) */}
             <tr>
               <td style={{ border: "1px solid #000", padding: "10px 12px", fontSize: "14px", fontWeight: "bold" }}>Total Pemesanan</td>

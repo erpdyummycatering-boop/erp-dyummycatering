@@ -25,6 +25,9 @@ const emptyForm = (userRole?: string, userId?: string) => ({
   order_date: new Date().toISOString().split("T")[0],
   delivery_date: "",
   departure_time: "",
+  arrival_time: "",
+  shipping_fee: 0,
+  additional_menu_price: 0,
   venue: "",
   order_notes: "",
   status_payment: "Belum Lunas",
@@ -430,7 +433,7 @@ export default function OrdersPage() {
     setForm(f => ({ ...f, items }));
   };
 
-  const grandTotal = form.items.reduce((s, i) => s + (i.subtotal || 0), 0);
+  const grandTotal = form.items.reduce((s, i) => s + (i.subtotal || 0), 0) + Number(form.shipping_fee || 0) + Number(form.additional_menu_price || 0);
 
   const handleSave = async () => {
     if (!form.customer_id || !form.delivery_date) return alert("Customer dan tanggal kirim wajib");
@@ -651,6 +654,11 @@ export default function OrdersPage() {
         </FormRow>
         <FormRow>
           <FormField label="Jam Berangkat"><input type="time" value={form.departure_time} onChange={e => setForm(f => ({ ...f, departure_time: e.target.value }))} /></FormField>
+          <FormField label="Jam Tiba (Arrival)"><input type="time" value={form.arrival_time || ""} onChange={e => setForm(f => ({ ...f, arrival_time: e.target.value }))} /></FormField>
+        </FormRow>
+        <FormRow>
+          <FormField label="Biaya Ongkir (Rp)"><input type="number" value={form.shipping_fee || ""} onChange={e => setForm(f => ({ ...f, shipping_fee: Number(e.target.value) }))} placeholder="0" /></FormField>
+          <FormField label="Tambahan Harga Menu (Rp)"><input type="number" value={form.additional_menu_price || ""} onChange={e => setForm(f => ({ ...f, additional_menu_price: Number(e.target.value) }))} placeholder="0" /></FormField>
         </FormRow>
         <FormField label="Venue / Lokasi" style={{ marginBottom: 14 }}>
           <input value={form.venue} onChange={e => setForm(f => ({ ...f, venue: e.target.value }))} placeholder="Gedung, alamat lengkap..." />

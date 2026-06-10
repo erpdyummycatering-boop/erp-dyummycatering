@@ -30,6 +30,7 @@ export default async function OrderPrintPage({ params }: { params: Promise<{ id:
 
     const items = itemsRes.rows;
     const isLunas = order.status_payment === "Lunas";
+    const itemsSubtotal = items.reduce((s, i) => s + Number(i.subtotal), 0);
 
     return (
       <div className="print-container" style={{ padding: "40px", maxWidth: "800px", margin: "0 auto", fontFamily: "sans-serif", color: "#333", backgroundColor: "white" }}>
@@ -61,7 +62,13 @@ export default async function OrderPrintPage({ params }: { params: Promise<{ id:
             <table style={{ width: "100%", fontSize: "13px", lineHeight: "1.8" }}>
               <tbody>
                 <tr><td style={{ width: "100px", color: "#666" }}>Date:</td><td style={{ fontWeight: "bold" }}>{new Date(order.delivery_date).toLocaleDateString("id-ID", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</td></tr>
-                <tr><td style={{ color: "#666" }}>Time:</td><td>{order.departure_time || "TBD"}</td></tr>
+                <tr>
+                  <td style={{ color: "#666" }}>Time:</td>
+                  <td>
+                    {order.departure_time || "TBD"}
+                    {order.arrival_time ? ` - ${order.arrival_time}` : ""}
+                  </td>
+                </tr>
                 <tr><td style={{ color: "#666", verticalAlign: "top" }}>Venue:</td><td>{order.venue || "-"}</td></tr>
                 <tr><td style={{ color: "#666" }}>PIC:</td><td>{order.pic_name || "-"}</td></tr>
               </tbody>
@@ -96,12 +103,28 @@ export default async function OrderPrintPage({ params }: { params: Promise<{ id:
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan={3} rowSpan={2} style={{ padding: "12px", verticalAlign: "top", border: "1px solid #eee" }}>
+              <td colSpan={3} rowSpan={2 + (Number(order.shipping_fee) > 0 ? 1 : 0) + (Number(order.additional_menu_price) > 0 ? 1 : 0)} style={{ padding: "12px", verticalAlign: "top", border: "1px solid #eee" }}>
                 <div style={{ fontSize: "11px", color: "#666" }}>
                   <strong>Notes:</strong><br/>
                   {order.order_notes || "Thank you for your business."}
                 </div>
               </td>
+              <td style={{ padding: "12px", textAlign: "right", fontWeight: "bold", border: "1px solid #eee" }}>Subtotal Item</td>
+              <td style={{ padding: "12px", textAlign: "right", fontWeight: "bold", border: "1px solid #eee" }}>{fmt(itemsSubtotal)}</td>
+            </tr>
+            {Number(order.shipping_fee) > 0 && (
+              <tr>
+                <td style={{ padding: "12px", textAlign: "right", fontWeight: "bold", border: "1px solid #eee" }}>Ongkir</td>
+                <td style={{ padding: "12px", textAlign: "right", fontWeight: "bold", border: "1px solid #eee" }}>{fmt(order.shipping_fee)}</td>
+              </tr>
+            )}
+            {Number(order.additional_menu_price) > 0 && (
+              <tr>
+                <td style={{ padding: "12px", textAlign: "right", fontWeight: "bold", border: "1px solid #eee" }}>Tambahan Menu</td>
+                <td style={{ padding: "12px", textAlign: "right", fontWeight: "bold", border: "1px solid #eee" }}>{fmt(order.additional_menu_price)}</td>
+              </tr>
+            )}
+            <tr>
               <td style={{ padding: "12px", textAlign: "right", fontWeight: "bold", border: "1px solid #eee" }}>GRAND TOTAL</td>
               <td style={{ padding: "12px", textAlign: "right", fontWeight: "bold", fontSize: "16px", color: "#5005A6", border: "1px solid #eee" }}>{fmt(order.grand_total)}</td>
             </tr>

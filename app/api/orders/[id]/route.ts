@@ -46,6 +46,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     delivery_date,
     departure_time,
     arrival_time,
+    shipping_fee,
+    additional_menu_price,
     venue,
     order_notes,
     status_order,
@@ -69,15 +71,15 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     await client.query("BEGIN");
     
     // 1. Recalculate grand total
-    const grandTotal = (items || []).reduce((s: number, i: any) => s + (Number(i.price) * Number(i.quantity) - Number(i.discount || 0)), 0);
+    const grandTotal = (items || []).reduce((s: number, i: any) => s + (Number(i.price) * Number(i.quantity) - Number(i.discount || 0)), 0) + Number(shipping_fee || 0) + Number(additional_menu_price || 0);
     
     // 2. Update order table
     const res = await client.query(
       `UPDATE orders SET 
         customer_id=$1, pic_id=$2, order_date=$3, delivery_date=$4, 
-        departure_time=$5, arrival_time=$6, venue=$7, order_notes=$8, 
-        status_order=$9, status_payment=$10, grand_total=$11, updated_at=NOW() 
-      WHERE id=$12 RETURNING *`,
+        departure_time=$5, arrival_time=$6, shipping_fee=$7, additional_menu_price=$8, venue=$9, order_notes=$10, 
+        status_order=$11, status_payment=$12, grand_total=$13, updated_at=NOW() 
+      WHERE id=$14 RETURNING *`,
       [
         customer_id,
         final_pic_id || null,
@@ -85,6 +87,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         delivery_date,
         departure_time || null,
         arrival_time || null,
+        Number(shipping_fee || 0),
+        Number(additional_menu_price || 0),
         venue,
         order_notes,
         status_order,

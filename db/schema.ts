@@ -70,6 +70,8 @@ export const orders = pgTable('orders', {
   status_order: varchar('status_order', { length: 50 }).default('Baru'),
   status_payment: varchar('status_payment', { length: 50 }).default('Belum Lunas'),
   grand_total: decimal('grand_total', { precision: 15, scale: 2 }).default('0'),
+  shipping_fee: decimal('shipping_fee', { precision: 15, scale: 2 }).default('0'),
+  additional_menu_price: decimal('additional_menu_price', { precision: 15, scale: 2 }).default('0'),
   estimated_budget: decimal('estimated_budget', { precision: 15, scale: 2 }).default('0'),
   actual_cost: decimal('actual_cost', { precision: 15, scale: 2 }).default('0'),
   status_cost: varchar('status_cost', { length: 50 }).default('Pending Input'),

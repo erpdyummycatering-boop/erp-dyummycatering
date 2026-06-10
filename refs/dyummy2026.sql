@@ -127,6 +127,8 @@ CREATE TABLE "public"."orders" (
     "status_order" varchar(50) DEFAULT 'Baru'::character varying,
     "status_payment" varchar(50) DEFAULT 'Belum Lunas'::character varying,
     "grand_total" numeric(15,2) DEFAULT 0,
+    "shipping_fee" numeric(15,2) DEFAULT 0,
+    "additional_menu_price" numeric(15,2) DEFAULT 0,
     "created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
     "updated_at" timestamp DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY ("id")
