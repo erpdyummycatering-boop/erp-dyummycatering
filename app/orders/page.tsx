@@ -16,7 +16,7 @@ import * as XLSX from "xlsx";
 const STATUS_ORDER = ["Baru", "Diproses", "Selesai", "Batal"];
 const STATUS_PAY = ["Belum Lunas", "DP 50%", "Lunas"];
 
-const emptyItem = () => ({ product_id: "", product_name: "", price: 0, quantity: 50, discount: 0, subtotal: 0, custom_menu: "" });
+const emptyItem = () => ({ product_id: "", product_name: "", price: 0, quantity: 50, discount: 0, subtotal: 0, custom_menu: "", notes: "" });
 const emptyForm = (userRole?: string, userId?: string) => ({
   customer_id: "",
   customer_name: "",
@@ -597,7 +597,7 @@ export default function OrdersPage() {
       </div>
 
       {/* Create Order Modal */}
-      <Modal show={showModal} onClose={() => setShowModal(false)} title="Buat Order Baru" width={680}>
+      <Modal show={showModal} onClose={() => setShowModal(false)} title="Buat Order Baru" width={1050}>
         <FormRow>
           <FormField label="Customer">
             <div style={{ display: "flex", gap: 6, width: "100%" }}>
@@ -670,39 +670,92 @@ export default function OrdersPage() {
             <p style={{ fontSize: 12, fontWeight: 700 }}>Item Pesanan</p>
             <button className="btn btn-secondary btn-sm" onClick={() => setForm(f => ({ ...f, items: [...f.items, emptyItem()] }))}>+ Tambah Baris</button>
           </div>
-          <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden" }}>
-            <table>
-              <thead><tr><th>Produk</th><th>Qty</th><th>Harga/Unit</th><th>Subtotal</th><th></th></tr></thead>
+          <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, overflow: "x-auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                  <th style={{ padding: "8px 12px", textAlign: "left", fontSize: 12 }}>Paket</th>
+                  <th style={{ padding: "8px 12px", textAlign: "left", fontSize: 12 }}>Menu (Rincian)</th>
+                  <th style={{ padding: "8px 12px", textAlign: "left", fontSize: 12 }}>Harga</th>
+                  <th style={{ padding: "8px 12px", textAlign: "center", fontSize: 12 }}>Jumlah</th>
+                  <th style={{ padding: "8px 12px", textAlign: "left", fontSize: 12 }}>Diskon</th>
+                  <th style={{ padding: "8px 12px", textAlign: "right", fontSize: 12 }}>Total</th>
+                  <th style={{ padding: "8px 12px", textAlign: "left", fontSize: 12 }}>Catatan</th>
+                  <th style={{ padding: "8px 12px", width: 40 }}></th>
+                </tr>
+              </thead>
               <tbody>
                 {form.items.map((item, idx) => (
-                  <tr key={idx}>
-                    <td>
+                  <tr key={idx} style={{ borderBottom: "1px solid #e5e7eb" }}>
+                    <td style={{ verticalAlign: "top", padding: "8px" }}>
                       <SearchableSelect
                         value={item.product_id} onChange={v => updateItem(idx, "product_id", v)}
                         options={[
-                          { value: "", label: "-- Pilih Produk --" },
+                          { value: "", label: "-- Pilih Paket --" },
                           ...products.map((p: any) => ({ value: p.id, label: p.name, category: p.category }))
                         ]}
                         menuPortalTarget={typeof document !== "undefined" ? document.body : null}
                         style={{ minWidth: 150 }}
                       />
                     </td>
-                    <td><input type="number" value={item.quantity} min={1} onChange={e => updateItem(idx, "quantity", Number(e.target.value))} style={{ border: "none", textAlign: "center", width: 70, padding: "4px 0" }} /></td>
-                    <td style={{ fontSize: 12, whiteSpace: "nowrap" }}>{fmt(item.price)}</td>
-                    <td style={{ fontWeight: 600, fontSize: 12, whiteSpace: "nowrap" }}>{fmt(item.subtotal)}</td>
-                    <td>
+                    <td style={{ verticalAlign: "top", padding: "8px" }}>
+                      <textarea
+                        value={item.custom_menu || ""}
+                        onChange={e => updateItem(idx, "custom_menu", e.target.value)}
+                        placeholder="Rincian lauk..."
+                        style={{ width: "100%", minWidth: "150px", height: "70px", fontSize: "11px", fontFamily: "monospace", padding: "4px", border: "1px solid #d1d5db", borderRadius: "4px" }}
+                      />
+                    </td>
+                    <td style={{ verticalAlign: "top", padding: "8px" }}>
+                      <input
+                        type="number"
+                        value={item.price}
+                        onChange={e => updateItem(idx, "price", Number(e.target.value))}
+                        style={{ width: "90px", padding: "4px 8px", border: "1px solid #d1d5db", borderRadius: "4px" }}
+                      />
+                    </td>
+                    <td style={{ verticalAlign: "top", padding: "8px" }}>
+                      <input
+                        type="number"
+                        value={item.quantity}
+                        min={1}
+                        onChange={e => updateItem(idx, "quantity", Number(e.target.value))}
+                        style={{ width: "70px", padding: "4px 8px", border: "1px solid #d1d5db", borderRadius: "4px", textAlign: "center" }}
+                      />
+                    </td>
+                    <td style={{ verticalAlign: "top", padding: "8px" }}>
+                      <input
+                        type="number"
+                        value={item.discount}
+                        onChange={e => updateItem(idx, "discount", Number(e.target.value))}
+                        style={{ width: "80px", padding: "4px 8px", border: "1px solid #d1d5db", borderRadius: "4px" }}
+                      />
+                    </td>
+                    <td style={{ verticalAlign: "top", padding: "12px 8px", fontWeight: 600, fontSize: 12, whiteSpace: "nowrap", textAlign: "right" }}>
+                      {fmt(item.subtotal)}
+                    </td>
+                    <td style={{ verticalAlign: "top", padding: "8px" }}>
+                      <input
+                        type="text"
+                        value={item.notes || ""}
+                        onChange={e => updateItem(idx, "notes", e.target.value)}
+                        placeholder="Catatan..."
+                        style={{ width: "120px", padding: "4px 8px", border: "1px solid #d1d5db", borderRadius: "4px" }}
+                      />
+                    </td>
+                    <td style={{ verticalAlign: "top", padding: "8px", textAlign: "center" }}>
                       {form.items.length > 1 && (
-                        <button className="btn btn-secondary btn-sm" onClick={() => setForm(f => ({ ...f, items: f.items.filter((_, i) => i !== idx) }))}>
-                          <Trash2 size={11} />
+                        <button className="btn btn-secondary btn-sm" onClick={() => setForm(f => ({ ...f, items: f.items.filter((_, i) => i !== idx) }))} style={{ padding: "6px" }}>
+                          <Trash2 size={12} color="#E24B4A" />
                         </button>
                       )}
                     </td>
                   </tr>
                 ))}
                 <tr style={{ background: "#f9fafb" }}>
-                  <td colSpan={3} style={{ fontWeight: 700, fontSize: 13 }}>GRAND TOTAL</td>
-                  <td style={{ fontWeight: 700, color: "#5005A6", fontSize: 15 }}>{fmt(grandTotal)}</td>
-                  <td />
+                  <td colSpan={5} style={{ fontWeight: 700, fontSize: 13, textAlign: "right", padding: "12px 16px" }}>GRAND TOTAL</td>
+                  <td style={{ fontWeight: 700, color: "#5005A6", fontSize: 15, textAlign: "right", padding: "12px 8px" }}>{fmt(grandTotal)}</td>
+                  <td colSpan={2} />
                 </tr>
               </tbody>
             </table>

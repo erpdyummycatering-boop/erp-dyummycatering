@@ -84,6 +84,7 @@ export const order_items = pgTable('order_items', {
   order_id: bigint('order_id', { mode: 'number' }).references(() => orders.id, { onDelete: 'cascade' }),
   product_id: bigint('product_id', { mode: 'number' }).references(() => products.id, { onDelete: 'restrict' }),
   custom_menu: text('custom_menu'),
+  notes: text('notes'),
   price: decimal('price', { precision: 15, scale: 2 }).notNull(),
   quantity: integer('quantity').notNull().default(1),
   discount: decimal('discount', { precision: 15, scale: 2 }).default('0'),

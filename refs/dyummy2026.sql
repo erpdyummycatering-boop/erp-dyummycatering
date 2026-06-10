@@ -144,6 +144,7 @@ CREATE TABLE "public"."order_items" (
     "order_id" int8,
     "product_id" int8,
     "custom_menu" text,
+    "notes" text,
     "price" numeric(15,2) NOT NULL,
     "quantity" int4 NOT NULL DEFAULT 1,
     "discount" numeric(15,2) DEFAULT 0,

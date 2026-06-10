@@ -114,6 +114,7 @@ CREATE TABLE order_items (
     order_id BIGINT REFERENCES orders(id) ON DELETE CASCADE,
     product_id BIGINT REFERENCES products(id) ON DELETE RESTRICT,
     custom_menu TEXT,
+    notes TEXT,
     price DECIMAL(15, 2) NOT NULL,
     quantity INT NOT NULL DEFAULT 1,
     discount DECIMAL(15, 2) DEFAULT 0,

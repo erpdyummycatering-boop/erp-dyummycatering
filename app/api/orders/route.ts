@@ -140,8 +140,8 @@ export async function POST(req: NextRequest) {
     for (const item of (items || [])) {
       const subtotal = item.price * item.quantity - (item.discount || 0);
       await client.query(
-        `INSERT INTO order_items (order_id,product_id,price,quantity,discount,subtotal,custom_menu) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-        [orderId, item.product_id, item.price, item.quantity, item.discount || 0, subtotal, item.custom_menu || null]
+        `INSERT INTO order_items (order_id,product_id,price,quantity,discount,subtotal,custom_menu,notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        [orderId, item.product_id, item.price, item.quantity, item.discount || 0, subtotal, item.custom_menu || null, item.notes || null]
       );
     }
     await client.query("COMMIT");

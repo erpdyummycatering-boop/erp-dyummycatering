@@ -16,7 +16,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         (SELECT json_agg(json_build_object(
           'id', oi.id, 'product_id', oi.product_id, 'price', oi.price,
           'quantity', oi.quantity, 'discount', oi.discount, 'subtotal', oi.subtotal,
-          'product_name', p.name, 'custom_menu', oi.custom_menu
+          'product_name', p.name, 'custom_menu', oi.custom_menu, 'notes', oi.notes
         )) FROM order_items oi LEFT JOIN products p ON oi.product_id = p.id WHERE oi.order_id = o.id) as items
        FROM orders o JOIN customers c ON o.customer_id = c.id
        LEFT JOIN users u ON o.pic_id = u.id WHERE o.id = $1`, [id]
@@ -110,9 +110,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     for (const item of (items || [])) {
       const subtotal = Number(item.price) * Number(item.quantity) - Number(item.discount || 0);
       await client.query(
-        `INSERT INTO order_items (order_id, product_id, price, quantity, discount, subtotal, custom_menu) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [id, item.product_id, item.price, item.quantity, item.discount || 0, subtotal, item.custom_menu || null]
+        `INSERT INTO order_items (order_id, product_id, price, quantity, discount, subtotal, custom_menu, notes) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [id, item.product_id, item.price, item.quantity, item.discount || 0, subtotal, item.custom_menu || null, item.notes || null]
       );
     }
 

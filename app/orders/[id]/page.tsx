@@ -20,7 +20,8 @@ const emptyItem = () => ({
   quantity: 50,
   discount: 0,
   subtotal: 0,
-  custom_menu: ""
+  custom_menu: "",
+  notes: ""
 });
 
 export default function OrderDetailPage() {
@@ -119,7 +120,8 @@ export default function OrderDetailPage() {
           items: (d.items || []).map((i: any) => ({
             ...i,
             product_id: String(i.product_id),
-            custom_menu: i.custom_menu || ""
+            custom_menu: i.custom_menu || "",
+            notes: i.notes || ""
           }))
         });
       })
@@ -386,17 +388,31 @@ export default function OrderDetailPage() {
                   </div>
                 </div>
 
-                <div>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: "#4b5563", marginBottom: 4, display: "block" }}>
-                    Rincian Lauk / Menu Custom (Tampil di Lembar Konfirmasi)
-                  </label>
-                  <textarea 
-                    rows={4} 
-                    value={item.custom_menu} 
-                    onChange={e => updateItem(idx, "custom_menu", e.target.value)} 
-                    placeholder={"Masukkan lauk pauk dipisah baris baru, contoh:\n1. NASI PUTIH\n2. AYAM SERUNDENG (pot.8)\n3. CAH TAHU BUNCIS\n4. PERKEDEL JAGUNG"} 
-                    style={{ fontFamily: "monospace", fontSize: 12, lineHeight: 1.4 }}
-                  />
+                <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "#4b5563", marginBottom: 4, display: "block" }}>
+                      Rincian Lauk / Menu Custom (Tampil di Lembar Konfirmasi)
+                    </label>
+                    <textarea 
+                      rows={3} 
+                      value={item.custom_menu || ""} 
+                      onChange={e => updateItem(idx, "custom_menu", e.target.value)} 
+                      placeholder={"Masukkan lauk pauk dipisah baris baru, contoh:\n1. NASI PUTIH\n2. AYAM SERUNDENG (pot.8)\n3. CAH TAHU BUNCIS\n4. PERKEDEL JAGUNG"} 
+                      style={{ fontFamily: "monospace", fontSize: 12, lineHeight: 1.4 }}
+                    />
+                  </div>
+                  <div style={{ width: "300px" }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "#4b5563", marginBottom: 4, display: "block" }}>
+                      Catatan Item (Notes)
+                    </label>
+                    <textarea 
+                      rows={3} 
+                      value={item.notes || ""} 
+                      onChange={e => updateItem(idx, "notes", e.target.value)} 
+                      placeholder="Masukkan catatan/instruksi khusus item..." 
+                      style={{ fontSize: 12, lineHeight: 1.4 }}
+                    />
+                  </div>
                 </div>
               </div>
             ))}
