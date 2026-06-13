@@ -11,6 +11,7 @@ import { PageHeader, FormRow, FormField } from "@/components/ui/PageHeader";
 import { Pagination } from "@/components/ui/Pagination";
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { exportToExcel } from "@/lib/export";
+import { useRole } from "@/contexts/RoleContext";
 
 const C = { primary: "#5005A6" };
 
@@ -32,6 +33,7 @@ const formatWaLink = (phone: string) => {
 };
 
 export default function CustomersPage() {
+  const { activeRole } = useRole();
   const [rows, setRows] = useState<any[]>([]);
   const [meta, setMeta] = useState({ total: 0, page: 1, limit: 10, totalPages: 1 });
   const [searchInput, setSearchInput] = useState("");
@@ -160,12 +162,13 @@ export default function CustomersPage() {
                 <thead>
                   <tr>
                     <th>No.</th><th>Nama</th><th>Telepon</th><th>Tipe</th><th>Email</th>
-                    <th>Input Oleh</th><th>Terakhir Order</th><th>Aksi</th>
+                    {activeRole !== "cs_sales" && <th>Input Oleh</th>}
+                    <th>Terakhir Order</th><th>Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.length === 0 ? (
-                    <tr><td colSpan={8} style={{ textAlign: "center", padding: "24px", color: "#6b7280" }}>Tidak ada data</td></tr>
+                    <tr><td colSpan={activeRole === "cs_sales" ? 7 : 8} style={{ textAlign: "center", padding: "24px", color: "#6b7280" }}>Tidak ada data</td></tr>
                   ) : rows.map((c: any, idx: number) => (
                     <tr key={c.id}>
                       <td style={{ fontSize: 12, color: "#6b7280" }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
@@ -205,7 +208,7 @@ export default function CustomersPage() {
                         </Badge>
                       </td>
                       <td style={{ fontSize: 12, color: "#6b7280" }}>{c.email || "-"}</td>
-                      <td style={{ fontSize: 12, color: "#6b7280" }}>{c.created_by || "-"}</td>
+                      {activeRole !== "cs_sales" && <td style={{ fontSize: 12, color: "#6b7280" }}>{c.created_by || "-"}</td>}
                       <td style={{ fontSize: 12 }}>
                         {c.last_order ? String(c.last_order).slice(0, 10) : <span style={{ color: "#6b7280" }}>Belum pernah</span>}
                       </td>

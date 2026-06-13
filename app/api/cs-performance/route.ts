@@ -40,16 +40,16 @@ export async function GET(req: NextRequest) {
       selectedCsId = String(userId);
     } else {
       const queryCsId = searchParams.get("csId");
-      if (queryCsId) {
+      if (queryCsId && queryCsId !== "all") {
         selectedCsId = queryCsId;
-      } else if (activeCsList.length > 0) {
-        selectedCsId = String(activeCsList[0].id);
       }
     }
 
-    const selectedCsName = activeCsList.find(c => String(c.id) === selectedCsId)?.name || "Semua CS";
+    const selectedCsName = selectedCsId
+      ? (activeCsList.find(c => String(c.id) === selectedCsId)?.name || "CS")
+      : "Semua CS";
 
-    // 3. Compute dailyStats (Dashboard KPIs) for the selected CS
+    // 3. Compute dailyStats (Dashboard KPIs) for the selected CS (or all active CSs)
     let dailyStats = {
       leads: 0,
       newOrders: 0,
@@ -63,70 +63,103 @@ export async function GET(req: NextRequest) {
 
     let transactions: any[] = [];
 
-    if (selectedCsId) {
-      // Leads Count
-      const leadsRes = await client.query(
-        `SELECT COUNT(*) FROM leads WHERE lead_date >= $1 AND lead_date <= $2 AND pic_id = $3`,
-        [startDate, endDate, selectedCsId]
-      );
-      const leadsCount = Number(leadsRes.rows[0].count) || 0;
+    // Leads Count
+    const leadsRes = selectedCsId
+      ? await client.query(
+          `SELECT COUNT(*) FROM leads WHERE lead_date >= $1 AND lead_date <= $2 AND pic_id = $3`,
+          [startDate, endDate, selectedCsId]
+        )
+      : await client.query(
+          `SELECT COUNT(*) FROM leads WHERE lead_date >= $1 AND lead_date <= $2 AND pic_id IN (SELECT id FROM users WHERE role = 'CS / Sales' AND status = 'Aktif')`,
+          [startDate, endDate]
+        );
+    const leadsCount = Number(leadsRes.rows[0].count) || 0;
 
-      // New Orders Count & Value
-      const newOrdersRes = await client.query(
-        `SELECT COUNT(*), COALESCE(SUM(grand_total), 0) as total_value 
-         FROM orders 
-         WHERE order_date >= $1 AND order_date <= $2 AND pic_id = $3 AND jenis_order = 'New Order'`,
-        [startDate, endDate, selectedCsId]
-      );
-      const newOrdersCount = Number(newOrdersRes.rows[0].count) || 0;
-      const newOrdersValue = Number(newOrdersRes.rows[0].total_value) || 0;
+    // New Orders Count & Value
+    const newOrdersRes = selectedCsId
+      ? await client.query(
+          `SELECT COUNT(*), COALESCE(SUM(grand_total), 0) as total_value 
+           FROM orders 
+           WHERE order_date >= $1 AND order_date <= $2 AND pic_id = $3 AND jenis_order = 'New Order'`,
+          [startDate, endDate, selectedCsId]
+        )
+      : await client.query(
+          `SELECT COUNT(*), COALESCE(SUM(grand_total), 0) as total_value 
+           FROM orders 
+           WHERE order_date >= $1 AND order_date <= $2 AND jenis_order = 'New Order' AND pic_id IN (SELECT id FROM users WHERE role = 'CS / Sales' AND status = 'Aktif')`,
+          [startDate, endDate]
+        );
+    const newOrdersCount = Number(newOrdersRes.rows[0].count) || 0;
+    const newOrdersValue = Number(newOrdersRes.rows[0].total_value) || 0;
 
-      // Repeat Orders Count & Value
-      const repeatOrdersRes = await client.query(
-        `SELECT COUNT(*), COALESCE(SUM(grand_total), 0) as total_value 
-         FROM orders 
-         WHERE order_date >= $1 AND order_date <= $2 AND pic_id = $3 AND jenis_order = 'Repeat Order'`,
-        [startDate, endDate, selectedCsId]
-      );
-      const repeatOrdersCount = Number(repeatOrdersRes.rows[0].count) || 0;
-      const repeatOrdersValue = Number(repeatOrdersRes.rows[0].total_value) || 0;
+    // Repeat Orders Count & Value
+    const repeatOrdersRes = selectedCsId
+      ? await client.query(
+          `SELECT COUNT(*), COALESCE(SUM(grand_total), 0) as total_value 
+           FROM orders 
+           WHERE order_date >= $1 AND order_date <= $2 AND pic_id = $3 AND jenis_order = 'Repeat Order'`,
+          [startDate, endDate, selectedCsId]
+        )
+      : await client.query(
+          `SELECT COUNT(*), COALESCE(SUM(grand_total), 0) as total_value 
+           FROM orders 
+           WHERE order_date >= $1 AND order_date <= $2 AND jenis_order = 'Repeat Order' AND pic_id IN (SELECT id FROM users WHERE role = 'CS / Sales' AND status = 'Aktif')`,
+          [startDate, endDate]
+        );
+    const repeatOrdersCount = Number(repeatOrdersRes.rows[0].count) || 0;
+    const repeatOrdersValue = Number(repeatOrdersRes.rows[0].total_value) || 0;
 
-      const totalClosing = newOrdersCount + repeatOrdersCount;
-      const totalOmzet = newOrdersValue + repeatOrdersValue;
-      const closingRate = leadsCount > 0 ? Number(((newOrdersCount / leadsCount) * 100).toFixed(1)) : 0;
+    const totalClosing = newOrdersCount + repeatOrdersCount;
+    const totalOmzet = newOrdersValue + repeatOrdersValue;
+    const closingRate = leadsCount > 0 ? Number(((newOrdersCount / leadsCount) * 100).toFixed(1)) : 0;
 
-      dailyStats = {
-        leads: leadsCount,
-        newOrders: newOrdersCount,
-        repeatOrders: repeatOrdersCount,
-        newOrdersValue,
-        repeatOrdersValue,
-        totalClosing,
-        totalOmzet,
-        closingRate
-      };
+    dailyStats = {
+      leads: leadsCount,
+      newOrders: newOrdersCount,
+      repeatOrders: repeatOrdersCount,
+      newOrdersValue,
+      repeatOrdersValue,
+      totalClosing,
+      totalOmzet,
+      closingRate
+    };
 
-      // Transactions List for selected CS
-      const transRes = await client.query(
-        `SELECT 
-          o.id,
-          COALESCE(o.closing_date, o.order_date) as closing_date,
-          c.id as customer_id,
-          c.name as customer_name,
-          c.phone as whatsapp,
-          o.jenis_order,
-          o.grand_total as nilai_order
-         FROM orders o
-         JOIN customers c ON o.customer_id = c.id
-         WHERE o.order_date >= $1 AND o.order_date <= $2 AND o.pic_id = $3
-         ORDER BY o.order_date DESC, o.id DESC`,
-        [startDate, endDate, selectedCsId]
-      );
-      transactions = transRes.rows;
-    }
+    // Transactions List
+    const transRes = selectedCsId
+      ? await client.query(
+          `SELECT 
+            o.id,
+            COALESCE(o.closing_date, o.order_date) as closing_date,
+            c.id as customer_id,
+            c.name as customer_name,
+            c.phone as whatsapp,
+            o.jenis_order,
+            o.grand_total as nilai_order
+           FROM orders o
+           JOIN customers c ON o.customer_id = c.id
+           WHERE o.order_date >= $1 AND o.order_date <= $2 AND o.pic_id = $3
+           ORDER BY o.order_date DESC, o.id DESC`,
+          [startDate, endDate, selectedCsId]
+        )
+      : await client.query(
+          `SELECT 
+            o.id,
+            COALESCE(o.closing_date, o.order_date) as closing_date,
+            c.id as customer_id,
+            c.name as customer_name,
+            c.phone as whatsapp,
+            o.jenis_order,
+            o.grand_total as nilai_order
+           FROM orders o
+           JOIN customers c ON o.customer_id = c.id
+           WHERE o.order_date >= $1 AND o.order_date <= $2 AND o.pic_id IN (SELECT id FROM users WHERE role = 'CS / Sales' AND status = 'Aktif')
+           ORDER BY o.order_date DESC, o.id DESC`,
+          [startDate, endDate]
+        );
+    transactions = transRes.rows;
 
     // 4. Compute csData (Comparison/Evaluation List)
-    const monthQuery = userRole === "CS / Sales"
+    const monthQuery = selectedCsId
       ? `SELECT
           u.id, u.name,
           (SELECT COUNT(*) FROM leads l WHERE l.pic_id = u.id AND l.lead_date >= $1 AND l.lead_date <= $2) AS total_leads,
@@ -140,13 +173,13 @@ export async function GET(req: NextRequest) {
         FROM users u
         WHERE u.role = 'CS / Sales' AND u.status = 'Aktif'
         ORDER BY id ASC`;
-    const monthParams = userRole === "CS / Sales"
-      ? [startDate, endDate, userId]
+    const monthParams = selectedCsId
+      ? [startDate, endDate, selectedCsId]
       : [startDate, endDate];
     const monthRes = await client.query(monthQuery, monthParams);
 
     // 5. Generate Weekly Chart Data
-    const weeklyQuery = userRole === "CS / Sales"
+    const weeklyQuery = selectedCsId
       ? `WITH weeks AS (
           SELECT generate_series(
             date_trunc('week', $1::date)::date,
@@ -181,8 +214,8 @@ export async function GET(req: NextRequest) {
         CROSS JOIN users u
         WHERE u.role = 'CS / Sales' AND u.status = 'Aktif'
         ORDER BY w.week_start ASC`;
-    const weeklyParams = userRole === "CS / Sales"
-      ? [startDate, endDate, userId]
+    const weeklyParams = selectedCsId
+      ? [startDate, endDate, selectedCsId]
       : [startDate, endDate];
     const weeklyChartRes = await client.query(weeklyQuery, weeklyParams);
 
@@ -234,7 +267,7 @@ export async function GET(req: NextRequest) {
       chartData, 
       dailyStats,
       transactions,
-      selectedCsId,
+      selectedCsId: selectedCsId || "all",
       selectedCsName,
       activeCsList,
       startDate,

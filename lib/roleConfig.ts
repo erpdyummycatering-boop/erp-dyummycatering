@@ -6,7 +6,8 @@ export type RoleKey =
   | "cs_sales"
   | "chef"
   | "purchasing"
-  | "finance";
+  | "finance"
+  | "hr";
 
 export interface RoleConfig {
   key: RoleKey;
@@ -101,6 +102,18 @@ export const ROLES: RoleConfig[] = [
       "/finance",
       "/pl-dashboard",
       "/targets",
+    ],
+  },
+  {
+    key: "hr",
+    label: "HR",
+    description: "Melihat performa CS dan rekap tim",
+    color: "#639922",
+    bgColor: "#f1fbf0",
+    initials: "HR",
+    firstPage: "/cs-performance",
+    allowedHrefs: [
+      "/cs-performance",
     ],
   },
 ];

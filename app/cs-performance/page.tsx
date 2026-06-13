@@ -25,6 +25,45 @@ const PERF_TIERS = {
   excellent:     { label: "EXCELLENT", color: "#28A745", bg: "#F0FDF4", text: "#166534", desc: "Kinerja sangat baik, melampaui standar. Rekomendasi: Pertahankan konsistensi, bagikan best practice ke tim." },
 };
 
+const getRangeDates = (type: string) => {
+  const today = new Date();
+  const tzOffset = today.getTimezoneOffset() * 60000;
+  const getLocalDateStr = (d: Date) => new Date(d.getTime() - tzOffset).toISOString().slice(0, 10);
+
+  const todayStr = getLocalDateStr(today);
+
+  switch (type) {
+    case "today":
+      return { start: todayStr, end: todayStr };
+    case "yesterday": {
+      const yesterday = new Date();
+      yesterday.setDate(today.getDate() - 1);
+      return { start: getLocalDateStr(yesterday), end: getLocalDateStr(yesterday) };
+    }
+    case "7days": {
+      const past7 = new Date();
+      past7.setDate(today.getDate() - 6);
+      return { start: getLocalDateStr(past7), end: todayStr };
+    }
+    case "14days": {
+      const past14 = new Date();
+      past14.setDate(today.getDate() - 13);
+      return { start: getLocalDateStr(past14), end: todayStr };
+    }
+    case "month": {
+      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+      return { start: getLocalDateStr(firstDay), end: todayStr };
+    }
+    case "last_month": {
+      const firstDayLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      const lastDayLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+      return { start: getLocalDateStr(firstDayLastMonth), end: getLocalDateStr(lastDayLastMonth) };
+    }
+    default:
+      return null;
+  }
+};
+
 export default function CSPerformancePage() {
   const { activeRole } = useRole();
 
@@ -32,10 +71,10 @@ export default function CSPerformancePage() {
   const mtdStr = todayStr.slice(0, 8) + '01'; // YYYY-MM-01
 
   // Filter States
-  const [periodType, setPeriodType] = useState<'today' | 'month' | 'custom'>('today');
-  const [startDate, setStartDate] = useState(todayStr);
+  const [periodType, setPeriodType] = useState<string>('month');
+  const [startDate, setStartDate] = useState(mtdStr);
   const [endDate, setEndDate] = useState(todayStr);
-  const [selectedCsId, setSelectedCsId] = useState<string>("");
+  const [selectedCsId, setSelectedCsId] = useState<string>("all");
 
   // Data States
   const [data, setData] = useState<any>({
@@ -44,8 +83,8 @@ export default function CSPerformancePage() {
     dailyStats: {},
     transactions: [],
     activeCsList: [],
-    selectedCsId: "",
-    selectedCsName: "",
+    selectedCsId: "all",
+    selectedCsName: "Semua CS",
   });
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'ringkasan' | 'evaluasi'>('ringkasan');
@@ -54,12 +93,10 @@ export default function CSPerformancePage() {
 
   // Sync date ranges when periodType changes
   useEffect(() => {
-    if (periodType === 'today') {
-      setStartDate(todayStr);
-      setEndDate(todayStr);
-    } else if (periodType === 'month') {
-      setStartDate(mtdStr);
-      setEndDate(todayStr);
+    const range = getRangeDates(periodType);
+    if (range) {
+      setStartDate(range.start);
+      setEndDate(range.end);
     }
   }, [periodType]);
 
@@ -147,6 +184,7 @@ export default function CSPerformancePage() {
                     cursor: "pointer"
                   }}
                 >
+                  <option value="all">Semua CS</option>
                   {activeCsList.map((c: any) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
@@ -154,41 +192,32 @@ export default function CSPerformancePage() {
               </div>
             )}
 
-            {/* Period Filter Selector */}
-            <div style={{ display: 'flex', backgroundColor: '#e2e8f0', borderRadius: 8, padding: 3 }}>
-              <button 
-                onClick={() => setPeriodType('today')}
-                style={{
-                  padding: "5px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600, border: "none", cursor: "pointer",
-                  backgroundColor: periodType === 'today' ? BRAND.primary : 'transparent',
-                  color: periodType === 'today' ? 'white' : '#475569',
-                  transition: 'all 0.2s'
+            {/* Period Filter Selector Dropdown */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#475569' }}>Periode:</span>
+              <select 
+                value={periodType} 
+                onChange={e => setPeriodType(e.target.value)}
+                style={{ 
+                  border: "1.5px solid #cbd5e1", 
+                  borderRadius: 8, 
+                  padding: "6px 12px", 
+                  fontSize: 13, 
+                  fontWeight: 500,
+                  outline: "none", 
+                  backgroundColor: "white", 
+                  color: BRAND.textDark,
+                  cursor: "pointer"
                 }}
               >
-                Hari Ini
-              </button>
-              <button 
-                onClick={() => setPeriodType('month')}
-                style={{
-                  padding: "5px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600, border: "none", cursor: "pointer",
-                  backgroundColor: periodType === 'month' ? BRAND.primary : 'transparent',
-                  color: periodType === 'month' ? 'white' : '#475569',
-                  transition: 'all 0.2s'
-                }}
-              >
-                Bulan Ini
-              </button>
-              <button 
-                onClick={() => setPeriodType('custom')}
-                style={{
-                  padding: "5px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600, border: "none", cursor: "pointer",
-                  backgroundColor: periodType === 'custom' ? BRAND.primary : 'transparent',
-                  color: periodType === 'custom' ? 'white' : '#475569',
-                  transition: 'all 0.2s'
-                }}
-              >
-                Custom
-              </button>
+                <option value="today">Hari Ini</option>
+                <option value="yesterday">Kemarin</option>
+                <option value="7days">7 Hari Terakhir</option>
+                <option value="14days">14 Hari Terakhir</option>
+                <option value="month">Bulan Ini</option>
+                <option value="last_month">Bulan Lalu</option>
+                <option value="custom">Custom</option>
+              </select>
             </div>
 
             {/* Custom Date Picker Inputs */}
@@ -467,39 +496,43 @@ export default function CSPerformancePage() {
       {activeTab === 'evaluasi' && (
         <div style={{ animation: "fadeIn 0.3s ease" }}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12, marginBottom: 24 }}>
-            {activeRole !== "cs_sales" && (
-              <>
-                {/* CS Terbaik Card */}
-                <div style={{ backgroundColor: "white", border: "1px solid #e2e8f0", borderRadius: 12, padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div>
-                    <p style={{ fontSize: 11, color: "#64748b", fontWeight: 700, margin: 0 }}>CS TERBAIK</p>
-                    <h4 style={{ fontSize: 20, fontWeight: 700, color: BRAND.primary, margin: "4px 0" }}>{best?.name?.split(" ")[0] || "-"}</h4>
-                    <p style={{ fontSize: 12, color: "#166534", margin: 0, fontWeight: 600 }}>Rate: {best?.monthRate || 0}%</p>
-                  </div>
-                  <div style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: "#F0FDF4", display: "flex", alignItems: "center", justifyContent: "center", color: "#166534" }}>
-                    <TrendingUp size={18} />
-                  </div>
-                </div>
+            {/* Total CS Card */}
+            <div style={{ backgroundColor: "white", border: "1px solid #e2e8f0", borderRadius: 12, padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <p style={{ fontSize: 11, color: "#64748b", fontWeight: 700, margin: 0 }}>TOTAL CS</p>
+                <h4 style={{ fontSize: 22, fontWeight: 700, color: BRAND.primary, margin: "4px 0" }}>{csData.length} orang</h4>
+                <p style={{ fontSize: 11, color: "#64748b", margin: 0, fontWeight: 500 }}>CS Aktif</p>
+              </div>
+              <div style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: "#F0FDF4", display: "flex", alignItems: "center", justifyContent: "center", color: "#166534" }}>
+                <Users size={18} />
+              </div>
+            </div>
 
-                {/* Perlu Perhatian Card */}
-                <div style={{ backgroundColor: "white", border: "1px solid #e2e8f0", borderRadius: 12, padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div>
-                    <p style={{ fontSize: 11, color: "#64748b", fontWeight: 700, margin: 0 }}>PERLU PERHATIAN</p>
-                    <h4 style={{ fontSize: 20, fontWeight: 700, color: "#DC3545", margin: "4px 0" }}>{worst?.name?.split(" ")[0] || "-"}</h4>
-                    <p style={{ fontSize: 12, color: "#9B1C1C", margin: 0, fontWeight: 600 }}>Rate: {worst?.monthRate || 0}%</p>
-                  </div>
-                  <div style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: "#FDF2F2", display: "flex", alignItems: "center", justifyContent: "center", color: "#DC3545" }}>
-                    <AlertTriangle size={18} />
-                  </div>
-                </div>
-              </>
-            )}
+            {/* Total Leads Card */}
+            <div style={{ backgroundColor: "white", border: "1px solid #e2e8f0", borderRadius: 12, padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <p style={{ fontSize: 11, color: "#64748b", fontWeight: 700, margin: 0 }}>TOTAL LEADS</p>
+                <h4 style={{ fontSize: 22, fontWeight: 700, color: "#378ADD", margin: "4px 0" }}>
+                  {csData.reduce((sum: number, c: any) => sum + c.monthLeads, 0)} lead
+                </h4>
+                <p style={{ fontSize: 11, color: "#64748b", margin: 0, fontWeight: 500 }}>Total lead masuk</p>
+              </div>
+              <div style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center", color: "#378ADD" }}>
+                <TrendingUp size={18} />
+              </div>
+            </div>
 
-            {/* Rata-rata Rate Card */}
+            {/* Avg Closing Rate Card */}
             <div style={{ backgroundColor: "white", border: "1px solid #e2e8f0", borderRadius: 12, padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
                 <p style={{ fontSize: 11, color: "#64748b", fontWeight: 700, margin: 0 }}>AVG CLOSING RATE</p>
-                <h4 style={{ fontSize: 22, fontWeight: 700, color: BRAND.textDark, margin: "4px 0" }}>{avgRate}%</h4>
+                <h4 style={{ fontSize: 22, fontWeight: 700, color: BRAND.textDark, margin: "4px 0" }}>
+                  {(() => {
+                    const totalLeads = csData.reduce((sum: number, c: any) => sum + c.monthLeads, 0);
+                    const totalClosing = csData.reduce((sum: number, c: any) => sum + c.monthClosing, 0);
+                    return totalLeads > 0 ? ((totalClosing / totalLeads) * 100).toFixed(1) : "0";
+                  })()}%
+                </h4>
                 <p style={{ fontSize: 11, color: "#64748b", margin: 0, fontWeight: 500 }}>Target: ≥30%</p>
               </div>
               <div style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: "#FFF8F1", display: "flex", alignItems: "center", justifyContent: "center", color: "#FD7E14" }}>
@@ -507,11 +540,13 @@ export default function CSPerformancePage() {
               </div>
             </div>
 
-            {/* Total Closing Card */}
+            {/* Total New Orders Card */}
             <div style={{ backgroundColor: "white", border: "1px solid #e2e8f0", borderRadius: 12, padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
                 <p style={{ fontSize: 11, color: "#64748b", fontWeight: 700, margin: 0 }}>TOTAL NEW ORDERS</p>
-                <h4 style={{ fontSize: 22, fontWeight: 700, color: BRAND.textDark, margin: "4px 0" }}>{totalClosing} order</h4>
+                <h4 style={{ fontSize: 22, fontWeight: 700, color: BRAND.textDark, margin: "4px 0" }}>
+                  {csData.reduce((sum: number, c: any) => sum + c.monthClosing, 0)} order
+                </h4>
                 <p style={{ fontSize: 11, color: "#64748b", margin: 0, fontWeight: 500 }}>Berdasarkan lead closing</p>
               </div>
               <div style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: "#EEEDFE", display: "flex", alignItems: "center", justifyContent: "center", color: BRAND.primary }}>
@@ -570,7 +605,7 @@ export default function CSPerformancePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {csData.map((cs: any) => {
+                  {[...csData].sort((a: any, b: any) => b.monthRate - a.monthRate).map((cs: any) => {
                     const r = cs.monthRate;
                     const statusConfig = getPerfStatus(r);
                     return (

@@ -4,6 +4,10 @@ import { authOptions } from "@/lib/auth";
 import pool from "@/lib/db";
 
 export async function GET(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  const userRole = (session?.user as any)?.role;
+  const userName = session?.user?.name;
+
   const { searchParams: p } = new URL(req.url);
   const page = Math.max(1, Number(p.get("page") || 1));
   const limit = Math.min(100, Number(p.get("limit") || 20));
@@ -17,6 +21,12 @@ export async function GET(req: NextRequest) {
 
   if (search) { wheres.push(`(name ILIKE $${idx} OR phone ILIKE $${idx} OR email ILIKE $${idx})`); vals.push(`%${search}%`); idx++; }
   if (type) { wheres.push(`type = $${idx}`); vals.push(type); idx++; }
+
+  if (userRole === "CS / Sales" && userName) {
+    wheres.push(`created_by = $${idx}`);
+    vals.push(`${userName} | CS / Sales`);
+    idx++;
+  }
 
   const where = wheres.length ? "WHERE " + wheres.join(" AND ") : "";
   const client = await pool.connect();

@@ -113,7 +113,7 @@ export default function SettingsPage() {
           <FormField label="Role">
             <SearchableSelect 
               value={form.role} onChange={v => setForm((f) => ({ ...f, role: v }))}
-              options={["CS / Sales", "Kitchen", "Purchasing", "Finance", "Super Admin"].map(r => ({ value: r, label: r }))}
+              options={["CS / Sales", "Kitchen", "Purchasing", "Finance", "Super Admin", "HR"].map(r => ({ value: r, label: r }))}
               menuPortalTarget={typeof document !== "undefined" ? document.body : null}
             />
           </FormField>

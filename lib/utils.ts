@@ -34,9 +34,13 @@ export const roleColor = (role: string): BadgeColor => {
     "Super Admin": "purple",
     "CS / Sales": "blue",
     Kitchen: "teal",
+    "Chef / Kitchen": "teal",
     Finance: "yellow",
+    "Finance / Keuangan": "yellow",
     Purchasing: "gray",
     Owner: "green",
+    HR: "green",
+    HRD: "green",
   };
   return map[role] || "gray";
 };
