@@ -7,6 +7,7 @@ export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   const userRole = (session?.user as any)?.role;
   const userId = (session?.user as any)?.id;
+  const userName = session?.user?.name;
 
   const client = await pool.connect();
   try {
@@ -144,6 +145,23 @@ export async function GET(req: NextRequest) {
       poAlerts = poAlertsRes.rows;
     }
 
+    let contactStatsQuery = `
+      SELECT 
+        COUNT(*) as total_contacts,
+        COUNT(CASE WHEN EXISTS (SELECT 1 FROM orders WHERE customer_id = c.id) THEN 1 END) as customers,
+        COUNT(CASE WHEN NOT EXISTS (SELECT 1 FROM orders WHERE customer_id = c.id) THEN 1 END) as leads
+      FROM customers c
+    `;
+    let contactStatsParams: any[] = [];
+    if (userRole === "CS / Sales" && userName) {
+      contactStatsQuery += ` WHERE c.created_by = $1`;
+      contactStatsParams.push(`${userName} | CS / Sales`);
+    }
+    const contactStatsRes = await client.query(contactStatsQuery, contactStatsParams);
+    const totalContacts = Number(contactStatsRes.rows[0]?.total_contacts || 0);
+    const customerCasteCount = Number(contactStatsRes.rows[0]?.customers || 0);
+    const leadCasteCount = Number(contactStatsRes.rows[0]?.leads || 0);
+
     return NextResponse.json({
       totalRevenue,
       totalLeadsToday,
@@ -152,7 +170,10 @@ export async function GET(req: NextRequest) {
       activeOrders,
       plChart: chartRows,
       scheduleAlerts,
-      poAlerts
+      poAlerts,
+      totalContacts,
+      customerCasteCount,
+      leadCasteCount
     });
   } finally {
     client.release();

@@ -26,6 +26,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     );
     if (!result.rows.length) return NextResponse.json({ error: "Not found" }, { status: 404 });
     return NextResponse.json(result.rows[0]);
+  } catch (err: any) {
+    console.error("Gagal memperbarui customer:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   } finally {
     client.release();
   }
@@ -37,6 +40,9 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   try {
     await client.query("DELETE FROM customers WHERE id = $1", [id]);
     return NextResponse.json({ success: true });
+  } catch (err: any) {
+    console.error("Gagal menghapus customer:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   } finally {
     client.release();
   }

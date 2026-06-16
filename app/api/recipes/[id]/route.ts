@@ -13,6 +13,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       [menu_name, ingredients, standard_cost, product_id, id]
     );
     return NextResponse.json(res.rows[0]);
+  } catch (err: any) {
+    console.error("Gagal memperbarui resep:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   } finally { client.release(); }
 }
 
@@ -22,5 +25,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   try {
     await client.query("DELETE FROM recipes WHERE id = $1", [id]);
     return NextResponse.json({ success: true });
+  } catch (err: any) {
+    console.error("Gagal menghapus resep:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   } finally { client.release(); }
 }

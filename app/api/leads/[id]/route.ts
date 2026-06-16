@@ -55,6 +55,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       [status, tags, notes, final_pic_id || null, id]
     );
     return NextResponse.json(result.rows[0]);
+  } catch (err: any) {
+    console.error("Gagal memperbarui lead:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   } finally { client.release(); }
 }
 
@@ -74,5 +77,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     await client.query("DELETE FROM leads WHERE id = $1", [id]);
     return NextResponse.json({ success: true });
+  } catch (err: any) {
+    console.error("Gagal menghapus lead:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   } finally { client.release(); }
 }

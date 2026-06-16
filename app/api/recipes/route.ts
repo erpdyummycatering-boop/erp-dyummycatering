@@ -37,5 +37,8 @@ export async function POST(req: NextRequest) {
       [product_id, menu_name, ingredients, standard_cost]
     );
     return NextResponse.json(res.rows[0], { status: 201 });
+  } catch (err: any) {
+    console.error("Gagal menyimpan resep:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   } finally { client.release(); }
 }

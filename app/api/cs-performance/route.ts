@@ -163,13 +163,21 @@ export async function GET(req: NextRequest) {
       ? `SELECT
           u.id, u.name,
           (SELECT COUNT(*) FROM leads l WHERE l.pic_id = u.id AND l.lead_date >= $1 AND l.lead_date <= $2) AS total_leads,
-          (SELECT COUNT(*) FROM orders o WHERE o.pic_id = u.id AND o.order_date >= $1 AND o.order_date <= $2 AND o.jenis_order = 'New Order') AS total_closing
+          (SELECT COUNT(*) FROM orders o WHERE o.pic_id = u.id AND o.order_date >= $1 AND o.order_date <= $2 AND o.jenis_order = 'New Order') AS total_closing,
+          (SELECT COUNT(*) FROM orders o WHERE o.pic_id = u.id AND o.order_date >= $1 AND o.order_date <= $2 AND o.jenis_order = 'Repeat Order') AS total_repeat_orders,
+          (SELECT COALESCE(SUM(o.grand_total), 0) FROM orders o WHERE o.pic_id = u.id AND o.order_date >= $1 AND o.order_date <= $2 AND o.jenis_order = 'New Order') AS new_orders_value,
+          (SELECT COALESCE(SUM(o.grand_total), 0) FROM orders o WHERE o.pic_id = u.id AND o.order_date >= $1 AND o.order_date <= $2 AND o.jenis_order = 'Repeat Order') AS repeat_orders_value,
+          (SELECT COALESCE(SUM(o.grand_total), 0) FROM orders o WHERE o.pic_id = u.id AND o.order_date >= $1 AND o.order_date <= $2) AS total_omzet
         FROM users u
         WHERE u.id = $3 AND u.status = 'Aktif'`
       : `SELECT
           u.id, u.name,
           (SELECT COUNT(*) FROM leads l WHERE l.pic_id = u.id AND l.lead_date >= $1 AND l.lead_date <= $2) AS total_leads,
-          (SELECT COUNT(*) FROM orders o WHERE o.pic_id = u.id AND o.order_date >= $1 AND o.order_date <= $2 AND o.jenis_order = 'New Order') AS total_closing
+          (SELECT COUNT(*) FROM orders o WHERE o.pic_id = u.id AND o.order_date >= $1 AND o.order_date <= $2 AND o.jenis_order = 'New Order') AS total_closing,
+          (SELECT COUNT(*) FROM orders o WHERE o.pic_id = u.id AND o.order_date >= $1 AND o.order_date <= $2 AND o.jenis_order = 'Repeat Order') AS total_repeat_orders,
+          (SELECT COALESCE(SUM(o.grand_total), 0) FROM orders o WHERE o.pic_id = u.id AND o.order_date >= $1 AND o.order_date <= $2 AND o.jenis_order = 'New Order') AS new_orders_value,
+          (SELECT COALESCE(SUM(o.grand_total), 0) FROM orders o WHERE o.pic_id = u.id AND o.order_date >= $1 AND o.order_date <= $2 AND o.jenis_order = 'Repeat Order') AS repeat_orders_value,
+          (SELECT COALESCE(SUM(o.grand_total), 0) FROM orders o WHERE o.pic_id = u.id AND o.order_date >= $1 AND o.order_date <= $2) AS total_omzet
         FROM users u
         WHERE u.role = 'CS / Sales' AND u.status = 'Aktif'
         ORDER BY id ASC`;
@@ -249,6 +257,10 @@ export async function GET(req: NextRequest) {
         name: cs.name,
         monthLeads: leads,
         monthClosing: closing,
+        monthRepeatOrders: Number(cs.total_repeat_orders || 0),
+        monthNewOrdersValue: Number(cs.new_orders_value || 0),
+        monthRepeatOrdersValue: Number(cs.repeat_orders_value || 0),
+        monthOmzet: Number(cs.total_omzet || 0),
         monthRate: leads > 0 ? Number(((closing / leads) * 100).toFixed(1)) : 0,
         weekly: weeklyData[csIdNum] || [],
       };

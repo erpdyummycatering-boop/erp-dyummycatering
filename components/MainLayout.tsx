@@ -22,7 +22,7 @@ const ALL_MENU = [
   {
     section: "CRM",
     items: [
-      { href: "/leads", label: "Lead Harian", icon: Inbox },
+      { href: "/leads", label: "Aktivitas Prospek", icon: Inbox },
       { href: "/customers", label: "Data Kontak", icon: Users },
       { href: "/orders", label: "Order", icon: ShoppingBag },
       { href: "/cs-performance", label: "Performa CS", icon: BarChart2 },

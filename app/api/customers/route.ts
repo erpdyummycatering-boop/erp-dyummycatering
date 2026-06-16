@@ -14,16 +14,24 @@ export async function GET(req: NextRequest) {
   const offset = (page - 1) * limit;
   const search = p.get("search") || "";
   const type = p.get("type") || "";
+  const caste = p.get("caste") || "";
 
   const wheres: string[] = [];
   const vals: unknown[] = [];
   let idx = 1;
 
-  if (search) { wheres.push(`(name ILIKE $${idx} OR phone ILIKE $${idx} OR email ILIKE $${idx})`); vals.push(`%${search}%`); idx++; }
-  if (type) { wheres.push(`type = $${idx}`); vals.push(type); idx++; }
+  if (search) { wheres.push(`(c.name ILIKE $${idx} OR c.phone ILIKE $${idx} OR c.email ILIKE $${idx})`); vals.push(`%${search}%`); idx++; }
+  if (type) { wheres.push(`c.type = $${idx}`); vals.push(type); idx++; }
+  if (caste) {
+    if (caste === "Customer") {
+      wheres.push(`EXISTS (SELECT 1 FROM orders WHERE customer_id = c.id)`);
+    } else if (caste === "Lead") {
+      wheres.push(`NOT EXISTS (SELECT 1 FROM orders WHERE customer_id = c.id)`);
+    }
+  }
 
   if (userRole === "CS / Sales" && userName) {
-    wheres.push(`created_by = $${idx}`);
+    wheres.push(`c.created_by = $${idx}`);
     vals.push(`${userName} | CS / Sales`);
     idx++;
   }
@@ -32,8 +40,16 @@ export async function GET(req: NextRequest) {
   const client = await pool.connect();
   try {
     const [countRes, dataRes] = await Promise.all([
-      client.query(`SELECT COUNT(*) FROM customers ${where}`, vals),
-      client.query(`SELECT * FROM customers ${where} ORDER BY created_at DESC LIMIT $${idx} OFFSET $${idx+1}`, [...vals, limit, offset])
+      client.query(`SELECT COUNT(*) FROM customers c ${where}`, vals),
+      client.query(`
+        SELECT c.*,
+          (SELECT MAX(delivery_date) FROM orders WHERE customer_id = c.id) AS last_order,
+          CASE WHEN EXISTS (SELECT 1 FROM orders WHERE customer_id = c.id) THEN 'Customer' ELSE 'Lead' END AS caste
+        FROM customers c
+        ${where}
+        ORDER BY c.created_at DESC
+        LIMIT $${idx} OFFSET $${idx+1}
+      `, [...vals, limit, offset])
     ]);
     const total = Number(countRes.rows[0].count);
     return NextResponse.json({ data: dataRes.rows, total, page, limit, totalPages: Math.ceil(total / limit) });

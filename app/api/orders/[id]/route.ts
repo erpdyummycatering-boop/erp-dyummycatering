@@ -118,9 +118,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     await client.query("COMMIT");
     return NextResponse.json(res.rows[0]);
-  } catch (e) {
+  } catch (e: any) {
     await client.query("ROLLBACK");
-    throw e;
+    console.error("Gagal memperbarui order:", e);
+    return NextResponse.json({ error: e.message }, { status: 500 });
   } finally {
     client.release();
   }
@@ -142,5 +143,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     await client.query("DELETE FROM orders WHERE id = $1", [id]);
     return NextResponse.json({ success: true });
+  } catch (err: any) {
+    console.error("Gagal menghapus order:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   } finally { client.release(); }
 }

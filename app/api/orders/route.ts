@@ -144,10 +144,20 @@ export async function POST(req: NextRequest) {
         [orderId, item.product_id, item.price, item.quantity, item.discount || 0, subtotal, item.custom_menu || null, item.notes || null]
       );
     }
+    
+    // Auto-update last active lead to 'Closing'
+    await client.query(
+      `UPDATE leads 
+       SET status = 'Closing' 
+       WHERE customer_id = $1 AND status NOT IN ('Closing', 'Reject')`,
+      [final_customer_id]
+    );
+
     await client.query("COMMIT");
     return NextResponse.json(orderRes.rows[0], { status: 201 });
-  } catch (e) {
+  } catch (e: any) {
     await client.query("ROLLBACK");
-    throw e;
+    console.error("Gagal menyimpan order:", e);
+    return NextResponse.json({ error: e.message }, { status: 500 });
   } finally { client.release(); }
 }

@@ -29,6 +29,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       [name, category_id ? Number(category_id) : null, price, description, status, image_url || null, id]
     );
     return NextResponse.json(res.rows[0]);
+  } catch (err: any) {
+    console.error("Gagal memperbarui produk:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   } finally { client.release(); }
 }
 
@@ -38,5 +41,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   try {
     await client.query("DELETE FROM products WHERE id = $1", [id]);
     return NextResponse.json({ success: true });
+  } catch (err: any) {
+    console.error("Gagal menghapus produk:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   } finally { client.release(); }
 }

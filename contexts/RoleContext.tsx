@@ -42,7 +42,16 @@ const mapDbRoleToKey = (role: string): RoleKey => {
 export function RoleProvider({ children }: { children: ReactNode }) {
   const { data: session, status } = useSession();
 
-  const loading = status === "loading";
+  const isDev = process.env.NODE_ENV === "development";
+  const loading = isDev ? false : status === "loading";
+  
+  const mockUser = {
+    id: "1",
+    name: "Developer Owner",
+    email: "dev@dyummycatering.com",
+    role: "Owner"
+  };
+
   const user = session?.user
     ? {
         id: (session.user as any).id,
@@ -50,7 +59,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
         email: session.user.email || "",
         role: (session.user as any).role || "",
       }
-    : null;
+    : (isDev ? mockUser : null);
 
   const activeRole = user ? mapDbRoleToKey(user.role) : DEFAULT_ROLE;
 

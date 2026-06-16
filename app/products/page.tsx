@@ -129,9 +129,18 @@ export default function ProductsPage() {
 
   const executeDelete = async () => {
     if (!itemToDelete) return;
-    await fetch(`/api/products/${itemToDelete.id}`, { method: "DELETE" });
-    setItemToDelete(null);
-    fetchProducts(meta.page);
+    try {
+      const res = await fetch(`/api/products/${itemToDelete.id}`, { method: "DELETE" });
+      if (res.ok) {
+        setItemToDelete(null);
+        fetchProducts(meta.page);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || "Gagal menghapus produk");
+      }
+    } catch (e) {
+      alert("Terjadi kesalahan saat menghapus produk");
+    }
   };
 
   const handleExport = async () => {

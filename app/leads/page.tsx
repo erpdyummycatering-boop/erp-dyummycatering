@@ -138,20 +138,49 @@ export default function LeadsPage() {
 
     const url = editItem ? `/api/leads/${editItem.id}` : "/api/leads";
     const method = editItem ? "PUT" : "POST";
-    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(finalForm) });
-    if (res.ok) { setShowModal(false); setEditItem(null); fetchLeads(1); }
+    try {
+      const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(finalForm) });
+      if (res.ok) { 
+        setShowModal(false); 
+        setEditItem(null); 
+        fetchLeads(1); 
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || "Gagal menyimpan lead.");
+      }
+    } catch (e) {
+      alert("Terjadi kesalahan saat menyimpan lead.");
+    }
   };
 
   const executeDelete = async () => {
     if (!itemToDelete) return;
-    await fetch(`/api/leads/${itemToDelete.id}`, { method: "DELETE" });
-    setItemToDelete(null);
-    fetchLeads(meta.page);
+    try {
+      const res = await fetch(`/api/leads/${itemToDelete.id}`, { method: "DELETE" });
+      if (res.ok) {
+        setItemToDelete(null);
+        fetchLeads(meta.page);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || "Gagal menghapus lead.");
+      }
+    } catch (e) {
+      alert("Terjadi kesalahan saat menghapus lead.");
+    }
   };
 
   const handleStatusChange = async (id: number, status: string) => {
-    await fetch(`/api/leads/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
-    fetchLeads(meta.page, meta.limit);
+    try {
+      const res = await fetch(`/api/leads/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
+      if (res.ok) {
+        fetchLeads(meta.page, meta.limit);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || "Gagal memperbarui status lead.");
+      }
+    } catch (e) {
+      alert("Terjadi kesalahan saat memperbarui status.");
+    }
   };
 
   const handleExport = async () => {
@@ -173,12 +202,12 @@ export default function LeadsPage() {
   
   return (
     <div>
-      <PageHeader title="Lead Harian" subtitle={`${meta.total} total leads — semua terhubung database`}
+      <PageHeader title="Aktivitas Prospek" subtitle={`${meta.total} total prospek — semua terhubung database`}
         actions={
           <div style={{ display: "flex", gap: 8 }}>
             <button className="btn btn-secondary btn-sm" onClick={handleExport}><Download size={14} /> Export Excel</button>
             <button className="btn btn-secondary btn-sm" onClick={() => setShowImport(true)} style={{ display: "flex", alignItems: "center", gap: 6 }}><Upload size={14} /> Import Excel</button>
-            <button className="btn btn-primary" onClick={() => { setEditItem(null); setForm({ customer_id: "", customer_name: "", customer_phone: "", pic_id: userRole === "CS / Sales" ? String(userId) : "", lead_date: new Date().toISOString().split("T")[0], source: "WhatsApp", status: "Prospek", tags: "", notes: "" }); setShowModal(true); }}><Plus size={14} /> Tambah Lead</button>
+            <button className="btn btn-primary" onClick={() => { setEditItem(null); setForm({ customer_id: "", customer_name: "", customer_phone: "", pic_id: userRole === "CS / Sales" ? String(userId) : "", lead_date: new Date().toISOString().split("T")[0], source: "WhatsApp", status: "Prospek", tags: "", notes: "" }); setShowModal(true); }}><Plus size={14} /> Tambah Prospek</button>
           </div>
         }
       />
@@ -230,16 +259,21 @@ export default function LeadsPage() {
             <div style={{ overflowX: "auto" }}>
               <table>
                 <thead>
-                  <tr><th>No.</th><th>Tanggal</th><th>Customer</th><th>Sumber</th><th>Status</th><th>CS PIC</th><th>Tags</th><th>Catatan</th><th>Aksi</th></tr>
+                  <tr><th>No.</th><th>Tanggal</th><th>Customer</th><th>Kasta</th><th>Sumber</th><th>Status</th><th>CS PIC</th><th>Tags</th><th>Catatan</th><th>Aksi</th></tr>
                 </thead>
                 <tbody>
                   {rows.length === 0 ? (
-                    <tr><td colSpan={9} style={{ textAlign: "center", padding: 24, color: "#6b7280" }}>Tidak ada data</td></tr>
+                    <tr><td colSpan={10} style={{ textAlign: "center", padding: 24, color: "#6b7280" }}>Tidak ada data</td></tr>
                   ) : rows.map((r: any, idx: number) => (
                     <tr key={r.id}>
                       <td style={{ fontSize: 12, color: "#6b7280" }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
                       <td style={{ fontSize: 12 }}>{String(r.lead_date).slice(0, 10)}</td>
                       <td style={{ fontWeight: 500 }}>{r.customer_name}</td>
+                      <td>
+                        <Badge color={r.customer_caste === "Customer" ? "green" : "yellow"}>
+                          {r.customer_caste || "Lead"}
+                        </Badge>
+                      </td>
                       <td><Badge color="blue">{r.source}</Badge></td>
                       <td>
                         <select value={r.status} onChange={e => handleStatusChange(r.id, e.target.value)}
@@ -293,7 +327,7 @@ export default function LeadsPage() {
         templateFileName="Template_Import_Leads.xlsx"
       />
 
-      <Modal show={showModal} onClose={() => { setShowModal(false); setEditItem(null); }} title={editItem ? "Edit Lead" : "Tambah Lead"}>
+      <Modal show={showModal} onClose={() => { setShowModal(false); setEditItem(null); }} title={editItem ? "Edit Prospek" : "Tambah Prospek"}>
         <FormRow>
           <FormField label="Customer">
             <div style={{ display: "flex", gap: 6, width: "100%" }}>
@@ -376,8 +410,8 @@ export default function LeadsPage() {
 
       <ConfirmModal
         show={!!itemToDelete}
-        title="Hapus Lead"
-        message={`Yakin ingin menghapus lead dari ${itemToDelete?.customer_name}? Data yang dihapus tidak dapat dikembalikan.`}
+        title="Hapus Prospek"
+        message={`Yakin ingin menghapus prospek dari ${itemToDelete?.customer_name}? Data yang dihapus tidak dapat dikembalikan.`}
         onConfirm={executeDelete}
         onCancel={() => setItemToDelete(null)}
       />

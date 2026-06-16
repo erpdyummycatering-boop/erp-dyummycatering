@@ -58,17 +58,36 @@ export default function RecipesPage() {
     if (!form.menu_name || !form.standard_cost) return alert("Nama menu dan HPP wajib diisi");
     const url = editItem ? `/api/recipes/${editItem.id}` : "/api/recipes";
     const method = editItem ? "PUT" : "POST";
-    const res = await fetch(url, {
-      method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
-    });
-    if (res.ok) { setShowModal(false); fetchRecipes(meta.page); }
+    try {
+      const res = await fetch(url, {
+        method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
+      });
+      if (res.ok) {
+        setShowModal(false);
+        fetchRecipes(meta.page);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || "Gagal menyimpan resep.");
+      }
+    } catch (e) {
+      alert("Terjadi kesalahan saat menyimpan resep.");
+    }
   };
 
   const executeDelete = async () => {
     if (!itemToDelete) return;
-    await fetch(`/api/recipes/${itemToDelete.id}`, { method: "DELETE" });
-    setItemToDelete(null);
-    fetchRecipes(meta.page);
+    try {
+      const res = await fetch(`/api/recipes/${itemToDelete.id}`, { method: "DELETE" });
+      if (res.ok) {
+        setItemToDelete(null);
+        fetchRecipes(meta.page);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || "Gagal menghapus resep.");
+      }
+    } catch (e) {
+      alert("Terjadi kesalahan saat menghapus resep.");
+    }
   };
 
   const handleExport = async () => {

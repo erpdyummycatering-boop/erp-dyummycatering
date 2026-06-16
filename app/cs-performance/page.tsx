@@ -646,6 +646,123 @@ export default function CSPerformancePage() {
             </div>
           </div>
 
+          {/* Section 2: Ringkasan & Rangking Omset CS */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(350px, 1fr))", gap: 24, marginBottom: 24 }}>
+            {/* Rangking Omset CS Card */}
+            <div className="erp-card" style={{ border: "1px solid #e2e8f0", borderRadius: 16 }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: BRAND.primary, marginBottom: 16, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                🏆 Rangking Omset CS
+              </p>
+              {(() => {
+                const sortedByOmzet = [...csData].sort((a: any, b: any) => b.monthOmzet - a.monthOmzet);
+                const maxOmzet = sortedByOmzet[0]?.monthOmzet || 1; // avoid division by zero
+                
+                if (sortedByOmzet.length === 0) {
+                  return <p style={{ color: "#64748b", fontSize: 12 }}>Tidak ada data omset</p>;
+                }
+                
+                return (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                    {sortedByOmzet.map((cs: any, index: number) => {
+                      const percentage = maxOmzet > 0 ? (cs.monthOmzet / maxOmzet) * 100 : 0;
+                      let rankBadge = `${index + 1}`;
+                      let rankStyle: React.CSSProperties = {
+                        width: 24,
+                        height: 24,
+                        borderRadius: "50%",
+                        backgroundColor: "#f1f5f9",
+                        color: "#475569",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 12,
+                        fontWeight: 700
+                      };
+                      
+                      if (index === 0) {
+                        rankBadge = "🥇";
+                        rankStyle = { fontSize: 18, marginRight: 4 };
+                      } else if (index === 1) {
+                        rankBadge = "🥈";
+                        rankStyle = { fontSize: 18, marginRight: 4 };
+                      } else if (index === 2) {
+                        rankBadge = "🥉";
+                        rankStyle = { fontSize: 18, marginRight: 4 };
+                      }
+
+                      return (
+                        <div key={cs.id} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <div style={rankStyle}>{index > 2 ? rankBadge : rankBadge}</div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                              <span style={{ fontWeight: 600, fontSize: 13, color: BRAND.textDark }}>{cs.name}</span>
+                              <span style={{ fontWeight: 700, fontSize: 13, color: BRAND.primary }}>{formatRupiah(cs.monthOmzet)}</span>
+                            </div>
+                            <div style={{ width: "100%", height: 6, backgroundColor: "#f1f5f9", borderRadius: 3, overflow: "hidden" }}>
+                              <div style={{ width: `${percentage}%`, height: "100%", backgroundColor: index === 0 ? BRAND.primary : index === 1 ? "#378ADD" : index === 2 ? BRAND.pink : "#94a3b8", borderRadius: 3 }} />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Rincian Capaian Omset Card */}
+            <div className="erp-card" style={{ border: "1px solid #e2e8f0", borderRadius: 16 }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: BRAND.primary, marginBottom: 16, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                📊 Rincian Capaian Omset per CS
+              </p>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ backgroundColor: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+                      <th style={{ textAlign: "left", padding: "10px 14px", fontSize: 12, fontWeight: 700, color: "#475569" }}>Nama CS</th>
+                      <th style={{ textAlign: "right", padding: "10px 14px", fontSize: 12, fontWeight: 700, color: "#475569" }}>Omset Baru</th>
+                      <th style={{ textAlign: "right", padding: "10px 14px", fontSize: 12, fontWeight: 700, color: "#475569" }}>Omset Repeat</th>
+                      <th style={{ textAlign: "right", padding: "10px 14px", fontSize: 12, fontWeight: 700, color: "#475569" }}>Total Omset</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {csData.map((cs: any) => (
+                      <tr key={cs.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                        <td style={{ fontWeight: 600, padding: "12px 14px", fontSize: 13, color: BRAND.textDark }}>{cs.name}</td>
+                        <td style={{ textAlign: "right", padding: "12px 14px", fontSize: 12, color: "#166534", fontWeight: 500 }}>
+                          {formatRupiah(cs.monthNewOrdersValue || 0)}
+                        </td>
+                        <td style={{ textAlign: "right", padding: "12px 14px", fontSize: 12, color: "#7F56D9", fontWeight: 500 }}>
+                          {formatRupiah(cs.monthRepeatOrdersValue || 0)}
+                          <div style={{ fontSize: 10, color: "#94a3b8" }}>({cs.monthRepeatOrders || 0} order)</div>
+                        </td>
+                        <td style={{ textAlign: "right", padding: "12px 14px", fontSize: 13, fontWeight: 700, color: BRAND.primary }}>
+                          {formatRupiah(cs.monthOmzet || 0)}
+                        </td>
+                      </tr>
+                    ))}
+                    {/* Total Row */}
+                    <tr style={{ backgroundColor: "#f8fafc", fontWeight: 700 }}>
+                      <td style={{ padding: "12px 14px", fontSize: 12, color: "#475569" }}>TOTAL</td>
+                      <td style={{ textAlign: "right", padding: "12px 14px", fontSize: 12, color: "#166534" }}>
+                        {formatRupiah(csData.reduce((s: number, c: any) => s + (c.monthNewOrdersValue || 0), 0))}
+                      </td>
+                      <td style={{ textAlign: "right", padding: "12px 14px", fontSize: 12, color: "#7F56D9" }}>
+                        {formatRupiah(csData.reduce((s: number, c: any) => s + (c.monthRepeatOrdersValue || 0), 0))}
+                        <div style={{ fontSize: 10, color: "#94a3b8", fontWeight: 500 }}>
+                          ({csData.reduce((s: number, c: any) => s + (c.monthRepeatOrders || 0), 0)} order)
+                        </div>
+                      </td>
+                      <td style={{ textAlign: "right", padding: "12px 14px", fontSize: 13, color: BRAND.primary }}>
+                        {formatRupiah(csData.reduce((s: number, c: any) => s + (c.monthOmzet || 0), 0))}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
           {/* Weekly Detail Table */}
           {(() => {
             const tableRows: any[] = [];

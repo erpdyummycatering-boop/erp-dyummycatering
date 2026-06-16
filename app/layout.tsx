@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 import MainLayout from "@/components/MainLayout";
 import { RoleProvider } from "@/contexts/RoleContext";
-
 import SessionProviderWrapper from "@/components/SessionProviderWrapper";
+import { Toaster } from "sonner";
+import AlertOverride from "@/components/AlertOverride";
 
 export const metadata: Metadata = {
   title: "Dyummy Catering ERP",
@@ -29,6 +30,8 @@ export default function RootLayout({
         <SessionProviderWrapper>
           <RoleProvider>
             <MainLayout>{children}</MainLayout>
+            <Toaster position="top-center" richColors closeButton />
+            <AlertOverride />
           </RoleProvider>
         </SessionProviderWrapper>
       </body>

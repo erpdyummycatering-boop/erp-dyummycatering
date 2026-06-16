@@ -53,5 +53,8 @@ export async function POST(req: NextRequest) {
       [name, category_id ? Number(category_id) : null, description, price, status || "Aktif", image_url || null]
     );
     return NextResponse.json(res.rows[0], { status: 201 });
+  } catch (err: any) {
+    console.error("Gagal menyimpan produk:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   } finally { client.release(); }
 }

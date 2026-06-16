@@ -161,41 +161,20 @@ export default async function OrderConfirmationPrintPage({ params }: { params: P
               </tr>
             )}
 
-            {/* Total Pemesanan (Grand Total) */}
-            <tr>
-              <td style={{ border: "1px solid #000", padding: "10px 12px", fontSize: "14px", fontWeight: "bold" }}>Total Pemesanan</td>
-              <td style={{ border: "1px solid #000", padding: "10px 12px", fontSize: "14px", fontWeight: "bold" }}>
-                {formatRupiah(order.grand_total)}
-              </td>
-            </tr>
-
             {/* Dynamic Custom Menu Rows */}
             {items.map((item, itemIdx) => {
-              const menuLines = (item.custom_menu || "")
-                .split("\n")
-                .map((line: string) => line.trim())
-                .filter(Boolean);
-
-              if (menuLines.length === 0) return null;
+              const customMenu = (item.custom_menu || "").trim();
+              if (!customMenu) return null;
 
               return (
-                <optgroup key={itemIdx} style={{ display: "contents" }}>
-                  {menuLines.map((line: string, lineIdx: number) => (
-                    <tr key={lineIdx}>
-                      <td style={{ border: "1px solid #000", padding: "10px 12px", fontSize: "14px", fontWeight: lineIdx === 0 ? "bold" : "normal" }}>
-                        {lineIdx === 0 ? `${item.product_name} (${item.quantity})` : ""}
-                      </td>
-                      <td style={{ border: "1px solid #000", padding: "10px 12px", fontSize: "14px" }}>
-                        {line}
-                      </td>
-                    </tr>
-                  ))}
-                  {/* Empty spacer row after each product menu list as in screenshot */}
-                  <tr>
-                    <td style={{ border: "1px solid #000", padding: "8px 12px", fontSize: "14px", height: "20px" }}></td>
-                    <td style={{ border: "1px solid #000", padding: "8px 12px", fontSize: "14px" }}></td>
-                  </tr>
-                </optgroup>
+                <tr key={itemIdx}>
+                  <td style={{ border: "1px solid #000", padding: "10px 12px", fontSize: "14px", fontWeight: "bold", verticalAlign: "top" }}>
+                    {item.product_name} ({item.quantity})
+                  </td>
+                  <td style={{ border: "1px solid #000", padding: "10px 12px", fontSize: "14px", whiteSpace: "pre-line", lineHeight: "1.6" }}>
+                    {customMenu}
+                  </td>
+                </tr>
               );
             })}
 

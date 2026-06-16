@@ -45,7 +45,9 @@ export async function GET(req: NextRequest) {
   try {
     const [countRes, dataRes] = await Promise.all([
       client.query(`SELECT COUNT(*) FROM leads l JOIN customers c ON l.customer_id=c.id ${where}`, vals),
-      client.query(`SELECT l.*,c.name AS customer_name,u.name AS pic_name FROM leads l
+      client.query(`SELECT l.*, c.name AS customer_name, u.name AS pic_name,
+        CASE WHEN EXISTS (SELECT 1 FROM orders WHERE customer_id = c.id) THEN 'Customer' ELSE 'Lead' END AS customer_caste
+        FROM leads l
         JOIN customers c ON l.customer_id=c.id LEFT JOIN users u ON l.pic_id=u.id
         ${where} ORDER BY l.lead_date DESC, l.id DESC LIMIT $${idx} OFFSET $${idx+1}`,
         [...vals, limit, offset])
@@ -92,5 +94,8 @@ export async function POST(req: NextRequest) {
       [final_customer_id, final_pic_id || null, lead_date, source, status || "Prospek", tags, notes]
     );
     return NextResponse.json(res.rows[0], { status: 201 });
+  } catch (err: any) {
+    console.error("Gagal menyimpan lead:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   } finally { client.release(); }
 }

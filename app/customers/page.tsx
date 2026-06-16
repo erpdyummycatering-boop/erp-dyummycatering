@@ -39,6 +39,7 @@ export default function CustomersPage() {
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
+  const [casteFilter, setCasteFilter] = useState("");
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -57,8 +58,9 @@ export default function CustomersPage() {
     const p = new URLSearchParams({ page: String(page), limit: String(lim) });
     if (search) p.set("search", search);
     if (typeFilter) p.set("type", typeFilter);
+    if (casteFilter) p.set("caste", casteFilter);
     return p.toString();
-  }, [search, typeFilter]);
+  }, [search, typeFilter, casteFilter, meta.limit]);
 
   const fetchCustomers = useCallback((page = 1, lim = meta.limit, signal?: AbortSignal) => {
     setLoading(true);
@@ -97,17 +99,36 @@ export default function CustomersPage() {
     if (!form.name) return alert("Nama wajib diisi");
     const url = editItem ? `/api/customers/${editItem.id}` : "/api/customers";
     const method = editItem ? "PUT" : "POST";
-    const res = await fetch(url, {
-      method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
-    });
-    if (res.ok) { setShowModal(false); fetchCustomers(meta.page); }
+    try {
+      const res = await fetch(url, {
+        method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
+      });
+      if (res.ok) {
+        setShowModal(false);
+        fetchCustomers(meta.page);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || "Gagal menyimpan customer.");
+      }
+    } catch (e) {
+      alert("Terjadi kesalahan saat menyimpan data.");
+    }
   };
 
   const executeDelete = async () => {
     if (!itemToDelete) return;
-    await fetch(`/api/customers/${itemToDelete.id}`, { method: "DELETE" });
-    setItemToDelete(null);
-    fetchCustomers(meta.page);
+    try {
+      const res = await fetch(`/api/customers/${itemToDelete.id}`, { method: "DELETE" });
+      if (res.ok) {
+        setItemToDelete(null);
+        fetchCustomers(meta.page);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || "Gagal menghapus customer.");
+      }
+    } catch (e) {
+      alert("Terjadi kesalahan saat menghapus data.");
+    }
   };
 
   const corporateCount = rows.filter((c) => c.type === "Corporate").length;
@@ -116,6 +137,7 @@ export default function CustomersPage() {
     const p = new URLSearchParams({ page: "1", limit: "1000" });
     if (search) p.set("search", search);
     if (typeFilter) p.set("type", typeFilter);
+    if (casteFilter) p.set("caste", casteFilter);
     const res = await fetch(`/api/customers?${p}`);
     const d = await res.json();
     exportToExcel(d.data || [], "Data_Customers");
@@ -148,7 +170,12 @@ export default function CustomersPage() {
             options={[{ value: "", label: "Semua Tipe" }, ...["Perorangan", "Corporate", "Instansi"].map(t => ({ value: t, label: t }))]} 
             style={{ width: 160 }} 
           />
-          <button className="btn btn-secondary btn-sm" onClick={() => { setSearchInput(""); setSearch(""); setTypeFilter(""); }}>Reset</button>
+          <SearchableSelect 
+            value={casteFilter} onChange={setCasteFilter} 
+            options={[{ value: "", label: "Semua Kasta" }, { value: "Customer", label: "Customer" }, { value: "Lead", label: "Lead" }]} 
+            style={{ width: 160 }} 
+          />
+          <button className="btn btn-secondary btn-sm" onClick={() => { setSearchInput(""); setSearch(""); setTypeFilter(""); setCasteFilter(""); }}>Reset</button>
         </div>
       </div>
 
@@ -161,14 +188,14 @@ export default function CustomersPage() {
               <table>
                 <thead>
                   <tr>
-                    <th>No.</th><th>Nama</th><th>Telepon</th><th>Tipe</th><th>Email</th>
+                    <th>No.</th><th>Nama</th><th>Telepon</th><th>Tipe</th><th>Kasta</th><th>Email</th>
                     {activeRole !== "cs_sales" && <th>Input Oleh</th>}
                     <th>Terakhir Order</th><th>Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.length === 0 ? (
-                    <tr><td colSpan={activeRole === "cs_sales" ? 7 : 8} style={{ textAlign: "center", padding: "24px", color: "#6b7280" }}>Tidak ada data</td></tr>
+                    <tr><td colSpan={activeRole === "cs_sales" ? 8 : 9} style={{ textAlign: "center", padding: "24px", color: "#6b7280" }}>Tidak ada data</td></tr>
                   ) : rows.map((c: any, idx: number) => (
                     <tr key={c.id}>
                       <td style={{ fontSize: 12, color: "#6b7280" }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
@@ -205,6 +232,11 @@ export default function CustomersPage() {
                       <td>
                         <Badge color={c.type === "Corporate" ? "blue" : c.type === "Instansi" ? "purple" : "gray"}>
                           {c.type || "Perorangan"}
+                        </Badge>
+                      </td>
+                      <td>
+                        <Badge color={c.caste === "Customer" ? "green" : "yellow"}>
+                          {c.caste || "Lead"}
                         </Badge>
                       </td>
                       <td style={{ fontSize: 12, color: "#6b7280" }}>{c.email || "-"}</td>

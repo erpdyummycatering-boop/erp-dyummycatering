@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import {
   BarChart, Bar, LineChart, Line, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  PieChart, Pie, Cell,
 } from "recharts";
 import {
   TrendingUp, DollarSign, Inbox, ShoppingCart,
-  AlertTriangle, CheckCircle, ShieldAlert, Package,
+  AlertTriangle, CheckCircle, ShieldAlert, Package, Users,
 } from "lucide-react";
 import { StatCard } from "@/components/ui/StatCard";
 import { fmt, fmtShort } from "@/lib/utils";
@@ -61,6 +62,9 @@ export default function DashboardPage() {
   const followUp = data?.followUp ?? 0;
   const scheduleAlerts = data?.scheduleAlerts ?? [];
   const poAlerts = data?.poAlerts ?? [];
+  const totalContacts = data?.totalContacts ?? 0;
+  const customerCasteCount = data?.customerCasteCount ?? 0;
+  const leadCasteCount = data?.leadCasteCount ?? 0;
 
   // Gunakan data DB jika ada, fallback ke demo
   const rawChart = data?.plChart ?? [];
@@ -109,6 +113,13 @@ export default function DashboardPage() {
           sub="dari orders terkirim"
           icon={TrendingUp}
           color={C.primary}
+        />
+        <StatCard
+          label="Total Kontak"
+          value={totalContacts}
+          sub={`${customerCasteCount} Customer, ${leadCasteCount} Lead`}
+          icon={Users}
+          color="#378ADD"
         />
         <StatCard
           label="Lead Masuk Hari Ini"
@@ -221,6 +232,75 @@ export default function DashboardPage() {
               />
             </AreaChart>
           </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Kasta Kontak Pie Chart Row */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 16, marginBottom: 16 }} className="grid-col-1-mobile">
+        {/* Kasta Kontak Pie Chart */}
+        <div className="erp-card" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "16px 24px" }}>
+          <p style={{ fontSize: 13, fontWeight: 700, color: "#1a1a1a", width: "100%", textAlign: "left", marginBottom: 14 }}>
+            Kasta Kontak (Lead vs Customer)
+          </p>
+          {totalContacts > 0 ? (
+            <div style={{ width: "100%", height: 160, position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={[
+                      { name: "Customer (Pernah Order)", value: customerCasteCount },
+                      { name: "Lead (Belum Order)", value: leadCasteCount },
+                    ]}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={45}
+                    outerRadius={65}
+                    paddingAngle={3}
+                    dataKey="value"
+                  >
+                    <Cell fill="#639922" />
+                    <Cell fill="#BA7517" />
+                  </Pie>
+                  <Tooltip formatter={(v: any) => [v + " Kontak", "Total"]} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div style={{ position: "absolute", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                <p style={{ fontSize: 20, fontWeight: 800, color: "#1a1a1a", margin: 0 }}>{totalContacts}</p>
+                <p style={{ fontSize: 9, color: "#6b7280", margin: 0, textTransform: "uppercase", fontWeight: 600 }}>Total</p>
+              </div>
+            </div>
+          ) : (
+            <p style={{ color: "#6b7280", fontSize: 12, padding: 24 }}>Belum ada data kontak</p>
+          )}
+          <div style={{ display: "flex", gap: 16, marginTop: 12, fontSize: 11, width: "100%", justifyContent: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#639922" }} />
+              <span style={{ color: "#374151", fontWeight: 600 }}>Customer ({customerCasteCount})</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#BA7517" }} />
+              <span style={{ color: "#374151", fontWeight: 600 }}>Lead ({leadCasteCount})</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Tips or Aktivitas Prospek Summary */}
+        <div className="erp-card" style={{ padding: "16px 24px" }}>
+          <p style={{ fontSize: 13, fontWeight: 700, color: "#1a1a1a", marginBottom: 14 }}>Tips Konversi & CRM</p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }} className="grid-col-1-mobile">
+            <div style={{ background: "#f9fafb", padding: 12, borderRadius: 8, borderLeft: "4px solid #639922" }}>
+              <p style={{ fontSize: 12, fontWeight: 700, color: "#1a1a1a", marginBottom: 4 }}>Konversi Lead ke Customer</p>
+              <p style={{ fontSize: 11, color: "#6b7280", lineHeight: "1.4" }}>
+                Tawarkan promo khusus, bundling menu, atau tester gratis untuk mengubah Lead yang belum pernah melakukan transaksi menjadi Customer aktif.
+              </p>
+            </div>
+            <div style={{ background: "#f9fafb", padding: 12, borderRadius: 8, borderLeft: "4px solid #BA7517" }}>
+              <p style={{ fontSize: 12, fontWeight: 700, color: "#1a1a1a", marginBottom: 4 }}>Follow Up Berkala</p>
+              <p style={{ fontSize: 11, color: "#6b7280", lineHeight: "1.4" }}>
+                Jaga hubungan baik dengan Lead dengan menanyakan rencana event mereka atau memberikan penawaran menu catering harian/kantor secara berkala.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 

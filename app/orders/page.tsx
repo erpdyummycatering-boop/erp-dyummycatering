@@ -446,20 +446,36 @@ export default function OrdersPage() {
       finalForm.pic_id = String(userId);
     }
 
-    const res = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...finalForm, items: validItems }) });
-    if (res.ok) { 
-      setShowModal(false); 
-      setForm(emptyForm(userRole, userId)); 
-      fetchOrders(1); 
-      fetch("/api/customers?limit=100").then(r => r.json()).then(d => setCustomers(d.data || []));
+    try {
+      const res = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...finalForm, items: validItems }) });
+      if (res.ok) { 
+        setShowModal(false); 
+        setForm(emptyForm(userRole, userId)); 
+        fetchOrders(1); 
+        fetch("/api/customers?limit=100").then(r => r.json()).then(d => setCustomers(d.data || []));
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || "Gagal menyimpan order.");
+      }
+    } catch (e) {
+      alert("Terjadi kesalahan saat menyimpan order.");
     }
   };
 
   const executeDelete = async () => {
     if (!itemToDelete) return;
-    await fetch(`/api/orders/${itemToDelete.id}`, { method: "DELETE" });
-    setItemToDelete(null);
-    fetchOrders(meta.page);
+    try {
+      const res = await fetch(`/api/orders/${itemToDelete.id}`, { method: "DELETE" });
+      if (res.ok) {
+        setItemToDelete(null);
+        fetchOrders(meta.page);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || "Gagal menghapus order.");
+      }
+    } catch (e) {
+      alert("Terjadi kesalahan saat menghapus order.");
+    }
   };
 
   const handleExport = async () => {
