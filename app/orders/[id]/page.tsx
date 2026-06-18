@@ -148,7 +148,7 @@ export default function OrderDetailPage() {
       if (p) {
         items[idx].price = Number(p.price);
         items[idx].product_name = p.name;
-        items[idx].custom_menu = p.description || "";
+        items[idx].custom_menu = "";
       }
     }
     

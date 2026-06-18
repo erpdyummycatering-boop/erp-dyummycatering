@@ -426,7 +426,7 @@ export default function OrdersPage() {
       if (p) {
         items[idx].price = Number(p.price);
         items[idx].product_name = p.name;
-        items[idx].custom_menu = p.description || "";
+        items[idx].custom_menu = "";
       }
     }
     items[idx].subtotal = Number(items[idx].price) * Number(items[idx].quantity) - Number(items[idx].discount || 0);
