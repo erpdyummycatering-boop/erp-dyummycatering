@@ -53,6 +53,7 @@ export async function GET(req: NextRequest) {
     let dailyStats = {
       leads: 0,
       newOrders: 0,
+      newOrdersContacts: 0,
       repeatOrders: 0,
       newOrdersValue: 0,
       repeatOrdersValue: 0,
