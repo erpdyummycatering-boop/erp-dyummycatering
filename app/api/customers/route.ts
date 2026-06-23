@@ -15,6 +15,7 @@ export async function GET(req: NextRequest) {
   const search = p.get("search") || "";
   const type = p.get("type") || "";
   const caste = p.get("caste") || "";
+  const pic_id = p.get("pic_id") || "";
 
   const wheres: string[] = [];
   const vals: unknown[] = [];
@@ -33,6 +34,10 @@ export async function GET(req: NextRequest) {
   if (userRole === "CS / Sales" && userName) {
     wheres.push(`c.created_by = $${idx}`);
     vals.push(`${userName} | CS / Sales`);
+    idx++;
+  } else if (pic_id) {
+    wheres.push(`c.created_by = (SELECT name || ' | CS / Sales' FROM users WHERE id = $${idx})`);
+    vals.push(pic_id);
     idx++;
   }
 

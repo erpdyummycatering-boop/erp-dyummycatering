@@ -78,18 +78,19 @@ export async function GET(req: NextRequest) {
     // New Orders Count & Value
     const newOrdersRes = selectedCsId
       ? await client.query(
-          `SELECT COUNT(*), COALESCE(SUM(grand_total), 0) as total_value 
+          `SELECT COUNT(DISTINCT customer_id) as count, COUNT(*) as order_count, COALESCE(SUM(grand_total), 0) as total_value 
            FROM orders 
            WHERE order_date >= $1 AND order_date <= $2 AND pic_id = $3 AND jenis_order = 'New Order'`,
           [startDate, endDate, selectedCsId]
         )
       : await client.query(
-          `SELECT COUNT(*), COALESCE(SUM(grand_total), 0) as total_value 
+          `SELECT COUNT(DISTINCT customer_id) as count, COUNT(*) as order_count, COALESCE(SUM(grand_total), 0) as total_value 
            FROM orders 
            WHERE order_date >= $1 AND order_date <= $2 AND jenis_order = 'New Order' AND pic_id IN (SELECT id FROM users WHERE role = 'CS / Sales' AND status = 'Aktif')`,
           [startDate, endDate]
         );
-    const newOrdersCount = Number(newOrdersRes.rows[0].count) || 0;
+    const newOrdersContacts = Number(newOrdersRes.rows[0].count) || 0;
+    const newOrdersCount = Number(newOrdersRes.rows[0].order_count) || 0;
     const newOrdersValue = Number(newOrdersRes.rows[0].total_value) || 0;
 
     // Repeat Orders Count & Value
@@ -111,11 +112,12 @@ export async function GET(req: NextRequest) {
 
     const totalClosing = newOrdersCount + repeatOrdersCount;
     const totalOmzet = newOrdersValue + repeatOrdersValue;
-    const closingRate = leadsCount > 0 ? Number(((newOrdersCount / leadsCount) * 100).toFixed(1)) : 0;
+    const closingRate = leadsCount > 0 ? Number(((newOrdersContacts / leadsCount) * 100).toFixed(1)) : 0;
 
     dailyStats = {
       leads: leadsCount,
-      newOrders: newOrdersCount,
+      newOrders: newOrdersCount, // used in bonus
+      newOrdersContacts: newOrdersContacts, // used for display if needed
       repeatOrders: repeatOrdersCount,
       newOrdersValue,
       repeatOrdersValue,
@@ -163,7 +165,7 @@ export async function GET(req: NextRequest) {
       ? `SELECT
           u.id, u.name,
           (SELECT COUNT(*) FROM leads l WHERE l.pic_id = u.id AND l.lead_date >= $1 AND l.lead_date <= $2) AS total_leads,
-          (SELECT COUNT(*) FROM orders o WHERE o.pic_id = u.id AND o.order_date >= $1 AND o.order_date <= $2 AND o.jenis_order = 'New Order') AS total_closing,
+          (SELECT COUNT(DISTINCT o.customer_id) FROM orders o WHERE o.pic_id = u.id AND o.order_date >= $1 AND o.order_date <= $2 AND o.jenis_order = 'New Order') AS total_closing,
           (SELECT COUNT(*) FROM orders o WHERE o.pic_id = u.id AND o.order_date >= $1 AND o.order_date <= $2 AND o.jenis_order = 'Repeat Order') AS total_repeat_orders,
           (SELECT COALESCE(SUM(o.grand_total), 0) FROM orders o WHERE o.pic_id = u.id AND o.order_date >= $1 AND o.order_date <= $2 AND o.jenis_order = 'New Order') AS new_orders_value,
           (SELECT COALESCE(SUM(o.grand_total), 0) FROM orders o WHERE o.pic_id = u.id AND o.order_date >= $1 AND o.order_date <= $2 AND o.jenis_order = 'Repeat Order') AS repeat_orders_value,
@@ -173,7 +175,7 @@ export async function GET(req: NextRequest) {
       : `SELECT
           u.id, u.name,
           (SELECT COUNT(*) FROM leads l WHERE l.pic_id = u.id AND l.lead_date >= $1 AND l.lead_date <= $2) AS total_leads,
-          (SELECT COUNT(*) FROM orders o WHERE o.pic_id = u.id AND o.order_date >= $1 AND o.order_date <= $2 AND o.jenis_order = 'New Order') AS total_closing,
+          (SELECT COUNT(DISTINCT o.customer_id) FROM orders o WHERE o.pic_id = u.id AND o.order_date >= $1 AND o.order_date <= $2 AND o.jenis_order = 'New Order') AS total_closing,
           (SELECT COUNT(*) FROM orders o WHERE o.pic_id = u.id AND o.order_date >= $1 AND o.order_date <= $2 AND o.jenis_order = 'Repeat Order') AS total_repeat_orders,
           (SELECT COALESCE(SUM(o.grand_total), 0) FROM orders o WHERE o.pic_id = u.id AND o.order_date >= $1 AND o.order_date <= $2 AND o.jenis_order = 'New Order') AS new_orders_value,
           (SELECT COALESCE(SUM(o.grand_total), 0) FROM orders o WHERE o.pic_id = u.id AND o.order_date >= $1 AND o.order_date <= $2 AND o.jenis_order = 'Repeat Order') AS repeat_orders_value,
@@ -200,7 +202,7 @@ export async function GET(req: NextRequest) {
           u.id as cs_id,
           u.name as cs_name,
           (SELECT COUNT(*) FROM leads l WHERE l.pic_id = u.id AND date_trunc('week', l.lead_date)::date = w.week_start AND l.lead_date >= $1 AND l.lead_date <= $2) as leads,
-          (SELECT COUNT(*) FROM orders o WHERE o.pic_id = u.id AND date_trunc('week', o.order_date)::date = w.week_start AND o.order_date >= $1 AND o.order_date <= $2 AND o.jenis_order = 'New Order') as closing
+          (SELECT COUNT(DISTINCT o.customer_id) FROM orders o WHERE o.pic_id = u.id AND date_trunc('week', o.order_date)::date = w.week_start AND o.order_date >= $1 AND o.order_date <= $2 AND o.jenis_order = 'New Order') as closing
         FROM weeks w
         CROSS JOIN users u
         WHERE u.id = $3 AND u.status = 'Aktif'
@@ -217,7 +219,7 @@ export async function GET(req: NextRequest) {
           u.id as cs_id,
           u.name as cs_name,
           (SELECT COUNT(*) FROM leads l WHERE l.pic_id = u.id AND date_trunc('week', l.lead_date)::date = w.week_start AND l.lead_date >= $1 AND l.lead_date <= $2) as leads,
-          (SELECT COUNT(*) FROM orders o WHERE o.pic_id = u.id AND date_trunc('week', o.order_date)::date = w.week_start AND o.order_date >= $1 AND o.order_date <= $2 AND o.jenis_order = 'New Order') as closing
+          (SELECT COUNT(DISTINCT o.customer_id) FROM orders o WHERE o.pic_id = u.id AND date_trunc('week', o.order_date)::date = w.week_start AND o.order_date >= $1 AND o.order_date <= $2 AND o.jenis_order = 'New Order') as closing
         FROM weeks w
         CROSS JOIN users u
         WHERE u.role = 'CS / Sales' AND u.status = 'Aktif'

@@ -24,7 +24,6 @@ const ALL_MENU = [
     items: [
       { href: "/customers", label: "Data Kontak", icon: Users },
       { href: "/orders", label: "Order", icon: ShoppingBag },
-      { href: "/cs-performance", label: "Performa CS", icon: BarChart2 },
     ],
   },
   {

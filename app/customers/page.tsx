@@ -62,6 +62,21 @@ export default function CustomersPage() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [casteFilter, setCasteFilter] = useState("");
+  const [picFilter, setPicFilter] = useState("");
+  const [csUsers, setCsUsers] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (activeRole !== "cs_sales") {
+      fetch("/api/users")
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) {
+            setCsUsers(data.filter((u: any) => u.role === "CS / Sales" && u.status === "Aktif"));
+          }
+        })
+        .catch(console.error);
+    }
+  }, [activeRole]);
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -81,8 +96,9 @@ export default function CustomersPage() {
     if (search) p.set("search", search);
     if (typeFilter) p.set("type", typeFilter);
     if (casteFilter) p.set("caste", casteFilter);
+    if (picFilter) p.set("pic_id", picFilter);
     return p.toString();
-  }, [search, typeFilter, casteFilter, meta.limit]);
+  }, [search, typeFilter, casteFilter, picFilter, meta.limit]);
 
   const fetchCustomers = useCallback((page = 1, lim = meta.limit, signal?: AbortSignal) => {
     setLoading(true);
@@ -192,12 +208,29 @@ export default function CustomersPage() {
             options={[{ value: "", label: "Semua Tipe" }, ...["Perorangan", "Corporate", "Instansi"].map(t => ({ value: t, label: t }))]} 
             style={{ width: 160 }} 
           />
-          <SearchableSelect 
-            value={casteFilter} onChange={setCasteFilter} 
-            options={[{ value: "", label: "Semua Kasta" }, { value: "Customer", label: "Customer" }, { value: "Lead", label: "Lead" }]} 
-            style={{ width: 160 }} 
+          <SearchableSelect
+            value={casteFilter}
+            onChange={setCasteFilter}
+            options={[{ value: "", label: "Semua Kasta" }, { value: "Customer", label: "Customer (Pernah Order)" }, { value: "Lead", label: "Lead (Belum Order)" }]}
+            placeholder="Semua Kasta"
+            style={{ minWidth: 160, width: 220 }}
           />
-          <button className="btn btn-secondary btn-sm" onClick={() => { setSearchInput(""); setSearch(""); setTypeFilter(""); setCasteFilter(""); }}>Reset</button>
+          {activeRole !== "cs_sales" && csUsers.length > 0 && (
+            <SearchableSelect
+              value={picFilter}
+              onChange={setPicFilter}
+              options={[
+                { value: "", label: "Semua CS" },
+                ...csUsers.map((u) => ({ value: String(u.id), label: u.name }))
+              ]}
+              placeholder="Semua CS"
+              style={{ minWidth: 160, width: 200 }}
+            />
+          )}
+          <button 
+            onClick={() => { setSearchInput(""); setSearch(""); setTypeFilter(""); setCasteFilter(""); setPicFilter(""); setMeta(m => ({ ...m, page: 1 })); }}
+            style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #e2e8f0", backgroundColor: "white", fontSize: 13, fontWeight: 600, color: "#64748b", cursor: "pointer", whiteSpace: "nowrap" }}
+          >Reset</button>
         </div>
       </div>
 
@@ -210,12 +243,14 @@ export default function CustomersPage() {
               <table>
                 <thead>
                   <tr>
-                    <th>No.</th><th>Tanggal</th><th>Nama</th><th>WhatsApp</th><th>Status Prospek</th><th>Total Order</th><th>Aksi</th>
+                    <th>No.</th><th>Tanggal</th><th>Nama</th><th>WhatsApp</th><th>Status Prospek</th><th>Total Order</th>
+                    {activeRole !== "cs_sales" && <th>Dibuat Oleh</th>}
+                    <th>Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.length === 0 ? (
-                    <tr><td colSpan={7} style={{ textAlign: "center", padding: "24px", color: "#6b7280" }}>Tidak ada data</td></tr>
+                    <tr><td colSpan={activeRole !== "cs_sales" ? 8 : 7} style={{ textAlign: "center", padding: "24px", color: "#6b7280" }}>Tidak ada data</td></tr>
                   ) : rows.map((c: any, idx: number) => (
                     <tr key={c.id}>
                       <td style={{ fontSize: 12, color: "#6b7280" }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
@@ -258,6 +293,11 @@ export default function CustomersPage() {
                       <td style={{ fontSize: 12, fontWeight: 600 }}>
                         {c.order_count || 0}x
                       </td>
+                      {activeRole !== "cs_sales" && (
+                        <td style={{ fontSize: 12, color: "#6b7280" }}>
+                          {c.created_by ? c.created_by.split(" | ")[0] : "-"}
+                        </td>
+                      )}
                       <td>
                         <div style={{ display: "flex", gap: 4 }}>
                           <button className="btn btn-secondary btn-sm" onClick={() => openEdit(c)}><Edit2 size={11} /></button>

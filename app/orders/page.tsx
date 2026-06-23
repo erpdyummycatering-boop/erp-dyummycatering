@@ -86,6 +86,7 @@ export default function OrdersPage() {
   const [search, setSearch] = useState("");
   const [fDateFrom, setFDateFrom] = useState("");
   const [fDateTo, setFDateTo] = useState("");
+  const [fPicId, setFPicId] = useState("");
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -369,11 +370,13 @@ export default function OrdersPage() {
     if (fPay) p.set("status_payment", fPay);
     if (userRole === "CS / Sales") {
       p.set("pic_id", String(userId));
+    } else if (fPicId) {
+      p.set("pic_id", fPicId);
     }
     if (fDateFrom) p.set("date_from", fDateFrom);
     if (fDateTo) p.set("date_to", fDateTo);
     return p.toString();
-  }, [search, fStatus, fPay, fDateFrom, fDateTo, userRole, userId, meta.limit]);
+  }, [search, fStatus, fPay, fDateFrom, fDateTo, fPicId, userRole, userId, meta.limit]);
 
   const fetchOrders = useCallback((page = 1, lim = meta.limit, signal?: AbortSignal) => {
     setLoading(true);
@@ -546,9 +549,16 @@ export default function OrdersPage() {
             options={[{ value: "", label: "Semua Pembayaran" }, ...STATUS_PAY.map(s => ({ value: s, label: s }))]}
             style={{ width: 160 }}
           />
+          {userRole !== "CS / Sales" && users.length > 0 && (
+            <SearchableSelect
+              value={fPicId} onChange={setFPicId}
+              options={[{ value: "", label: "Semua CS" }, ...users.filter(u => u.role === "CS / Sales").map(u => ({ value: String(u.id), label: u.name }))]}
+              style={{ width: 160 }}
+            />
+          )}
           <input type="date" value={fDateFrom} onChange={e => setFDateFrom(e.target.value)} style={{ width: 140 }} title="Kirim dari" />
           <input type="date" value={fDateTo} onChange={e => setFDateTo(e.target.value)} style={{ width: 140 }} title="Kirim sampai" />
-          <button className="btn btn-secondary btn-sm" onClick={() => { setSearchInput(""); setSearch(""); setFStatus(""); setFPay(""); setFDateFrom(""); setFDateTo(""); }}>Reset</button>
+          <button className="btn btn-secondary btn-sm" onClick={() => { setSearchInput(""); setSearch(""); setFStatus(""); setFPay(""); setFDateFrom(""); setFDateTo(""); setFPicId(""); }}>Reset</button>
         </div>
       </div>
 

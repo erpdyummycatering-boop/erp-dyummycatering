@@ -114,6 +114,8 @@ export const ROLES: RoleConfig[] = [
     firstPage: "/cs-performance",
     allowedHrefs: [
       "/cs-performance",
+      "/customers",
+      "/orders",
     ],
   },
 ];
