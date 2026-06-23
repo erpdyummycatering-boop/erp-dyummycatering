@@ -32,6 +32,28 @@ const formatWaLink = (phone: string) => {
   return `https://wa.me/${clean}`;
 };
 
+const getStatusColor = (s: string) => {
+  if (s === "Closing") return "green";
+  if (s === "Reject") return "red";
+  if (s === "Follow Up") return "blue";
+  if (s === "Negosiasi") return "purple";
+  if (s === "Konfirmasi") return "yellow";
+  return "gray";
+};
+
+const WhatsAppIcon = ({ size = 16 }: { size?: number }) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    viewBox="0 0 24 24" 
+    width={size} 
+    height={size} 
+    fill="#25D366"
+    style={{ display: "inline-block", flexShrink: 0 }}
+  >
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/>
+  </svg>
+);
+
 export default function CustomersPage() {
   const { activeRole } = useRole();
   const [rows, setRows] = useState<any[]>([]);
@@ -89,7 +111,7 @@ export default function CustomersPage() {
       notes: c.notes || "",
       lead_date: "",
       source: "",
-      status: "",
+      status: c.status || "Prospek",
       tags: ""
     });
     setShowModal(true);
@@ -188,17 +210,16 @@ export default function CustomersPage() {
               <table>
                 <thead>
                   <tr>
-                    <th>No.</th><th>Nama</th><th>Telepon</th><th>Tipe</th><th>Kasta</th><th>Email</th>
-                    {activeRole !== "cs_sales" && <th>Input Oleh</th>}
-                    <th>Terakhir Order</th><th>Aksi</th>
+                    <th>No.</th><th>Tanggal</th><th>Nama</th><th>WhatsApp</th><th>Status Prospek</th><th>Total Order</th><th>Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.length === 0 ? (
-                    <tr><td colSpan={activeRole === "cs_sales" ? 8 : 9} style={{ textAlign: "center", padding: "24px", color: "#6b7280" }}>Tidak ada data</td></tr>
+                    <tr><td colSpan={7} style={{ textAlign: "center", padding: "24px", color: "#6b7280" }}>Tidak ada data</td></tr>
                   ) : rows.map((c: any, idx: number) => (
                     <tr key={c.id}>
                       <td style={{ fontSize: 12, color: "#6b7280" }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
+                      <td style={{ fontSize: 12 }}>{c.created_at ? String(c.created_at).slice(0, 10) : "-"}</td>
                       <td>
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                           <div style={{
@@ -221,28 +242,21 @@ export default function CustomersPage() {
                             href={formatWaLink(c.phone)}
                             target="_blank"
                             rel="noopener noreferrer"
-                            style={{ color: "#378ADD", textDecoration: "underline" }}
+                            style={{ color: "#378ADD", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 600 }}
                           >
-                            {c.phone}
+                            <WhatsAppIcon size={16} /> {c.phone}
                           </a>
                         ) : (
                           "-"
                         )}
                       </td>
                       <td>
-                        <Badge color={c.type === "Corporate" ? "blue" : c.type === "Instansi" ? "purple" : "gray"}>
-                          {c.type || "Perorangan"}
+                        <Badge color={getStatusColor(c.status || "Prospek") as any}>
+                          {c.status || "Prospek"}
                         </Badge>
                       </td>
-                      <td>
-                        <Badge color={c.caste === "Customer" ? "green" : "yellow"}>
-                          {c.caste || "Lead"}
-                        </Badge>
-                      </td>
-                      <td style={{ fontSize: 12, color: "#6b7280" }}>{c.email || "-"}</td>
-                      {activeRole !== "cs_sales" && <td style={{ fontSize: 12, color: "#6b7280" }}>{c.created_by || "-"}</td>}
-                      <td style={{ fontSize: 12 }}>
-                        {c.last_order ? String(c.last_order).slice(0, 10) : <span style={{ color: "#6b7280" }}>Belum pernah</span>}
+                      <td style={{ fontSize: 12, fontWeight: 600 }}>
+                        {c.order_count || 0}x
                       </td>
                       <td>
                         <div style={{ display: "flex", gap: 4 }}>
@@ -302,6 +316,15 @@ export default function CustomersPage() {
           <FormField label="Email"><input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="email@domain.com" /></FormField>
         </FormRow>
         <FormField label="Alamat" style={{ marginBottom: 14 }}><input value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} placeholder="Alamat lengkap" /></FormField>
+        <FormRow>
+          <FormField label="Status Kontak">
+            <SearchableSelect 
+              value={form.status} onChange={v => setForm((f) => ({ ...f, status: v }))}
+              options={["Prospek", "Follow Up", "Negosiasi", "Konfirmasi", "Closing", "Reject"].map(s => ({ value: s, label: s }))}
+              menuPortalTarget={typeof document !== "undefined" ? document.body : null}
+            />
+          </FormField>
+        </FormRow>
         <FormField label="Catatan" style={{ marginBottom: 14 }}><textarea rows={2} value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} /></FormField>
         
         {!editItem && (
@@ -322,13 +345,6 @@ export default function CustomersPage() {
               </FormField>
             </FormRow>
             <FormRow>
-              <FormField label="Status Lead">
-                <SearchableSelect 
-                  value={form.status} onChange={v => setForm((f) => ({ ...f, status: v }))}
-                  options={["Prospek", "Follow Up", "Negosiasi", "Konfirmasi", "Closing", "Reject"].map(s => ({ value: s, label: s }))}
-                  menuPortalTarget={typeof document !== "undefined" ? document.body : null}
-                />
-              </FormField>
               <FormField label="Tags Lead">
                 <input value={form.tags} onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))} placeholder="pernikahan, korporat..." />
               </FormField>

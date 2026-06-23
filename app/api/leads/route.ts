@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
     const [countRes, dataRes] = await Promise.all([
       client.query(`SELECT COUNT(*) FROM leads l JOIN customers c ON l.customer_id=c.id ${where}`, vals),
       client.query(`SELECT l.*, c.name AS customer_name, u.name AS pic_name,
-        CASE WHEN EXISTS (SELECT 1 FROM orders WHERE customer_id = c.id) THEN 'Customer' ELSE 'Lead' END AS customer_caste
+        CASE WHEN c.status = 'Closing' OR EXISTS (SELECT 1 FROM orders WHERE customer_id = c.id) THEN 'Customer' ELSE 'Lead' END AS customer_caste
         FROM leads l
         JOIN customers c ON l.customer_id=c.id LEFT JOIN users u ON l.pic_id=u.id
         ${where} ORDER BY l.lead_date DESC, l.id DESC LIMIT $${idx} OFFSET $${idx+1}`,

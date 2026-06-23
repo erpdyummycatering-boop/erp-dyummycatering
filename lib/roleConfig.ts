@@ -30,7 +30,7 @@ export const ROLES: RoleConfig[] = [
     color: "#5005A6",
     bgColor: "#f0fdf4",
     initials: "SA",
-    firstPage: "/dashboard",
+    firstPage: "/cs-performance",
     allowedHrefs: "*",
   },
   {

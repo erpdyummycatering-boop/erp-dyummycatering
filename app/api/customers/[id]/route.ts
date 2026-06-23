@@ -16,13 +16,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const body = await req.json();
-  const { name, phone, email, type, address, notes } = body;
+  const { name, phone, email, type, address, notes, status } = body;
   const client = await pool.connect();
   try {
     const result = await client.query(
-      `UPDATE customers SET name=$1, phone=$2, email=$3, type=$4, address=$5, notes=$6, updated_at=NOW()
-       WHERE id=$7 RETURNING *`,
-      [name, phone, email, type, address, notes, id]
+      `UPDATE customers SET name=$1, phone=$2, email=$3, type=$4, address=$5, notes=$6, status=$7, updated_at=NOW()
+       WHERE id=$8 RETURNING *`,
+      [name, phone, email, type, address, notes, status || "Prospek", id]
     );
     if (!result.rows.length) return NextResponse.json({ error: "Not found" }, { status: 404 });
     return NextResponse.json(result.rows[0]);

@@ -148,8 +148,8 @@ export async function GET(req: NextRequest) {
     let contactStatsQuery = `
       SELECT 
         COUNT(*) as total_contacts,
-        COUNT(CASE WHEN EXISTS (SELECT 1 FROM orders WHERE customer_id = c.id) THEN 1 END) as customers,
-        COUNT(CASE WHEN NOT EXISTS (SELECT 1 FROM orders WHERE customer_id = c.id) THEN 1 END) as leads
+        COUNT(CASE WHEN c.status = 'Closing' OR EXISTS (SELECT 1 FROM orders WHERE customer_id = c.id) THEN 1 END) as customers,
+        COUNT(CASE WHEN c.status != 'Closing' AND NOT EXISTS (SELECT 1 FROM orders WHERE customer_id = c.id) THEN 1 END) as leads
       FROM customers c
     `;
     let contactStatsParams: any[] = [];

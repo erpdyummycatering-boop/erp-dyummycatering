@@ -87,7 +87,7 @@ export default function CSPerformancePage() {
     selectedCsName: "Semua CS",
   });
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'ringkasan' | 'evaluasi'>('ringkasan');
+  const [activeTab, setActiveTab] = useState<'ringkasan' | 'evaluasi'>('evaluasi');
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
 
@@ -237,19 +237,6 @@ export default function CSPerformancePage() {
       {/* Tabs */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '1px solid #e2e8f0', paddingBottom: '0px' }}>
         <button 
-          onClick={() => setActiveTab('ringkasan')}
-          style={{ 
-            padding: '10px 18px', 
-            fontWeight: 600, 
-            fontSize: 14,
-            color: activeTab === 'ringkasan' ? BRAND.primary : '#64748b',
-            borderBottom: activeTab === 'ringkasan' ? `3px solid ${BRAND.primary}` : '3px solid transparent',
-            background: 'none', borderTop: 'none', borderLeft: 'none', borderRight: 'none', cursor: 'pointer',
-            transition: 'all 0.2s'
-          }}>
-          Dashboard Ringkasan
-        </button>
-        <button 
           onClick={() => setActiveTab('evaluasi')}
           style={{ 
             padding: '10px 18px', 
@@ -261,6 +248,19 @@ export default function CSPerformancePage() {
             transition: 'all 0.2s'
           }}>
           Evaluasi & Rekap CS
+        </button>
+        <button 
+          onClick={() => setActiveTab('ringkasan')}
+          style={{ 
+            padding: '10px 18px', 
+            fontWeight: 600, 
+            fontSize: 14,
+            color: activeTab === 'ringkasan' ? BRAND.primary : '#64748b',
+            borderBottom: activeTab === 'ringkasan' ? `3px solid ${BRAND.primary}` : '3px solid transparent',
+            background: 'none', borderTop: 'none', borderLeft: 'none', borderRight: 'none', cursor: 'pointer',
+            transition: 'all 0.2s'
+          }}>
+          Dashboard Ringkasan
         </button>
       </div>
 
@@ -416,79 +416,10 @@ export default function CSPerformancePage() {
             )}
           </div>
 
-          {/* Section: Transaction List Table */}
-          <div className="erp-card" style={{ padding: 0, overflow: "hidden", border: "1px solid #e2e8f0", borderRadius: 16 }}>
-            <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", backgroundColor: "white" }}>
-              <h3 style={{ fontSize: 15, fontWeight: 700, color: BRAND.primary, margin: 0, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                📋 Riwayat Transaksi Closing
-              </h3>
-            </div>
-            
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 600 }}>
-                <thead>
-                  <tr style={{ backgroundColor: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
-                    <th style={{ textAlign: "left", padding: "12px 20px", fontSize: 12, fontWeight: 700, color: "#475569" }}>Tgl Closing</th>
-                    <th style={{ textAlign: "left", padding: "12px 20px", fontSize: 12, fontWeight: 700, color: "#475569" }}>Customer ID</th>
-                    <th style={{ textAlign: "left", padding: "12px 20px", fontSize: 12, fontWeight: 700, color: "#475569" }}>Nama Customer</th>
-                    <th style={{ textAlign: "left", padding: "12px 20px", fontSize: 12, fontWeight: 700, color: "#475569" }}>No. WA</th>
-                    <th style={{ textAlign: "center", padding: "12px 20px", fontSize: 12, fontWeight: 700, color: "#475569" }}>Jenis Order</th>
-                    <th style={{ textAlign: "right", padding: "12px 20px", fontSize: 12, fontWeight: 700, color: "#475569" }}>Nilai Order</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    [1,2,3].map(i => (
-                      <tr key={i}><td colSpan={6} style={{ padding: "16px 20px" }}><div className="skeleton" style={{ height: 20, width: "100%" }} /></td></tr>
-                    ))
-                  ) : transactions.length > 0 ? (
-                    transactions.map((tr: any) => {
-                      const isNewOrder = tr.jenis_order === 'New Order';
-                      return (
-                        <tr key={tr.id} style={{ borderBottom: "1px solid #f1f5f9", transition: "background-color 0.2s" }} className="hover:bg-slate-50">
-                          <td style={{ padding: "14px 20px", fontSize: 13, color: "#334155" }}>
-                            {formatDate(tr.closing_date)}
-                          </td>
-                          <td style={{ padding: "14px 20px", fontSize: 13, color: "#334155", fontWeight: 600 }}>
-                            CUS-{String(tr.customer_id).padStart(3, '0')}
-                          </td>
-                          <td style={{ padding: "14px 20px", fontSize: 13, color: "#0f172a", fontWeight: 600 }}>
-                            {tr.customer_name}
-                          </td>
-                          <td style={{ padding: "14px 20px", fontSize: 13, color: "#475569" }}>
-                            {tr.whatsapp || "-"}
-                          </td>
-                          <td style={{ padding: "14px 20px", textAlign: "center" }}>
-                            <span style={{
-                              display: "inline-block",
-                              padding: "4px 12px",
-                              borderRadius: 20,
-                              fontSize: 11,
-                              fontWeight: 700,
-                              backgroundColor: isNewOrder ? "#E6F4EA" : "#F3E8FF",
-                              color: isNewOrder ? "#137333" : BRAND.primary,
-                              border: isNewOrder ? "1px solid #13733320" : `1px solid ${BRAND.primary}20`
-                            }}>
-                              {isNewOrder ? "NEW ORDER" : "REPEAT ORDER"}
-                            </span>
-                          </td>
-                          <td style={{ padding: "14px 20px", textAlign: "right", fontSize: 13, fontWeight: 700, color: BRAND.textDark }}>
-                            {formatRupiah(tr.nilai_order)}
-                          </td>
-                        </tr>
-                      );
-                    })
-                  ) : (
-                    <tr>
-                      <td colSpan={6} style={{ textAlign: "center", padding: "32px", color: "#64748b", fontSize: 13, fontWeight: 500 }}>
-                        Belum ada transaksi closing pada periode ini
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          {/* Section: Transaction List Table (Hidden as requested) */}
+          {/* <div className="erp-card" style={{ padding: 0, overflow: "hidden", border: "1px solid #e2e8f0", borderRadius: 16 }}>
+            ...
+          </div> */}
         </div>
       )}
 
@@ -589,60 +520,56 @@ export default function CSPerformancePage() {
               <p style={{ fontSize: 11, color: "#64748b", marginTop: 8, fontWeight: 500 }}>Target standard minimum closing rate: 30%</p>
             </div>
 
-            {/* List CS Table Card */}
+            {/* Rincian Capaian Omset Card */}
             <div className="erp-card" style={{ border: "1px solid #e2e8f0", borderRadius: 16 }}>
               <p style={{ fontSize: 13, fontWeight: 700, color: BRAND.primary, marginBottom: 16, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                👥 Ringkasan Closing Rate per CS
+                📊 Rincian Capaian Omset per CS
               </p>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ backgroundColor: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
-                    <th style={{ textAlign: "left", padding: "10px 14px", fontSize: 12, fontWeight: 700, color: "#475569" }}>Nama CS</th>
-                    <th style={{ textAlign: "center", padding: "10px 14px", fontSize: 12, fontWeight: 700, color: "#475569" }}>Lead</th>
-                    <th style={{ textAlign: "center", padding: "10px 14px", fontSize: 12, fontWeight: 700, color: "#475569" }}>Closing</th>
-                    <th style={{ textAlign: "center", padding: "10px 14px", fontSize: 12, fontWeight: 700, color: "#475569" }}>Rate</th>
-                    <th style={{ textAlign: "right", padding: "10px 14px", fontSize: 12, fontWeight: 700, color: "#475569" }}>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[...csData].sort((a: any, b: any) => b.monthRate - a.monthRate).map((cs: any) => {
-                    const r = cs.monthRate;
-                    const statusConfig = getPerfStatus(r);
-                    return (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ backgroundColor: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+                      <th style={{ textAlign: "left", padding: "10px 14px", fontSize: 12, fontWeight: 700, color: "#475569" }}>Nama CS</th>
+                      <th style={{ textAlign: "right", padding: "10px 14px", fontSize: 12, fontWeight: 700, color: "#475569" }}>Omset Baru</th>
+                      <th style={{ textAlign: "right", padding: "10px 14px", fontSize: 12, fontWeight: 700, color: "#475569" }}>Omset Repeat</th>
+                      <th style={{ textAlign: "right", padding: "10px 14px", fontSize: 12, fontWeight: 700, color: "#475569" }}>Total Omset</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...csData].sort((a: any, b: any) => b.monthOmzet - a.monthOmzet).map((cs: any) => (
                       <tr key={cs.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
                         <td style={{ fontWeight: 600, padding: "12px 14px", fontSize: 13, color: BRAND.textDark }}>{cs.name}</td>
-                        <td style={{ textAlign: "center", padding: "12px 14px", fontSize: 13, color: "#475569" }}>{cs.monthLeads}</td>
-                        <td style={{ textAlign: "center", padding: "12px 14px", fontSize: 13, color: "#475569" }}>{cs.monthClosing}</td>
-                        <td style={{ fontWeight: 700, textAlign: "center", padding: "12px 14px", fontSize: 13, color: statusConfig.color }}>
-                          {r}%
+                        <td style={{ textAlign: "right", padding: "12px 14px", fontSize: 12, color: "#166534", fontWeight: 500 }}>
+                          {formatRupiah(cs.monthNewOrdersValue || 0)}
                         </td>
-                        <td style={{ textAlign: "right", padding: "12px 14px" }}>
-                          <span style={{
-                            display: "inline-block",
-                            padding: "2px 8px",
-                            borderRadius: 12,
-                            fontSize: 10,
-                            fontWeight: 700,
-                            backgroundColor: statusConfig.bg,
-                            color: statusConfig.text,
-                            border: `1px solid ${statusConfig.color}20`
-                          }}>
-                            {statusConfig.label}
-                          </span>
+                        <td style={{ textAlign: "right", padding: "12px 14px", fontSize: 12, color: "#7F56D9", fontWeight: 500 }}>
+                          {formatRupiah(cs.monthRepeatOrdersValue || 0)}
+                          <div style={{ fontSize: 10, color: "#94a3b8" }}>({cs.monthRepeatOrders || 0} order)</div>
+                        </td>
+                        <td style={{ textAlign: "right", padding: "12px 14px", fontSize: 13, fontWeight: 700, color: BRAND.primary }}>
+                          {formatRupiah(cs.monthOmzet || 0)}
                         </td>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-              {csData.filter((c: any) => c.monthRate < 25 && c.monthLeads > 0).map((cs: any) => (
-                <div key={cs.id} style={{ marginTop: 14, padding: 12, borderRadius: 10, backgroundColor: "#FDF2F2", border: "1px solid #F87171" }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: "#9B1C1C", margin: 0 }}>⚠ Peringatan Kinerja: {cs.name}</p>
-                  <p style={{ fontSize: 11, color: "#7F1D1D", marginTop: 4, margin: 0, fontWeight: 500 }}>
-                    Closing Rate {cs.monthRate}% berada di bawah batas minimum 25%. Segera jadwalkan monitoring bimbingan.
-                  </p>
-                </div>
-              ))}
+                    ))}
+                    {/* Total Row */}
+                    <tr style={{ backgroundColor: "#f8fafc", fontWeight: 700 }}>
+                      <td style={{ padding: "12px 14px", fontSize: 12, color: "#475569" }}>TOTAL</td>
+                      <td style={{ textAlign: "right", padding: "12px 14px", fontSize: 12, color: "#166534" }}>
+                        {formatRupiah(csData.reduce((s: number, c: any) => s + (c.monthNewOrdersValue || 0), 0))}
+                      </td>
+                      <td style={{ textAlign: "right", padding: "12px 14px", fontSize: 12, color: "#7F56D9" }}>
+                        {formatRupiah(csData.reduce((s: number, c: any) => s + (c.monthRepeatOrdersValue || 0), 0))}
+                        <div style={{ fontSize: 10, color: "#94a3b8", fontWeight: 500 }}>
+                          ({csData.reduce((s: number, c: any) => s + (c.monthRepeatOrders || 0), 0)} order)
+                        </div>
+                      </td>
+                      <td style={{ textAlign: "right", padding: "12px 14px", fontSize: 13, color: BRAND.primary }}>
+                        {formatRupiah(csData.reduce((s: number, c: any) => s + (c.monthOmzet || 0), 0))}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
 
@@ -710,56 +637,60 @@ export default function CSPerformancePage() {
               })()}
             </div>
 
-            {/* Rincian Capaian Omset Card */}
+            {/* List CS Table Card */}
             <div className="erp-card" style={{ border: "1px solid #e2e8f0", borderRadius: 16 }}>
               <p style={{ fontSize: 13, fontWeight: 700, color: BRAND.primary, marginBottom: 16, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                📊 Rincian Capaian Omset per CS
+                👥 Ringkasan Closing Rate per CS
               </p>
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr style={{ backgroundColor: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
-                      <th style={{ textAlign: "left", padding: "10px 14px", fontSize: 12, fontWeight: 700, color: "#475569" }}>Nama CS</th>
-                      <th style={{ textAlign: "right", padding: "10px 14px", fontSize: 12, fontWeight: 700, color: "#475569" }}>Omset Baru</th>
-                      <th style={{ textAlign: "right", padding: "10px 14px", fontSize: 12, fontWeight: 700, color: "#475569" }}>Omset Repeat</th>
-                      <th style={{ textAlign: "right", padding: "10px 14px", fontSize: 12, fontWeight: 700, color: "#475569" }}>Total Omset</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {csData.map((cs: any) => (
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ backgroundColor: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+                    <th style={{ textAlign: "left", padding: "10px 14px", fontSize: 12, fontWeight: 700, color: "#475569" }}>Nama CS</th>
+                    <th style={{ textAlign: "center", padding: "10px 14px", fontSize: 12, fontWeight: 700, color: "#475569" }}>Lead</th>
+                    <th style={{ textAlign: "center", padding: "10px 14px", fontSize: 12, fontWeight: 700, color: "#475569" }}>Closing</th>
+                    <th style={{ textAlign: "center", padding: "10px 14px", fontSize: 12, fontWeight: 700, color: "#475569" }}>Rate</th>
+                    <th style={{ textAlign: "right", padding: "10px 14px", fontSize: 12, fontWeight: 700, color: "#475569" }}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...csData].sort((a: any, b: any) => b.monthRate - a.monthRate).map((cs: any) => {
+                    const r = cs.monthRate;
+                    const statusConfig = getPerfStatus(r);
+                    return (
                       <tr key={cs.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
                         <td style={{ fontWeight: 600, padding: "12px 14px", fontSize: 13, color: BRAND.textDark }}>{cs.name}</td>
-                        <td style={{ textAlign: "right", padding: "12px 14px", fontSize: 12, color: "#166534", fontWeight: 500 }}>
-                          {formatRupiah(cs.monthNewOrdersValue || 0)}
+                        <td style={{ textAlign: "center", padding: "12px 14px", fontSize: 13, color: "#475569" }}>{cs.monthLeads}</td>
+                        <td style={{ textAlign: "center", padding: "12px 14px", fontSize: 13, color: "#475569" }}>{cs.monthClosing}</td>
+                        <td style={{ fontWeight: 700, textAlign: "center", padding: "12px 14px", fontSize: 13, color: statusConfig.color }}>
+                          {r}%
                         </td>
-                        <td style={{ textAlign: "right", padding: "12px 14px", fontSize: 12, color: "#7F56D9", fontWeight: 500 }}>
-                          {formatRupiah(cs.monthRepeatOrdersValue || 0)}
-                          <div style={{ fontSize: 10, color: "#94a3b8" }}>({cs.monthRepeatOrders || 0} order)</div>
-                        </td>
-                        <td style={{ textAlign: "right", padding: "12px 14px", fontSize: 13, fontWeight: 700, color: BRAND.primary }}>
-                          {formatRupiah(cs.monthOmzet || 0)}
+                        <td style={{ textAlign: "right", padding: "12px 14px" }}>
+                          <span style={{
+                            display: "inline-block",
+                            padding: "2px 8px",
+                            borderRadius: 12,
+                            fontSize: 10,
+                            fontWeight: 700,
+                            backgroundColor: statusConfig.bg,
+                            color: statusConfig.text,
+                            border: `1px solid ${statusConfig.color}20`
+                          }}>
+                            {statusConfig.label}
+                          </span>
                         </td>
                       </tr>
-                    ))}
-                    {/* Total Row */}
-                    <tr style={{ backgroundColor: "#f8fafc", fontWeight: 700 }}>
-                      <td style={{ padding: "12px 14px", fontSize: 12, color: "#475569" }}>TOTAL</td>
-                      <td style={{ textAlign: "right", padding: "12px 14px", fontSize: 12, color: "#166534" }}>
-                        {formatRupiah(csData.reduce((s: number, c: any) => s + (c.monthNewOrdersValue || 0), 0))}
-                      </td>
-                      <td style={{ textAlign: "right", padding: "12px 14px", fontSize: 12, color: "#7F56D9" }}>
-                        {formatRupiah(csData.reduce((s: number, c: any) => s + (c.monthRepeatOrdersValue || 0), 0))}
-                        <div style={{ fontSize: 10, color: "#94a3b8", fontWeight: 500 }}>
-                          ({csData.reduce((s: number, c: any) => s + (c.monthRepeatOrders || 0), 0)} order)
-                        </div>
-                      </td>
-                      <td style={{ textAlign: "right", padding: "12px 14px", fontSize: 13, color: BRAND.primary }}>
-                        {formatRupiah(csData.reduce((s: number, c: any) => s + (c.monthOmzet || 0), 0))}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {csData.filter((c: any) => c.monthRate < 25 && c.monthLeads > 0).map((cs: any) => (
+                <div key={cs.id} style={{ marginTop: 14, padding: 12, borderRadius: 10, backgroundColor: "#FDF2F2", border: "1px solid #F87171" }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: "#9B1C1C", margin: 0 }}>⚠ Peringatan Kinerja: {cs.name}</p>
+                  <p style={{ fontSize: 11, color: "#7F1D1D", marginTop: 4, margin: 0, fontWeight: 500 }}>
+                    Closing Rate {cs.monthRate}% berada di bawah batas minimum 25%. Segera jadwalkan monitoring bimbingan.
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
 

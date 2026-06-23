@@ -16,13 +16,12 @@ const ALL_MENU = [
   {
     section: "Dashboard",
     items: [
-      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/cs-performance", label: "Dashboard", icon: LayoutDashboard },
     ],
   },
   {
     section: "CRM",
     items: [
-      { href: "/leads", label: "Aktivitas Prospek", icon: Inbox },
       { href: "/customers", label: "Data Kontak", icon: Users },
       { href: "/orders", label: "Order", icon: ShoppingBag },
       { href: "/cs-performance", label: "Performa CS", icon: BarChart2 },
@@ -101,9 +100,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     });
 
     if (currentPath === "/" || currentPath === "/dashboard") {
-      if (activeRole !== "super_admin") {
-        router.replace(roleConfig.firstPage);
-      }
+      router.replace(roleConfig.firstPage);
     } else if (!isAllowed) {
       router.replace(roleConfig.firstPage);
     }

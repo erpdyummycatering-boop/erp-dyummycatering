@@ -24,9 +24,9 @@ export async function GET(req: NextRequest) {
   if (type) { wheres.push(`c.type = $${idx}`); vals.push(type); idx++; }
   if (caste) {
     if (caste === "Customer") {
-      wheres.push(`EXISTS (SELECT 1 FROM orders WHERE customer_id = c.id)`);
+      wheres.push(`(c.status = 'Closing' OR EXISTS (SELECT 1 FROM orders WHERE customer_id = c.id))`);
     } else if (caste === "Lead") {
-      wheres.push(`NOT EXISTS (SELECT 1 FROM orders WHERE customer_id = c.id)`);
+      wheres.push(`(c.status != 'Closing' AND NOT EXISTS (SELECT 1 FROM orders WHERE customer_id = c.id))`);
     }
   }
 
@@ -44,7 +44,8 @@ export async function GET(req: NextRequest) {
       client.query(`
         SELECT c.*,
           (SELECT MAX(delivery_date) FROM orders WHERE customer_id = c.id) AS last_order,
-          CASE WHEN EXISTS (SELECT 1 FROM orders WHERE customer_id = c.id) THEN 'Customer' ELSE 'Lead' END AS caste
+          (SELECT COUNT(*) FROM orders WHERE customer_id = c.id AND status_order != 'Batal') AS order_count,
+          CASE WHEN c.status = 'Closing' OR EXISTS (SELECT 1 FROM orders WHERE customer_id = c.id) THEN 'Customer' ELSE 'Lead' END AS caste
         FROM customers c
         ${where}
         ORDER BY c.created_at DESC
@@ -70,8 +71,8 @@ export async function POST(req: NextRequest) {
     await client.query("BEGIN");
     
     const res = await client.query(
-      `INSERT INTO customers (name, phone, email, type, address, notes, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [name, phone || null, email || null, type || "Perorangan", address || null, notes || null, createdBy]
+      `INSERT INTO customers (name, phone, email, type, address, notes, created_by, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [name, phone || null, email || null, type || "Perorangan", address || null, notes || null, createdBy, status || "Prospek"]
     );
     const newCustomer = res.rows[0];
 
