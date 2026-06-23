@@ -204,7 +204,7 @@ export default function ProductsPage() {
     background: "none",
     cursor: "pointer",
     fontWeight: 600,
-    fontSize: 13,
+    fontSize: 15,
     borderBottom: activeTab === t ? "2px solid #5005A6" : "2px solid transparent",
     color: activeTab === t ? "#5005A6" : "#6b7280",
     marginBottom: -2,
@@ -271,7 +271,7 @@ export default function ProductsPage() {
 
           <div className="erp-card-flush">
             {loading ? (
-              <p style={{ padding: 24, color: "#6b7280", fontSize: 13 }}>Memuat...</p>
+              <p style={{ padding: 24, color: "#6b7280", fontSize: 15 }}>Memuat...</p>
             ) : (
               <>
                 <div style={{ overflowX: "auto" }}>
@@ -298,10 +298,10 @@ export default function ProductsPage() {
                       ) : (
                         rows.map((r: any, idx: number) => (
                           <tr key={r.id}>
-                            <td style={{ fontSize: 12, color: "#6b7280" }}>
+                            <td style={{ fontSize: 14, color: "#6b7280" }}>
                               {(meta.page - 1) * meta.limit + idx + 1}
                             </td>
-                            <td style={{ fontSize: 12, color: "#6b7280" }}>
+                            <td style={{ fontSize: 14, color: "#6b7280" }}>
                               PRD-{String(r.id).padStart(3, "0")}
                             </td>
 
@@ -310,7 +310,7 @@ export default function ProductsPage() {
                               <Badge color="blue">{r.category}</Badge>
                             </td>
                             <td style={{ fontWeight: 600, color: "#5005A6" }}>{fmt(r.price)}</td>
-                            <td style={{ fontSize: 11, color: "#6b7280", maxWidth: 200, textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>
+                            <td style={{ fontSize: 15, color: "#6b7280", maxWidth: 200, textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>
                               {r.description || "-"}
                             </td>
                             <td>
@@ -369,8 +369,8 @@ export default function ProductsPage() {
                 ) : (
                   categories.map((c: any, idx: number) => (
                     <tr key={c.id}>
-                      <td style={{ fontSize: 12, color: "#6b7280" }}>{idx + 1}</td>
-                      <td style={{ fontSize: 12, color: "#6b7280" }}>CAT-{String(c.id).padStart(3, "0")}</td>
+                      <td style={{ fontSize: 14, color: "#6b7280" }}>{idx + 1}</td>
+                      <td style={{ fontSize: 14, color: "#6b7280" }}>CAT-{String(c.id).padStart(3, "0")}</td>
                       <td style={{ fontWeight: 600 }}>{c.name}</td>
                       <td>
                         <div style={{ display: "flex", gap: 4 }}>
@@ -426,7 +426,7 @@ export default function ProductsPage() {
             value={form.description}
             onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
             placeholder={"Masukkan lauk pauk dipisah baris baru untuk auto-populate konfirmasi order, contoh:\n1. NASI PUTIH\n2. AYAM SERUNDENG (pot.8)\n3. CAH TAHU BUNCIS"}
-            style={{ fontFamily: "monospace", fontSize: 12, lineHeight: 1.4 }}
+            style={{ fontFamily: "monospace", fontSize: 14, lineHeight: 1.4 }}
           />
         </FormField>
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>

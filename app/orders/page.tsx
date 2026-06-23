@@ -529,8 +529,8 @@ export default function OrdersPage() {
         ].map(c => (
           <div key={c.label} style={{ background: "white", border: "0.5px solid #e5e7eb", borderRadius: 10, padding: "8px 16px", display: "flex", gap: 10, alignItems: "center" }}>
             <div style={{ width: 8, height: 8, borderRadius: "50%", background: c.color }} />
-            <p style={{ fontSize: 12, color: "#6b7280" }}>{c.label}:</p>
-            <p style={{ fontSize: 13, fontWeight: 700, color: c.color }}>{c.val}</p>
+            <p style={{ fontSize: 14, color: "#6b7280" }}>{c.label}:</p>
+            <p style={{ fontSize: 15, fontWeight: 700, color: c.color }}>{c.val}</p>
           </div>
         ))}
       </div>
@@ -563,7 +563,7 @@ export default function OrdersPage() {
       </div>
 
       <div className="erp-card-flush">
-        {loading ? <p style={{ padding: 24, color: "#6b7280", fontSize: 13 }}>Memuat...</p> : (
+        {loading ? <p style={{ padding: 24, color: "#6b7280", fontSize: 15 }}>Memuat...</p> : (
           <>
             <div style={{ overflowX: "auto" }}>
               <table>
@@ -575,13 +575,13 @@ export default function OrdersPage() {
                     <tr><td colSpan={11} style={{ textAlign: "center", padding: 24, color: "#6b7280" }}>Tidak ada order</td></tr>
                   ) : rows.map((o: any, idx: number) => (
                     <tr key={o.id}>
-                      <td style={{ fontSize: 12, color: "#6b7280" }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
-                      <td style={{ fontWeight: 700, color: "#5005A6", fontSize: 12 }}>ORD-{String(o.id).padStart(3, "0")}</td>
+                      <td style={{ fontSize: 14, color: "#6b7280" }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
+                      <td style={{ fontWeight: 700, color: "#5005A6", fontSize: 14 }}>ORD-{String(o.id).padStart(3, "0")}</td>
                       <td style={{ fontWeight: 500 }}>{o.customer_name}</td>
-                      <td style={{ fontSize: 12, color: "#6b7280" }}>{o.pic_name || "-"}</td>
-                      <td style={{ fontSize: 12 }}>{String(o.delivery_date || "").slice(0, 10)}</td>
-                      <td style={{ fontSize: 12 }}>{o.closing_date ? String(o.closing_date).slice(0, 10) : "-"}</td>
-                      <td style={{ fontSize: 12 }}>
+                      <td style={{ fontSize: 14, color: "#6b7280" }}>{o.pic_name || "-"}</td>
+                      <td style={{ fontSize: 14 }}>{String(o.delivery_date || "").slice(0, 10)}</td>
+                      <td style={{ fontSize: 14 }}>{o.closing_date ? String(o.closing_date).slice(0, 10) : "-"}</td>
+                      <td style={{ fontSize: 14 }}>
                         {o.jenis_order ? (
                           <Badge color={o.jenis_order === "New Order" ? "green" : "purple"}>
                             {o.jenis_order}
@@ -590,7 +590,7 @@ export default function OrdersPage() {
                           <span style={{ color: "#9ca3af" }}>-</span>
                         )}
                       </td>
-                      <td style={{ fontSize: 11, color: "#6b7280" }}>{(o.items || []).length} item</td>
+                      <td style={{ fontSize: 15, color: "#6b7280" }}>{(o.items || []).length} item</td>
                       <td style={{ fontWeight: 700, color: "#5005A6" }}>{fmt(o.grand_total)}</td>
                       <td><Badge color={statusBadgeColor(o.status_order)}>{o.status_order}</Badge></td>
                       <td>
@@ -693,20 +693,20 @@ export default function OrdersPage() {
         {/* Multi-Item Table */}
         <div style={{ marginBottom: 14 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <p style={{ fontSize: 12, fontWeight: 700 }}>Item Pesanan</p>
+            <p style={{ fontSize: 14, fontWeight: 700 }}>Item Pesanan</p>
             <button className="btn btn-secondary btn-sm" onClick={() => setForm(f => ({ ...f, items: [...f.items, emptyItem()] }))}>+ Tambah Baris</button>
           </div>
           <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, overflow: "x-auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                  <th style={{ padding: "8px 12px", textAlign: "left", fontSize: 12 }}>Paket</th>
-                  <th style={{ padding: "8px 12px", textAlign: "left", fontSize: 12 }}>Menu (Rincian)</th>
-                  <th style={{ padding: "8px 12px", textAlign: "left", fontSize: 12 }}>Harga</th>
-                  <th style={{ padding: "8px 12px", textAlign: "center", fontSize: 12 }}>Jumlah</th>
-                  <th style={{ padding: "8px 12px", textAlign: "left", fontSize: 12 }}>Diskon</th>
-                  <th style={{ padding: "8px 12px", textAlign: "right", fontSize: 12 }}>Total</th>
-                  <th style={{ padding: "8px 12px", textAlign: "left", fontSize: 12 }}>Catatan</th>
+                  <th style={{ padding: "8px 12px", textAlign: "left", fontSize: 14 }}>Paket</th>
+                  <th style={{ padding: "8px 12px", textAlign: "left", fontSize: 14 }}>Menu (Rincian)</th>
+                  <th style={{ padding: "8px 12px", textAlign: "left", fontSize: 14 }}>Harga</th>
+                  <th style={{ padding: "8px 12px", textAlign: "center", fontSize: 14 }}>Jumlah</th>
+                  <th style={{ padding: "8px 12px", textAlign: "left", fontSize: 14 }}>Diskon</th>
+                  <th style={{ padding: "8px 12px", textAlign: "right", fontSize: 14 }}>Total</th>
+                  <th style={{ padding: "8px 12px", textAlign: "left", fontSize: 14 }}>Catatan</th>
                   <th style={{ padding: "8px 12px", width: 40 }}></th>
                 </tr>
               </thead>
@@ -757,7 +757,7 @@ export default function OrdersPage() {
                         style={{ width: "80px", padding: "4px 8px", border: "1px solid #d1d5db", borderRadius: "4px" }}
                       />
                     </td>
-                    <td style={{ verticalAlign: "top", padding: "12px 8px", fontWeight: 600, fontSize: 12, whiteSpace: "nowrap", textAlign: "right" }}>
+                    <td style={{ verticalAlign: "top", padding: "12px 8px", fontWeight: 600, fontSize: 14, whiteSpace: "nowrap", textAlign: "right" }}>
                       {fmt(item.subtotal)}
                     </td>
                     <td style={{ verticalAlign: "top", padding: "8px" }}>
@@ -779,7 +779,7 @@ export default function OrdersPage() {
                   </tr>
                 ))}
                 <tr style={{ background: "#f9fafb" }}>
-                  <td colSpan={5} style={{ fontWeight: 700, fontSize: 13, textAlign: "right", padding: "12px 16px" }}>GRAND TOTAL</td>
+                  <td colSpan={5} style={{ fontWeight: 700, fontSize: 15, textAlign: "right", padding: "12px 16px" }}>GRAND TOTAL</td>
                   <td style={{ fontWeight: 700, color: "#5005A6", fontSize: 15, textAlign: "right", padding: "12px 8px" }}>{fmt(grandTotal)}</td>
                   <td colSpan={2} />
                 </tr>
@@ -807,7 +807,7 @@ export default function OrdersPage() {
       {/* Excel Preview Modal */}
       <Modal show={showPreview} onClose={() => setShowPreview(false)} title="Preview Import Order (Excel)" width={1200}>
         <div style={{ marginBottom: 12 }}>
-          <p style={{ fontSize: 13, color: "#4b5563", margin: 0 }}>
+          <p style={{ fontSize: 15, color: "#4b5563", margin: 0 }}>
             Berikut adalah data order hasil pembacaan file Excel. Silakan periksa status deteksi customer dan kecocokan katalog produk sebelum melakukan konfirmasi penyimpanan.
           </p>
         </div>
@@ -833,11 +833,11 @@ export default function OrdersPage() {
                   <tr key={idx}>
                     <td>
                       <div style={{ fontWeight: 600 }}>{o.customer_name}</div>
-                      <div style={{ fontSize: 11, color: "#6b7280" }}>
+                      <div style={{ fontSize: 15, color: "#6b7280" }}>
                         {o.customer_phone} &middot; {o.customer_type}
                       </div>
                       {o.pic_name && (
-                        <div style={{ fontSize: 11, color: "#5005A6", marginTop: 2 }}>
+                        <div style={{ fontSize: 15, color: "#5005A6", marginTop: 2 }}>
                           CS/PIC: <span style={{ fontWeight: 600 }}>{o.pic_name}</span>
                         </div>
                       )}
@@ -850,17 +850,17 @@ export default function OrdersPage() {
                       </div>
                     </td>
                     <td>
-                      <div style={{ fontSize: 12 }}>Order: {o.order_date || "-"}</div>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: "#5005A6" }}>
+                      <div style={{ fontSize: 14 }}>Order: {o.order_date || "-"}</div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: "#5005A6" }}>
                         Kirim: {o.delivery_date || "-"}
                       </div>
-                      <div style={{ fontSize: 11, color: "#6b7280" }}>
+                      <div style={{ fontSize: 15, color: "#6b7280" }}>
                         {o.departure_time || o.arrival_time ? `${o.departure_time} - ${o.arrival_time}` : ""}
                       </div>
                     </td>
-                    <td style={{ fontSize: 12 }}>
+                    <td style={{ fontSize: 14 }}>
                       <div><strong>Venue:</strong> {o.venue || "-"}</div>
-                      <div style={{ fontSize: 11, color: "#6b7280", fontStyle: "italic" }}>
+                      <div style={{ fontSize: 15, color: "#6b7280", fontStyle: "italic" }}>
                         Notes: {o.order_notes || "-"}
                       </div>
                     </td>
@@ -879,7 +879,7 @@ export default function OrdersPage() {
                             p => p.name.toLowerCase() === it.product_name.toLowerCase()
                           );
                           return (
-                            <div key={iIdx} style={{ fontSize: 11, padding: 6, backgroundColor: "#f3f4f6", borderRadius: 4 }}>
+                            <div key={iIdx} style={{ fontSize: 15, padding: 6, backgroundColor: "#f3f4f6", borderRadius: 4 }}>
                               <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 600 }}>
                                 <span style={{ color: isProductValid ? "#111827" : "#E24B4A" }}>
                                   {it.product_name} {!isProductValid && " (⚠ Produk Tidak Terdaftar)"}
@@ -887,12 +887,12 @@ export default function OrdersPage() {
                                 <span>{it.quantity} x {fmt(it.price)}</span>
                               </div>
                               {it.custom_menu && (
-                                <div style={{ fontSize: 10, color: "#4b5563", marginTop: 2, whiteSpace: "pre-line", fontFamily: "monospace" }}>
+                                <div style={{ fontSize: 14, color: "#4b5563", marginTop: 2, whiteSpace: "pre-line", fontFamily: "monospace" }}>
                                   {it.custom_menu}
                                 </div>
                               )}
                               {it.notes && (
-                                <div style={{ fontSize: 10, color: "#854d0e", marginTop: 2 }}>
+                                <div style={{ fontSize: 14, color: "#854d0e", marginTop: 2 }}>
                                   Note: {it.notes}
                                 </div>
                               )}

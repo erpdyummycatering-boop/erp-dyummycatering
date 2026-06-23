@@ -63,6 +63,8 @@ export default function CustomersPage() {
   const [typeFilter, setTypeFilter] = useState("");
   const [casteFilter, setCasteFilter] = useState("");
   const [picFilter, setPicFilter] = useState("");
+  const [fDateFrom, setFDateFrom] = useState("");
+  const [fDateTo, setFDateTo] = useState("");
   const [csUsers, setCsUsers] = useState<any[]>([]);
 
   useEffect(() => {
@@ -97,8 +99,10 @@ export default function CustomersPage() {
     if (typeFilter) p.set("type", typeFilter);
     if (casteFilter) p.set("caste", casteFilter);
     if (picFilter) p.set("pic_id", picFilter);
+    if (fDateFrom) p.set("date_from", fDateFrom);
+    if (fDateTo) p.set("date_to", fDateTo);
     return p.toString();
-  }, [search, typeFilter, casteFilter, picFilter, meta.limit]);
+  }, [search, typeFilter, casteFilter, picFilter, fDateFrom, fDateTo, meta.limit]);
 
   const fetchCustomers = useCallback((page = 1, lim = meta.limit, signal?: AbortSignal) => {
     setLoading(true);
@@ -153,6 +157,23 @@ export default function CustomersPage() {
     }
   };
 
+  const updateStatus = async (customer: any, newStatus: string) => {
+    try {
+      const res = await fetch(`/api/customers/${customer.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...customer, status: newStatus }),
+      });
+      if (res.ok) {
+        setRows(rows => rows.map(r => r.id === customer.id ? { ...r, status: newStatus } : r));
+      } else {
+        alert("Gagal mengupdate status");
+      }
+    } catch (e) {
+      alert("Terjadi kesalahan saat mengupdate status.");
+    }
+  };
+
   const executeDelete = async () => {
     if (!itemToDelete) return;
     try {
@@ -169,13 +190,16 @@ export default function CustomersPage() {
     }
   };
 
-  const corporateCount = rows.filter((c) => c.type === "Corporate").length;
+
 
   const handleExport = async () => {
     const p = new URLSearchParams({ page: "1", limit: "1000" });
     if (search) p.set("search", search);
     if (typeFilter) p.set("type", typeFilter);
     if (casteFilter) p.set("caste", casteFilter);
+    if (picFilter) p.set("pic_id", picFilter);
+    if (fDateFrom) p.set("date_from", fDateFrom);
+    if (fDateTo) p.set("date_to", fDateTo);
     const res = await fetch(`/api/customers?${p}`);
     const d = await res.json();
     exportToExcel(d.data || [], "Data_Customers");
@@ -197,7 +221,6 @@ export default function CustomersPage() {
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 16 }}>
         <StatCard label="Total Kontak" value={meta.total} icon={Users} color={C.primary} />
-        <StatCard label="Corporate (di halaman ini)" value={corporateCount} icon={Users} color="#378ADD" />
       </div>
 
       <div className="erp-card" style={{ marginBottom: 12, padding: "12px 16px" }}>
@@ -227,16 +250,18 @@ export default function CustomersPage() {
               style={{ minWidth: 160, width: 200 }}
             />
           )}
+          <input type="date" value={fDateFrom} onChange={e => setFDateFrom(e.target.value)} style={{ width: 140 }} title="Tanggal dari" />
+          <input type="date" value={fDateTo} onChange={e => setFDateTo(e.target.value)} style={{ width: 140 }} title="Tanggal sampai" />
           <button 
-            onClick={() => { setSearchInput(""); setSearch(""); setTypeFilter(""); setCasteFilter(""); setPicFilter(""); setMeta(m => ({ ...m, page: 1 })); }}
-            style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #e2e8f0", backgroundColor: "white", fontSize: 13, fontWeight: 600, color: "#64748b", cursor: "pointer", whiteSpace: "nowrap" }}
+            onClick={() => { setSearchInput(""); setSearch(""); setTypeFilter(""); setCasteFilter(""); setPicFilter(""); setFDateFrom(""); setFDateTo(""); setMeta(m => ({ ...m, page: 1 })); }}
+            style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #e2e8f0", backgroundColor: "white", fontSize: 15, fontWeight: 600, color: "#64748b", cursor: "pointer", whiteSpace: "nowrap" }}
           >Reset</button>
         </div>
       </div>
 
       <div className="erp-card-flush">
         {loading ? (
-          <p style={{ padding: 24, color: "#6b7280", fontSize: 13 }}>Memuat...</p>
+          <p style={{ padding: 24, color: "#6b7280", fontSize: 15 }}>Memuat...</p>
         ) : (
           <>
             <div style={{ overflowX: "auto" }}>
@@ -253,25 +278,25 @@ export default function CustomersPage() {
                     <tr><td colSpan={activeRole !== "cs_sales" ? 8 : 7} style={{ textAlign: "center", padding: "24px", color: "#6b7280" }}>Tidak ada data</td></tr>
                   ) : rows.map((c: any, idx: number) => (
                     <tr key={c.id}>
-                      <td style={{ fontSize: 12, color: "#6b7280" }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
-                      <td style={{ fontSize: 12 }}>{c.created_at ? String(c.created_at).slice(0, 10) : "-"}</td>
+                      <td style={{ fontSize: 14, color: "#6b7280" }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
+                      <td style={{ fontSize: 14 }}>{c.created_at ? String(c.created_at).slice(0, 10) : "-"}</td>
                       <td>
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                           <div style={{
                             width: 32, height: 32, borderRadius: "50%",
                             background: C.primary + "20",
                             display: "flex", alignItems: "center", justifyContent: "center",
-                            fontSize: 11, fontWeight: 700, color: C.primary, flexShrink: 0,
+                            fontSize: 15, fontWeight: 700, color: C.primary, flexShrink: 0,
                           }}>
                             {c.name.slice(0, 2).toUpperCase()}
                           </div>
                           <div>
-                            <p style={{ fontSize: 13, fontWeight: 600 }}>{c.name}</p>
-                            <p style={{ fontSize: 11, color: "#6b7280" }}>{c.address || "Alamat belum diisi"}</p>
+                            <p style={{ fontSize: 15, fontWeight: 600 }}>{c.name}</p>
+                            <p style={{ fontSize: 15, color: "#6b7280" }}>{c.address || "Alamat belum diisi"}</p>
                           </div>
                         </div>
                       </td>
-                      <td style={{ fontFamily: "monospace", fontSize: 12 }}>
+                      <td style={{ fontFamily: "monospace", fontSize: 14 }}>
                         {c.phone ? (
                           <a
                             href={formatWaLink(c.phone)}
@@ -286,15 +311,75 @@ export default function CustomersPage() {
                         )}
                       </td>
                       <td>
-                        <Badge color={getStatusColor(c.status || "Prospek") as any}>
-                          {c.status || "Prospek"}
-                        </Badge>
+                        {(() => {
+                          const hasOrders = (c.order_count || 0) > 0;
+                          const status = hasOrders ? "Closing" : (c.status || "Prospek");
+                          const color = getStatusColor(status);
+                          let bg = "#f1f5f9", text = "#475569";
+                          if (color === "green") { bg = "#dcfce7"; text = "#16a34a"; }
+                          else if (color === "red") { bg = "#fee2e2"; text = "#dc2626"; }
+                          else if (color === "blue") { bg = "#dbeafe"; text = "#2563eb"; }
+                          else if (color === "purple") { bg = "#f3e8ff"; text = "#9333ea"; }
+                          else if (color === "yellow") { bg = "#fef9c3"; text = "#ca8a04"; }
+
+                          if (hasOrders) {
+                            return (
+                              <div style={{
+                                width: "120px",
+                                padding: "6px 12px",
+                                borderRadius: 12,
+                                fontSize: 15,
+                                fontWeight: 700,
+                                backgroundColor: bg,
+                                color: text,
+                                border: `1px solid ${text}40`,
+                                textAlign: "center",
+                                display: "inline-block"
+                              }}>
+                                {status}
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div style={{ position: "relative", display: "inline-block", width: "120px" }}>
+                              <select
+                                value={status}
+                                onChange={(e) => updateStatus(c, e.target.value)}
+                                style={{
+                                  width: "100%",
+                                  padding: "6px 28px 6px 12px",
+                                  borderRadius: 12,
+                                  fontSize: 15,
+                                  fontWeight: 700,
+                                  backgroundColor: bg,
+                                  color: text,
+                                  border: `1px solid ${text}40`,
+                                  outline: "none",
+                                  cursor: "pointer",
+                                  appearance: "none",
+                                  transition: "all 0.2s",
+                                  boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
+                                }}
+                              >
+                                {["Prospek", "Follow Up", "Negosiasi", "Konfirmasi", "Closing", "Reject"].map(s => (
+                                  <option key={s} value={s}>{s}</option>
+                                ))}
+                              </select>
+                              <div style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: text, display: "flex", alignItems: "center" }}>
+                                <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                  <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </td>
-                      <td style={{ fontSize: 12, fontWeight: 600 }}>
+                      <td style={{ fontSize: 14, fontWeight: 600 }}>
                         {c.order_count || 0}x
                       </td>
                       {activeRole !== "cs_sales" && (
-                        <td style={{ fontSize: 12, color: "#6b7280" }}>
+                        <td style={{ fontSize: 14, color: "#6b7280" }}>
                           {c.created_by ? c.created_by.split(" | ")[0] : "-"}
                         </td>
                       )}
@@ -369,7 +454,7 @@ export default function CustomersPage() {
         
         {!editItem && (
           <>
-            <h3 style={{ fontSize: 13, fontWeight: 700, marginTop: 16, marginBottom: 8, borderTop: "1px solid #e5e7eb", paddingTop: 12, color: "#374151" }}>
+            <h3 style={{ fontSize: 15, fontWeight: 700, marginTop: 16, marginBottom: 8, borderTop: "1px solid #e5e7eb", paddingTop: 12, color: "#374151" }}>
               Data Lead Pertama (Otomatis Dibuat)
             </h3>
             <FormRow>

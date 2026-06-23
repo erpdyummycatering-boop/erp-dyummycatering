@@ -16,6 +16,8 @@ export async function GET(req: NextRequest) {
   const type = p.get("type") || "";
   const caste = p.get("caste") || "";
   const pic_id = p.get("pic_id") || "";
+  const date_from = p.get("date_from") || "";
+  const date_to = p.get("date_to") || "";
 
   const wheres: string[] = [];
   const vals: unknown[] = [];
@@ -38,6 +40,17 @@ export async function GET(req: NextRequest) {
   } else if (pic_id) {
     wheres.push(`c.created_by = (SELECT name || ' | CS / Sales' FROM users WHERE id = $${idx})`);
     vals.push(pic_id);
+    idx++;
+  }
+
+  if (date_from) {
+    wheres.push(`c.created_at >= $${idx}`);
+    vals.push(`${date_from} 00:00:00`);
+    idx++;
+  }
+  if (date_to) {
+    wheres.push(`c.created_at <= $${idx}`);
+    vals.push(`${date_to} 23:59:59`);
     idx++;
   }
 

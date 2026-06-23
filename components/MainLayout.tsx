@@ -116,7 +116,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           borderTopColor: "white", borderRadius: "50%",
           animation: "spin 1s linear infinite"
         }} />
-        <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>Memuat sesi...</p>
+        <p style={{ fontSize: 15, color: "rgba(255,255,255,0.6)" }}>Memuat sesi...</p>
         <style>{`
           @keyframes spin {
             to { transform: rotate(360deg); }
@@ -186,10 +186,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
               <Utensils size={18} color="white" />
             </div>
             <div>
-              <p style={{ fontWeight: 800, fontSize: 15, color: "white", lineHeight: 1, letterSpacing: "-0.02em" }}>
+              <p style={{ fontWeight: 800, fontSize: 18, color: "white", lineHeight: 1, letterSpacing: "-0.02em" }}>
                 Dyummy
               </p>
-              <p style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", fontWeight: 500, marginTop: 2 }}>
+              <p style={{ fontSize: 14, color: "rgba(255,255,255,0.6)", fontWeight: 500, marginTop: 2 }}>
                 Catering ERP
               </p>
             </div>
@@ -211,7 +211,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
               {roleConfig.initials}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontSize: 11, fontWeight: 600, color: "white", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              <p style={{ fontSize: 15, fontWeight: 600, color: "white", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {roleConfig.label}
               </p>
             </div>
@@ -223,7 +223,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           {visibleMenu.map((section) => (
             <div key={section.section}>
               <p style={{
-                fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.4)",
+                fontSize: 15, fontWeight: 700, color: "rgba(255,255,255,0.4)",
                 textTransform: "uppercase", letterSpacing: "0.08em",
                 padding: "10px 16px 4px", whiteSpace: "nowrap",
               }}>
@@ -239,7 +239,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                       padding: "8px 16px",
                       background: isActive ? "rgba(255,255,255,0.18)" : "transparent",
                       color: "white",
-                      fontSize: 13,
+                      fontSize: 15,
                       fontWeight: isActive ? 600 : 400,
                       borderLeft: isActive ? "3px solid white" : "3px solid transparent",
                       opacity: isActive ? 1 : 0.82,
@@ -284,12 +284,12 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>{activeLabel}</p>
+            <p style={{ fontSize: 16, fontWeight: 600, color: "#374151" }}>{activeLabel}</p>
           </div>
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
             {/* Role chip */}
             <span style={{
-              fontSize: 11,
+              fontSize: 15,
               background: roleConfig.bgColor,
               color: roleConfig.color,
               border: `1px solid ${roleConfig.color}40`,
@@ -313,12 +313,12 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                 width: 28, height: 28, borderRadius: "50%",
                 background: roleConfig.color,
                 display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 10, fontWeight: 700, color: "white",
+                fontSize: 14, fontWeight: 700, color: "white",
               }}>
                 {roleConfig.initials}
               </div>
               {!isMobile && (
-                <span style={{ fontSize: 12, fontWeight: 600, color: "#374151" }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: "#374151" }}>
                   {user?.name || "User"}
                 </span>
               )}
@@ -336,7 +336,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                 color: "#E24B4A",
                 border: "1px solid rgba(226, 75, 74, 0.2)",
                 borderRadius: 6,
-                fontSize: 12,
+                fontSize: 14,
                 fontWeight: 600,
                 cursor: "pointer",
                 transition: "all 0.15s"
