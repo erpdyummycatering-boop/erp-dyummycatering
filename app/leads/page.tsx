@@ -12,8 +12,8 @@ import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { statusBadgeColor } from "@/lib/utils";
 import { exportToExcel } from "@/lib/export";
 
-const STATUSES = ["Prospek","Follow Up","Negosiasi","Konfirmasi","Closing","Reject"];
-const SOURCES = ["WhatsApp","Instagram","Website","Referral","Walk-in"];
+const STATUSES = ["Prospek", "Follow Up", "Negosiasi", "Konfirmasi", "Closing", "Reject"];
+const SOURCES = ["WhatsApp", "Instagram", "Website", "Referral", "Walk-in"];
 
 export default function LeadsPage() {
   const { data: session } = useSession();
@@ -46,9 +46,9 @@ export default function LeadsPage() {
     return () => clearTimeout(handler);
   }, [searchInput]);
 
-  const [form, setForm] = useState({ 
+  const [form, setForm] = useState({
     customer_id: "", customer_name: "", customer_phone: "",
-    pic_id: "", lead_date: new Date().toISOString().split("T")[0], source: "WhatsApp", status: "Prospek", tags: "", notes: "" 
+    pic_id: "", lead_date: new Date().toISOString().split("T")[0], source: "WhatsApp", status: "Prospek", tags: "", notes: ""
   });
 
   const [showQuickCust, setShowQuickCust] = useState(false);
@@ -119,18 +119,17 @@ export default function LeadsPage() {
     fetch("/api/customers?limit=100", { signal: controller.signal })
       .then(r => r.json())
       .then(d => setCustomers(d.data || []))
-      .catch(() => {});
+      .catch(() => { });
     fetch("/api/users", { signal: controller.signal })
       .then(r => r.json())
       .then(setUsers)
-      .catch(() => {});
+      .catch(() => { });
     return () => controller.abort();
   }, []);
 
   const handleSave = async () => {
     if (!form.customer_id) return alert("Pilih customer");
-    if (form.customer_id === "new" && !form.customer_phone) return alert("Nomor WA wajib diisi untuk customer baru");
-    
+
     const finalForm = { ...form };
     if (userRole === "CS / Sales") {
       finalForm.pic_id = String(userId);
@@ -140,10 +139,10 @@ export default function LeadsPage() {
     const method = editItem ? "PUT" : "POST";
     try {
       const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(finalForm) });
-      if (res.ok) { 
-        setShowModal(false); 
-        setEditItem(null); 
-        fetchLeads(1); 
+      if (res.ok) {
+        setShowModal(false);
+        setEditItem(null);
+        fetchLeads(1);
       } else {
         const err = await res.json().catch(() => ({}));
         alert(err.error || "Gagal menyimpan lead.");
@@ -199,7 +198,7 @@ export default function LeadsPage() {
     const d = await res.json();
     exportToExcel(d.data || [], "Data_Leads");
   };
-  
+
   return (
     <div>
       <PageHeader title="Aktivitas Prospek" subtitle={`${meta.total} total prospek — semua terhubung database`}
@@ -216,21 +215,21 @@ export default function LeadsPage() {
       <div className="erp-card" style={{ marginBottom: 12, padding: "12px 16px" }}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <input value={searchInput} onChange={e => setSearchInput(e.target.value)} placeholder="🔍 Cari nama, tag, catatan..." style={{ width: 200 }} />
-          <SearchableSelect 
-            value={fStatus} onChange={setFStatus} 
-            options={[{ value: "", label: "Semua Status" }, ...STATUSES.map(s => ({ value: s, label: s }))]} 
-            style={{ width: 140 }} 
+          <SearchableSelect
+            value={fStatus} onChange={setFStatus}
+            options={[{ value: "", label: "Semua Status" }, ...STATUSES.map(s => ({ value: s, label: s }))]}
+            style={{ width: 140 }}
           />
-          <SearchableSelect 
-            value={fSource} onChange={setFSource} 
-            options={[{ value: "", label: "Semua Sumber" }, ...SOURCES.map(s => ({ value: s, label: s }))]} 
-            style={{ width: 140 }} 
+          <SearchableSelect
+            value={fSource} onChange={setFSource}
+            options={[{ value: "", label: "Semua Sumber" }, ...SOURCES.map(s => ({ value: s, label: s }))]}
+            style={{ width: 140 }}
           />
           {userRole !== "CS / Sales" && (
-            <SearchableSelect 
-              value={fPic} onChange={setFPic} 
-              options={[{ value: "", label: "Semua CS" }, ...users.filter((u: any) => u.role === "CS / Sales").map((u: any) => ({ value: u.id, label: u.name }))]} 
-              style={{ width: 160 }} 
+            <SearchableSelect
+              value={fPic} onChange={setFPic}
+              options={[{ value: "", label: "Semua CS" }, ...users.filter((u: any) => u.role === "CS / Sales").map((u: any) => ({ value: u.id, label: u.name }))]}
+              style={{ width: 160 }}
             />
           )}
           <input type="date" value={fDateFrom} onChange={e => setFDateFrom(e.target.value)} style={{ width: 140 }} title="Dari tanggal" />
@@ -286,7 +285,7 @@ export default function LeadsPage() {
                       <td style={{ fontSize: 11, color: "#6b7280", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.notes || "-"}</td>
                       <td>
                         <div style={{ display: "flex", gap: 4 }}>
-                          <button className="btn btn-secondary btn-sm" onClick={() => { setEditItem(r); setForm({ customer_id: r.customer_id, customer_name: "", customer_phone: "", pic_id: r.pic_id || "", lead_date: String(r.lead_date).slice(0,10), source: r.source, status: r.status, tags: r.tags || "", notes: r.notes || "" }); setShowModal(true); }}>Edit</button>
+                          <button className="btn btn-secondary btn-sm" onClick={() => { setEditItem(r); setForm({ customer_id: r.customer_id, customer_name: "", customer_phone: "", pic_id: r.pic_id || "", lead_date: String(r.lead_date).slice(0, 10), source: r.source, status: r.status, tags: r.tags || "", notes: r.notes || "" }); setShowModal(true); }}>Edit</button>
                           <button className="btn btn-secondary btn-sm" onClick={() => setItemToDelete(r)} title="Hapus"><Trash2 size={11} color="#E24B4A" /></button>
                         </div>
                       </td>
@@ -295,9 +294,9 @@ export default function LeadsPage() {
                 </tbody>
               </table>
             </div>
-            <Pagination 
-              page={meta.page} totalPages={meta.totalPages} total={meta.total} limit={meta.limit} 
-              onChange={(p) => fetchLeads(p, meta.limit)} 
+            <Pagination
+              page={meta.page} totalPages={meta.totalPages} total={meta.total} limit={meta.limit}
+              onChange={(p) => fetchLeads(p, meta.limit)}
               onLimitChange={(lim) => fetchLeads(1, lim)}
             />
           </>
@@ -329,34 +328,33 @@ export default function LeadsPage() {
 
       <Modal show={showModal} onClose={() => { setShowModal(false); setEditItem(null); }} title={editItem ? "Edit Prospek" : "Tambah Prospek"}>
         <FormRow>
-          <FormField label="Customer">
-            <div style={{ display: "flex", gap: 6, width: "100%" }}>
+          <FormField label="Customer" style={{ gridColumn: "1 / -1" }}>
+            <div style={{ display: "flex", gap: 8, width: "100%" }}>
               <div style={{ flex: 1 }}>
-                <SearchableSelect 
+                <SearchableSelect
                   value={form.customer_id} onChange={v => setForm(f => ({ ...f, customer_id: v }))}
                   options={[
                     { value: "", label: "-- Pilih --" },
-                    { value: "new", label: "+ Tambah Baru (via WA)", color: "#5005A6", isBold: true },
                     ...customers.map((c: any) => ({ value: c.id, label: c.name }))
                   ]}
                   onCreateClick={(typedText) => openQuickCust(typedText)}
                   menuPortalTarget={typeof document !== "undefined" ? document.body : null}
                 />
               </div>
-              <button 
+              <button
                 type="button"
-                className="btn btn-secondary" 
-                style={{ padding: "0 10px", height: 34, display: "flex", alignItems: "center", justifyContent: "center" }}
+                className="btn btn-primary"
+                style={{ padding: "0 16px", height: 34, display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}
                 onClick={() => openQuickCust("")}
                 title="Tambah Kontak Baru"
               >
-                <Plus size={14} />
+                <Plus size={14} /> Tambah Baru
               </button>
             </div>
           </FormField>
           {userRole !== "CS / Sales" && (
             <FormField label="CS PIC">
-              <SearchableSelect 
+              <SearchableSelect
                 value={form.pic_id} onChange={v => setForm(f => ({ ...f, pic_id: v }))}
                 options={[
                   { value: "", label: "-- Pilih CS --" },
@@ -368,21 +366,10 @@ export default function LeadsPage() {
           )}
         </FormRow>
 
-        {form.customer_id === "new" && (
-          <FormRow>
-            <FormField label="Nama Customer Baru">
-              <input value={form.customer_name} onChange={e => setForm(f => ({ ...f, customer_name: e.target.value }))} placeholder="Nama Lengkap / Instansi" />
-            </FormField>
-            <FormField label="Nomor WhatsApp">
-              <input value={form.customer_phone} onChange={e => setForm(f => ({ ...f, customer_phone: e.target.value }))} placeholder="08123456789" />
-            </FormField>
-          </FormRow>
-        )}
-
         <FormRow>
           <FormField label="Tanggal Lead"><input type="date" value={form.lead_date} onChange={e => setForm(f => ({ ...f, lead_date: e.target.value }))} /></FormField>
           <FormField label="Sumber">
-            <SearchableSelect 
+            <SearchableSelect
               value={form.source} onChange={v => setForm(f => ({ ...f, source: v }))}
               options={SOURCES.map(s => ({ value: s, label: s }))}
               menuPortalTarget={typeof document !== "undefined" ? document.body : null}
@@ -391,7 +378,7 @@ export default function LeadsPage() {
         </FormRow>
         <FormRow>
           <FormField label="Status">
-            <SearchableSelect 
+            <SearchableSelect
               value={form.status} onChange={v => setForm(f => ({ ...f, status: v }))}
               options={STATUSES.map(s => ({ value: s, label: s }))}
               menuPortalTarget={typeof document !== "undefined" ? document.body : null}
@@ -428,7 +415,7 @@ export default function LeadsPage() {
         </FormRow>
         <FormRow>
           <FormField label="Tipe Customer">
-            <SearchableSelect 
+            <SearchableSelect
               value={quickCustForm.type} onChange={v => setQuickCustForm((f) => ({ ...f, type: v }))}
               options={["Perorangan", "Corporate", "Instansi"].map(t => ({ value: t, label: t }))}
               menuPortalTarget={typeof document !== "undefined" ? document.body : null}
