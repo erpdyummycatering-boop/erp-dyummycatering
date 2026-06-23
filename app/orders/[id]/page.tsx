@@ -214,7 +214,7 @@ export default function OrderDetailPage() {
     <div style={{ maxWidth: 1000, margin: "0 auto" }}>
       {/* Back button */}
       <div style={{ marginBottom: 16 }}>
-        <Link href="/orders" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "#6b7280" }}>
+        <Link href="/orders" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 15, color: "#6b7280" }}>
           <ArrowLeft size={14} /> Kembali ke Rekap Order
         </Link>
       </div>
@@ -235,7 +235,7 @@ export default function OrderDetailPage() {
       />
 
       {message && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#E1F5EE", border: "1px solid #9FE1CB", color: "#0F6E56", padding: "10px 16px", borderRadius: 8, marginBottom: 16, fontSize: 13, fontWeight: 600 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#E1F5EE", border: "1px solid #9FE1CB", color: "#0F6E56", padding: "10px 16px", borderRadius: 8, marginBottom: 16, fontSize: 15, fontWeight: 600 }}>
           <CheckCircle2 size={16} color="#639922" /> {message}
         </div>
       )}
@@ -348,7 +348,7 @@ export default function OrderDetailPage() {
               <div key={idx} style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 16, background: "#f9fafb" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 12, alignItems: "flex-end" }}>
                   <div style={{ flex: 2, minWidth: 200 }}>
-                    <label style={{ fontSize: 11, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>Pilih Paket Produk</label>
+                    <label style={{ fontSize: 15, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>Pilih Paket Produk</label>
                     <SearchableSelect 
                       value={item.product_id} 
                       onChange={v => updateItem(idx, "product_id", v)}
@@ -360,23 +360,23 @@ export default function OrderDetailPage() {
                   </div>
                   
                   <div style={{ width: 80 }}>
-                    <label style={{ fontSize: 11, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>Quantity</label>
+                    <label style={{ fontSize: 15, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>Quantity</label>
                     <input type="number" min={1} value={item.quantity} onChange={e => updateItem(idx, "quantity", Number(e.target.value))} />
                   </div>
 
                   <div style={{ width: 130 }}>
-                    <label style={{ fontSize: 11, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>Harga Satuan (Rp)</label>
+                    <label style={{ fontSize: 15, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>Harga Satuan (Rp)</label>
                     <input type="number" value={item.price} onChange={e => updateItem(idx, "price", Number(e.target.value))} />
                   </div>
 
                   <div style={{ width: 110 }}>
-                    <label style={{ fontSize: 11, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>Potongan (Rp)</label>
+                    <label style={{ fontSize: 15, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>Potongan (Rp)</label>
                     <input type="number" value={item.discount} onChange={e => updateItem(idx, "discount", Number(e.target.value))} />
                   </div>
 
                   <div style={{ minWidth: 100, textAlign: "right" }}>
-                    <label style={{ fontSize: 11, color: "#6b7280", display: "block", marginBottom: 4 }}>Subtotal</label>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: "#5005A6" }}>{fmt(item.subtotal)}</span>
+                    <label style={{ fontSize: 15, color: "#6b7280", display: "block", marginBottom: 4 }}>Subtotal</label>
+                    <span style={{ fontSize: 15, fontWeight: 700, color: "#5005A6" }}>{fmt(item.subtotal)}</span>
                   </div>
 
                   <div>
@@ -390,7 +390,7 @@ export default function OrderDetailPage() {
 
                 <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
                   <div style={{ flex: 1 }}>
-                    <label style={{ fontSize: 11, fontWeight: 700, color: "#4b5563", marginBottom: 4, display: "block" }}>
+                    <label style={{ fontSize: 15, fontWeight: 700, color: "#4b5563", marginBottom: 4, display: "block" }}>
                       Rincian Lauk / Menu Custom (Tampil di Lembar Konfirmasi)
                     </label>
                     <textarea 
@@ -398,11 +398,11 @@ export default function OrderDetailPage() {
                       value={item.custom_menu || ""} 
                       onChange={e => updateItem(idx, "custom_menu", e.target.value)} 
                       placeholder={"Masukkan lauk pauk dipisah baris baru, contoh:\n1. NASI PUTIH\n2. AYAM SERUNDENG (pot.8)\n3. CAH TAHU BUNCIS\n4. PERKEDEL JAGUNG"} 
-                      style={{ fontFamily: "monospace", fontSize: 12, lineHeight: 1.4 }}
+                      style={{ fontFamily: "monospace", fontSize: 14, lineHeight: 1.4 }}
                     />
                   </div>
                   <div style={{ width: "300px" }}>
-                    <label style={{ fontSize: 11, fontWeight: 700, color: "#4b5563", marginBottom: 4, display: "block" }}>
+                    <label style={{ fontSize: 15, fontWeight: 700, color: "#4b5563", marginBottom: 4, display: "block" }}>
                       Catatan Item (Notes)
                     </label>
                     <textarea 
@@ -410,7 +410,7 @@ export default function OrderDetailPage() {
                       value={item.notes || ""} 
                       onChange={e => updateItem(idx, "notes", e.target.value)} 
                       placeholder="Masukkan catatan/instruksi khusus item..." 
-                      style={{ fontSize: 12, lineHeight: 1.4 }}
+                      style={{ fontSize: 14, lineHeight: 1.4 }}
                     />
                   </div>
                 </div>
@@ -420,7 +420,7 @@ export default function OrderDetailPage() {
 
           {/* Grand Total Bar */}
           <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12, borderTop: "1px solid #e5e7eb", marginTop: 16, paddingTop: 16 }}>
-            <span style={{ fontWeight: 700, fontSize: 13, color: "#4b5563" }}>TOTAL NILAI ORDER:</span>
+            <span style={{ fontWeight: 700, fontSize: 15, color: "#4b5563" }}>TOTAL NILAI ORDER:</span>
             <span style={{ fontWeight: 800, color: "#5005A6", fontSize: 18 }}>{fmt(grandTotal)}</span>
           </div>
         </div>

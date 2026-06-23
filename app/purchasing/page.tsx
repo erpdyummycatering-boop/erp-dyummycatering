@@ -147,7 +147,7 @@ export default function PurchasingPage() {
 
   const tabStyle = (t: string) => ({
     padding: "10px 20px", border: "none", background: "none", cursor: "pointer",
-    fontWeight: 600, fontSize: 13,
+    fontWeight: 600, fontSize: 15,
     borderBottom: activeTab === t ? "2px solid #5005A6" : "2px solid transparent",
     color: activeTab === t ? "#5005A6" : "#6b7280",
     marginBottom: -2,
@@ -199,7 +199,7 @@ export default function PurchasingPage() {
           </div>
 
           <div className="erp-card-flush">
-            {prLoading ? <p style={{ padding: 24, color: "#6b7280", fontSize: 13 }}>Memuat...</p> : (
+            {prLoading ? <p style={{ padding: 24, color: "#6b7280", fontSize: 15 }}>Memuat...</p> : (
               <>
                 <div style={{ overflowX: "auto" }}>
                   <table>
@@ -219,10 +219,10 @@ export default function PurchasingPage() {
                         <tr><td colSpan={7} style={{ textAlign: "center", padding: 24, color: "#6b7280" }}>Tidak ada Purchase Request</td></tr>
                       ) : prRows.map((r: any, idx: number) => (
                         <tr key={r.id}>
-                          <td style={{ fontSize: 12, color: "#6b7280" }}>{(prMeta.page - 1) * prMeta.limit + idx + 1}</td>
-                          <td style={{ fontWeight: 700, fontSize: 12, color: "#5005A6" }}>PR-{String(r.id).padStart(4, "0")}</td>
-                          <td style={{ fontSize: 12 }}>{String(r.target_date || "").slice(0, 10)}</td>
-                          <td style={{ fontSize: 12 }}>{r.chef_name || "-"}</td>
+                          <td style={{ fontSize: 14, color: "#6b7280" }}>{(prMeta.page - 1) * prMeta.limit + idx + 1}</td>
+                          <td style={{ fontWeight: 700, fontSize: 14, color: "#5005A6" }}>PR-{String(r.id).padStart(4, "0")}</td>
+                          <td style={{ fontSize: 14 }}>{String(r.target_date || "").slice(0, 10)}</td>
+                          <td style={{ fontSize: 14 }}>{r.chef_name || "-"}</td>
                           <td style={{ textAlign: "right", fontWeight: 700 }}>{fmt(r.total_pr_value)}</td>
                           <td><Badge color={statusBadgeColor(r.status)}>{r.status}</Badge></td>
                           <td>
@@ -235,7 +235,7 @@ export default function PurchasingPage() {
                                 </button>
                               )}
                               {r.has_po && (
-                                <span style={{ fontSize: 11, color: "#5005A6", fontWeight: 600 }}>✓ PO Dibuat</span>
+                                <span style={{ fontSize: 15, color: "#5005A6", fontWeight: 600 }}>✓ PO Dibuat</span>
                               )}
                               <a href={`/print/pr/${r.id}`} target="_blank" rel="noreferrer">
                                 <button className="btn btn-secondary btn-sm" style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -280,7 +280,7 @@ export default function PurchasingPage() {
           </div>
 
           <div className="erp-card-flush">
-            {poLoading ? <p style={{ padding: 24, color: "#6b7280", fontSize: 13 }}>Memuat...</p> : (
+            {poLoading ? <p style={{ padding: 24, color: "#6b7280", fontSize: 15 }}>Memuat...</p> : (
               <>
                 <div style={{ overflowX: "auto" }}>
                   <table>
@@ -306,10 +306,10 @@ export default function PurchasingPage() {
                         const isOver = r.total_actual_cost > 0 && variance < 0;
                         return (
                           <tr key={r.id}>
-                            <td style={{ fontSize: 12, color: "#6b7280" }}>{(poMeta.page - 1) * poMeta.limit + idx + 1}</td>
-                            <td style={{ fontWeight: 700, fontSize: 12, color: "#378ADD" }}>PO-{String(r.id).padStart(4, "0")}</td>
-                            <td style={{ fontSize: 12 }}>{String(r.po_date).slice(0, 10)}</td>
-                            <td style={{ fontSize: 12, color: "#6b7280" }}>{String(r.target_date || "").slice(0, 10)}</td>
+                            <td style={{ fontSize: 14, color: "#6b7280" }}>{(poMeta.page - 1) * poMeta.limit + idx + 1}</td>
+                            <td style={{ fontWeight: 700, fontSize: 14, color: "#378ADD" }}>PO-{String(r.id).padStart(4, "0")}</td>
+                            <td style={{ fontSize: 14 }}>{String(r.po_date).slice(0, 10)}</td>
+                            <td style={{ fontSize: 14, color: "#6b7280" }}>{String(r.target_date || "").slice(0, 10)}</td>
                             <td style={{ textAlign: "right", fontWeight: 600 }}>{fmt(r.estimated_cost)}</td>
                             <td style={{ textAlign: "right", fontWeight: 700, color: r.total_actual_cost > 0 ? (isOver ? "#E24B4A" : "#5005A6") : "#6b7280" }}>
                               {r.total_actual_cost > 0 ? fmt(r.total_actual_cost) : "-"}
@@ -354,12 +354,12 @@ export default function PurchasingPage() {
         {selectedPO && (
           <>
             <div className="alert-info" style={{ marginBottom: 14 }}>
-              <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: "#185FA5" }}>
+              <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "#185FA5" }}>
                 Estimasi Chef: {fmt(selectedPO.estimated_cost)} &nbsp;·&nbsp; Tgl Produksi: {String(selectedPO.target_date || "").slice(0, 10)}
               </p>
             </div>
             <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
+              <label style={{ fontSize: 14, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
                 Total Actual Belanja (Rp) — Sesuai Nota
               </label>
               <input type="number" min="0" step="1000"
@@ -377,7 +377,7 @@ export default function PurchasingPage() {
                 border: `1px solid ${Number(realisasiForm.total_actual_cost) > Number(selectedPO.estimated_cost) ? "#fecaca" : "#bbf7d0"}`,
                 borderRadius: 8, padding: "10px 14px", marginBottom: 12
               }}>
-                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: Number(realisasiForm.total_actual_cost) > Number(selectedPO.estimated_cost) ? "#E24B4A" : "#5005A6" }}>
+                <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: Number(realisasiForm.total_actual_cost) > Number(selectedPO.estimated_cost) ? "#E24B4A" : "#5005A6" }}>
                   {Number(realisasiForm.total_actual_cost) > Number(selectedPO.estimated_cost)
                     ? `⚠ OVERBUDGET: +${fmt(Number(realisasiForm.total_actual_cost) - Number(selectedPO.estimated_cost))} dari estimasi`
                     : `✓ Dalam batas: hemat ${fmt(Number(selectedPO.estimated_cost) - Number(realisasiForm.total_actual_cost))}`
@@ -389,7 +389,7 @@ export default function PurchasingPage() {
             {/* Keterangan jika overbudget */}
             {Number(realisasiForm.total_actual_cost) > Number(selectedPO.estimated_cost) && (
               <div style={{ marginBottom: 12 }}>
-                <label style={{ fontSize: 12, fontWeight: 600, color: "#E24B4A", display: "block", marginBottom: 6 }}>
+                <label style={{ fontSize: 14, fontWeight: 600, color: "#E24B4A", display: "block", marginBottom: 6 }}>
                   ⚠ Wajib diisi: Keterangan/Alasan Selisih
                 </label>
                 <textarea rows={3}
@@ -402,7 +402,7 @@ export default function PurchasingPage() {
             )}
 
             <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Status Belanja</label>
+              <label style={{ fontSize: 14, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Status Belanja</label>
               <SearchableSelect
                 value={realisasiForm.status_po}
                 onChange={v => setRealisasiForm(f => ({ ...f, status_po: v }))}

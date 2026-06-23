@@ -13,7 +13,7 @@ export function PageHeader({ title, subtitle, actions }: PageHeaderProps) {
       <div>
         <h1 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a1a", margin: 0 }}>{title}</h1>
         {subtitle && (
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 2 }}>{subtitle}</p>
+          <p style={{ fontSize: 15, color: "#6b7280", marginTop: 2 }}>{subtitle}</p>
         )}
       </div>
       {actions && (

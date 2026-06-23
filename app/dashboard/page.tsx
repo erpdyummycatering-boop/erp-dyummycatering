@@ -90,10 +90,10 @@ export default function DashboardPage() {
         <h1 style={{ fontSize: 22, fontWeight: 800, color: "#1a1a1a", margin: 0, letterSpacing: "-0.02em" }}>
           Dashboard Utama
         </h1>
-        <p style={{ fontSize: 13, color: "#6b7280", marginTop: 3 }}>
+        <p style={{ fontSize: 15, color: "#6b7280", marginTop: 3 }}>
           {new Date().toLocaleDateString("id-ID", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
           {isDemo && (
-            <span style={{ marginLeft: 10, background: "#FAEEDA", color: "#854F0B", padding: "2px 8px", borderRadius: 10, fontSize: 11, fontWeight: 600 }}>
+            <span style={{ marginLeft: 10, background: "#FAEEDA", color: "#854F0B", padding: "2px 8px", borderRadius: 10, fontSize: 15, fontWeight: 600 }}>
               Demo Data — Tambahkan data real untuk update chart
             </span>
           )}
@@ -149,31 +149,31 @@ export default function DashboardPage() {
         {/* Bar Chart — Revenue vs BPP */}
         <div className="erp-card">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-            <p style={{ fontSize: 13, fontWeight: 700, color: "#1a1a1a" }}>Revenue vs BPP vs Laba Kotor (7 Hari)</p>
-            {isDemo && <span style={{ fontSize: 10, color: "#6b7280" }}>*contoh data</span>}
+            <p style={{ fontSize: 15, fontWeight: 700, color: "#1a1a1a" }}>Revenue vs BPP vs Laba Kotor (7 Hari)</p>
+            {isDemo && <span style={{ fontSize: 14, color: "#6b7280" }}>*contoh data</span>}
           </div>
           <ResponsiveContainer width="100%" height={230}>
             <BarChart data={chartData} barCategoryGap="30%" barGap={3}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
               <XAxis
                 dataKey="date"
-                tick={{ fontSize: 11, fill: "#9ca3af" }}
+                tick={{ fontSize: 15, fill: "#9ca3af" }}
                 axisLine={false}
                 tickLine={false}
               />
               <YAxis
                 tickFormatter={(v) => (v / 1_000_000).toFixed(1) + "Jt"}
-                tick={{ fontSize: 11, fill: "#9ca3af" }}
+                tick={{ fontSize: 15, fill: "#9ca3af" }}
                 axisLine={false}
                 tickLine={false}
                 width={40}
               />
               <Tooltip
                 formatter={(v: any, name: any) => [fmt(Number(v)), String(name ?? "")]}
-                contentStyle={{ borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12 }}
+                contentStyle={{ borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 14 }}
               />
               <Legend
-                wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
+                wrapperStyle={{ fontSize: 15, paddingTop: 8 }}
                 iconType="circle"
                 iconSize={8}
               />
@@ -186,16 +186,16 @@ export default function DashboardPage() {
 
         {/* Line Chart — Margin */}
         <div className="erp-card">
-          <p style={{ fontSize: 13, fontWeight: 700, color: "#1a1a1a", marginBottom: 14 }}>Margin Laba (%) Harian</p>
+          <p style={{ fontSize: 15, fontWeight: 700, color: "#1a1a1a", marginBottom: 14 }}>Margin Laba (%) Harian</p>
           <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
             <div style={{ flex: 1, background: C.primary + "15", borderRadius: 8, padding: "8px 12px", textAlign: "center" }}>
-              <p style={{ fontSize: 10, color: C.primary, fontWeight: 600, marginBottom: 2 }}>RATA-RATA</p>
+              <p style={{ fontSize: 14, color: C.primary, fontWeight: 600, marginBottom: 2 }}>RATA-RATA</p>
               <p style={{ fontSize: 18, fontWeight: 800, color: C.primary }}>
                 {(chartData.reduce((s: number, d: any) => s + d.margin, 0) / chartData.length).toFixed(1)}%
               </p>
             </div>
             <div style={{ flex: 1, background: "#f9fafb", borderRadius: 8, padding: "8px 12px", textAlign: "center" }}>
-              <p style={{ fontSize: 10, color: "#6b7280", fontWeight: 600, marginBottom: 2 }}>TARGET</p>
+              <p style={{ fontSize: 14, color: "#6b7280", fontWeight: 600, marginBottom: 2 }}>TARGET</p>
               <p style={{ fontSize: 18, fontWeight: 800, color: "#6b7280" }}>40%</p>
             </div>
           </div>
@@ -208,16 +208,16 @@ export default function DashboardPage() {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-              <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="date" tick={{ fontSize: 14, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
               <YAxis
                 domain={[0, 100]}
                 tickFormatter={(v) => v + "%"}
-                tick={{ fontSize: 10, fill: "#9ca3af" }}
+                tick={{ fontSize: 14, fill: "#9ca3af" }}
                 axisLine={false}
                 tickLine={false}
                 width={30}
               />
-              <Tooltip formatter={(v: any) => [Number(v).toFixed(1) + "%", "Margin"]} contentStyle={{ borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12 }} />
+              <Tooltip formatter={(v: any) => [Number(v).toFixed(1) + "%", "Margin"]} contentStyle={{ borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 14 }} />
               {/* Target line */}
               <Area type="monotone" dataKey={() => 40} stroke="#e5e7eb" fill="none" strokeDasharray="4 3" strokeWidth={1} legendType="none" />
               <Area
@@ -239,7 +239,7 @@ export default function DashboardPage() {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 16, marginBottom: 16 }} className="grid-col-1-mobile">
         {/* Kasta Kontak Pie Chart */}
         <div className="erp-card" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "16px 24px" }}>
-          <p style={{ fontSize: 13, fontWeight: 700, color: "#1a1a1a", width: "100%", textAlign: "left", marginBottom: 14 }}>
+          <p style={{ fontSize: 15, fontWeight: 700, color: "#1a1a1a", width: "100%", textAlign: "left", marginBottom: 14 }}>
             Kasta Kontak (Lead vs Customer)
           </p>
           {totalContacts > 0 ? (
@@ -270,9 +270,9 @@ export default function DashboardPage() {
               </div>
             </div>
           ) : (
-            <p style={{ color: "#6b7280", fontSize: 12, padding: 24 }}>Belum ada data kontak</p>
+            <p style={{ color: "#6b7280", fontSize: 14, padding: 24 }}>Belum ada data kontak</p>
           )}
-          <div style={{ display: "flex", gap: 16, marginTop: 12, fontSize: 11, width: "100%", justifyContent: "center" }}>
+          <div style={{ display: "flex", gap: 16, marginTop: 12, fontSize: 15, width: "100%", justifyContent: "center" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#639922" }} />
               <span style={{ color: "#374151", fontWeight: 600 }}>Customer ({customerCasteCount})</span>
@@ -286,17 +286,17 @@ export default function DashboardPage() {
 
         {/* Quick Tips or Aktivitas Prospek Summary */}
         <div className="erp-card" style={{ padding: "16px 24px" }}>
-          <p style={{ fontSize: 13, fontWeight: 700, color: "#1a1a1a", marginBottom: 14 }}>Tips Konversi & CRM</p>
+          <p style={{ fontSize: 15, fontWeight: 700, color: "#1a1a1a", marginBottom: 14 }}>Tips Konversi & CRM</p>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }} className="grid-col-1-mobile">
             <div style={{ background: "#f9fafb", padding: 12, borderRadius: 8, borderLeft: "4px solid #639922" }}>
-              <p style={{ fontSize: 12, fontWeight: 700, color: "#1a1a1a", marginBottom: 4 }}>Konversi Lead ke Customer</p>
-              <p style={{ fontSize: 11, color: "#6b7280", lineHeight: "1.4" }}>
+              <p style={{ fontSize: 14, fontWeight: 700, color: "#1a1a1a", marginBottom: 4 }}>Konversi Lead ke Customer</p>
+              <p style={{ fontSize: 15, color: "#6b7280", lineHeight: "1.4" }}>
                 Tawarkan promo khusus, bundling menu, atau tester gratis untuk mengubah Lead yang belum pernah melakukan transaksi menjadi Customer aktif.
               </p>
             </div>
             <div style={{ background: "#f9fafb", padding: 12, borderRadius: 8, borderLeft: "4px solid #BA7517" }}>
-              <p style={{ fontSize: 12, fontWeight: 700, color: "#1a1a1a", marginBottom: 4 }}>Follow Up Berkala</p>
-              <p style={{ fontSize: 11, color: "#6b7280", lineHeight: "1.4" }}>
+              <p style={{ fontSize: 14, fontWeight: 700, color: "#1a1a1a", marginBottom: 4 }}>Follow Up Berkala</p>
+              <p style={{ fontSize: 15, color: "#6b7280", lineHeight: "1.4" }}>
                 Jaga hubungan baik dengan Lead dengan menanyakan rencana event mereka atau memberikan penawaran menu catering harian/kantor secara berkala.
               </p>
             </div>
@@ -308,7 +308,7 @@ export default function DashboardPage() {
       <div className="dashboard-grid-alerts">
         {/* Summary Stats */}
         <div className="erp-card">
-          <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 14 }}>Ringkasan 7 Hari</p>
+          <p style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>Ringkasan 7 Hari</p>
           {[
             { label: "Total Revenue", value: fmtShort(chartData.reduce((s: number, d: any) => s + d.revenue, 0)), color: C.primary },
             { label: "Total BPP Aktual", value: fmtShort(chartData.reduce((s: number, d: any) => s + d.bpp, 0)), color: C.coral },
@@ -321,7 +321,7 @@ export default function DashboardPage() {
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <div style={{ width: 8, height: 8, borderRadius: "50%", background: item.color, flexShrink: 0 }} />
-                <p style={{ fontSize: 13, color: "#374151" }}>{item.label}</p>
+                <p style={{ fontSize: 15, color: "#374151" }}>{item.label}</p>
               </div>
               <p style={{ fontSize: 14, fontWeight: 700, color: item.color }}>{item.value}</p>
             </div>
@@ -332,9 +332,9 @@ export default function DashboardPage() {
         <div className="erp-card">
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
             <ShieldAlert size={16} color={scheduleAlerts.length + poAlerts.length > 0 ? C.danger : C.primary} />
-            <p style={{ fontSize: 13, fontWeight: 700 }}>Peringatan Sistem</p>
+            <p style={{ fontSize: 15, fontWeight: 700 }}>Peringatan Sistem</p>
             {scheduleAlerts.length + poAlerts.length > 0 && (
-              <span style={{ background: C.danger, color: "white", padding: "1px 7px", borderRadius: 10, fontSize: 11, fontWeight: 700 }}>
+              <span style={{ background: C.danger, color: "white", padding: "1px 7px", borderRadius: 10, fontSize: 15, fontWeight: 700 }}>
                 {scheduleAlerts.length + poAlerts.length}
               </span>
             )}
@@ -346,8 +346,8 @@ export default function DashboardPage() {
                 <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
                   <CheckCircle size={15} color="#3b047a" style={{ flexShrink: 0, marginTop: 1 }} />
                   <div>
-                    <p style={{ fontWeight: 700, color: "#3b047a", fontSize: 12 }}>Semua sistem normal</p>
-                    <p style={{ fontSize: 11, color: "#3b047a", marginTop: 2 }}>
+                    <p style={{ fontWeight: 700, color: "#3b047a", fontSize: 14 }}>Semua sistem normal</p>
+                    <p style={{ fontSize: 15, color: "#3b047a", marginTop: 2 }}>
                       Tidak ada jadwal overbudget atau variance belanja.
                     </p>
                   </div>
@@ -360,10 +360,10 @@ export default function DashboardPage() {
                 <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
                   <AlertTriangle size={14} color="#A32D2D" style={{ flexShrink: 0, marginTop: 1 }} />
                   <div>
-                    <p style={{ fontWeight: 700, color: "#A32D2D", fontSize: 12 }}>
+                    <p style={{ fontWeight: 700, color: "#A32D2D", fontSize: 14 }}>
                       {a.status} — Jadwal {a.target_date}
                     </p>
-                    <p style={{ fontSize: 11, color: "#A32D2D", marginTop: 2 }}>
+                    <p style={{ fontSize: 15, color: "#A32D2D", marginTop: 2 }}>
                       HPP {fmt(a.total_estimated_hpp)} melebihi budget {fmt(a.budget_limit)}
                     </p>
                   </div>
@@ -376,10 +376,10 @@ export default function DashboardPage() {
                 <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
                   <DollarSign size={14} color="#854F0B" style={{ flexShrink: 0, marginTop: 1 }} />
                   <div>
-                    <p style={{ fontWeight: 700, color: "#854F0B", fontSize: 12 }}>
+                    <p style={{ fontWeight: 700, color: "#854F0B", fontSize: 14 }}>
                       Overbudget — PO #{a.id}
                     </p>
-                    <p style={{ fontSize: 11, color: "#854F0B", marginTop: 2 }}>
+                    <p style={{ fontSize: 15, color: "#854F0B", marginTop: 2 }}>
                       {a.variance_notes || "Aktual melebihi estimasi PR Chef"}
                     </p>
                   </div>

@@ -135,7 +135,7 @@ export function XlsxImportModal({
             </div>
             <div>
               <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#111827" }}>Import {entityLabel} dari Excel</h3>
-              <p style={{ margin: 0, fontSize: 12, color: "#6b7280" }}>
+              <p style={{ margin: 0, fontSize: 14, color: "#6b7280" }}>
                 {step === "upload" && "Upload file .xlsx atau .xls"}
                 {step === "preview" && `${parsedRows.length} baris siap diimport — periksa sebelum lanjut`}
                 {step === "result" && "Import selesai"}
@@ -157,14 +157,14 @@ export function XlsxImportModal({
               <div key={s} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <div style={{
                   width: 22, height: 22, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 11, fontWeight: 700,
+                  fontSize: 15, fontWeight: 700,
                   background: done ? "#5005A6" : active ? "#5005A620" : "#f3f4f6",
                   color: done ? "white" : active ? "#5005A6" : "#9ca3af",
                   border: active ? "2px solid #5005A6" : "2px solid transparent",
                 }}>
                   {done ? "✓" : i + 1}
                 </div>
-                <span style={{ fontSize: 12, fontWeight: active ? 600 : 400, color: active ? "#111827" : "#9ca3af" }}>{labels[i]}</span>
+                <span style={{ fontSize: 14, fontWeight: active ? 600 : 400, color: active ? "#111827" : "#9ca3af" }}>{labels[i]}</span>
                 {i < 2 && <span style={{ color: "#e5e7eb", margin: "0 4px" }}>›</span>}
               </div>
             );
@@ -180,8 +180,8 @@ export function XlsxImportModal({
               {/* Download template */}
               <div style={{ marginBottom: 16, padding: "12px 16px", background: "#f0fdf4", borderRadius: 10, border: "1px solid #bbf7d0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
-                  <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "#166534" }}>Download Template Excel</p>
-                  <p style={{ margin: "2px 0 0", fontSize: 12, color: "#15803d" }}>
+                  <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: "#166534" }}>Download Template Excel</p>
+                  <p style={{ margin: "2px 0 0", fontSize: 14, color: "#15803d" }}>
                     Isi data mengikuti format kolom yang sudah tersedia
                   </p>
                 </div>
@@ -192,10 +192,10 @@ export function XlsxImportModal({
 
               {/* Kolom info */}
               <div style={{ marginBottom: 16 }}>
-                <p style={{ margin: "0 0 8px", fontSize: 12, fontWeight: 600, color: "#374151" }}>Kolom yang dikenali:</p>
+                <p style={{ margin: "0 0 8px", fontSize: 14, fontWeight: 600, color: "#374151" }}>Kolom yang dikenali:</p>
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   {columns.map(c => (
-                    <span key={c.key} style={{ padding: "3px 10px", background: "#f3f4f6", borderRadius: 20, fontSize: 11, fontWeight: 500, color: "#374151", border: "1px solid #e5e7eb" }}>
+                    <span key={c.key} style={{ padding: "3px 10px", background: "#f3f4f6", borderRadius: 20, fontSize: 15, fontWeight: 500, color: "#374151", border: "1px solid #e5e7eb" }}>
                       <code style={{ fontFamily: "monospace" }}>{c.key}</code>
                     </span>
                   ))}
@@ -217,13 +217,13 @@ export function XlsxImportModal({
               >
                 <Upload size={32} color="#9ca3af" style={{ marginBottom: 12 }} />
                 <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "#374151" }}>Drag & drop file Excel di sini</p>
-                <p style={{ margin: "6px 0 0", fontSize: 12, color: "#6b7280" }}>atau klik untuk pilih file (.xlsx, .xls)</p>
+                <p style={{ margin: "6px 0 0", fontSize: 14, color: "#6b7280" }}>atau klik untuk pilih file (.xlsx, .xls)</p>
                 <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={e => { if (e.target.files?.[0]) handleFile(e.target.files[0]); }} />
               </div>
 
               {parseError && (
                 <div style={{ marginTop: 12, padding: "10px 14px", background: "#fef2f2", borderRadius: 8, border: "1px solid #fecaca" }}>
-                  <p style={{ margin: 0, fontSize: 12, color: "#dc2626", display: "flex", alignItems: "center", gap: 6 }}>
+                  <p style={{ margin: 0, fontSize: 14, color: "#dc2626", display: "flex", alignItems: "center", gap: 6 }}>
                     <AlertTriangle size={13} /> {parseError}
                   </p>
                 </div>
@@ -237,13 +237,13 @@ export function XlsxImportModal({
               <div style={{ marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <FileSpreadsheet size={16} color="#5005A6" />
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{fileName}</span>
-                  <span style={{ fontSize: 12, color: "#6b7280" }}>— {parsedRows.length} baris</span>
+                  <span style={{ fontSize: 15, fontWeight: 600, color: "#111827" }}>{fileName}</span>
+                  <span style={{ fontSize: 14, color: "#6b7280" }}>— {parsedRows.length} baris</span>
                 </div>
                 <button className="btn btn-secondary btn-sm" onClick={reset}>Ganti File</button>
               </div>
               <div style={{ overflowX: "auto", border: "1px solid #e5e7eb", borderRadius: 10 }}>
-                <table style={{ fontSize: 12, minWidth: "100%" }}>
+                <table style={{ fontSize: 14, minWidth: "100%" }}>
                   <thead>
                     <tr style={{ background: "#f9fafb" }}>
                       <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid #e5e7eb", color: "#6b7280", fontWeight: 600, width: 40 }}>No.</th>
@@ -269,13 +269,13 @@ export function XlsxImportModal({
                 </table>
               </div>
               {parsedRows.length > 50 && (
-                <p style={{ margin: "8px 0 0", fontSize: 11, color: "#6b7280", textAlign: "center" }}>
+                <p style={{ margin: "8px 0 0", fontSize: 15, color: "#6b7280", textAlign: "center" }}>
                   Menampilkan 50 dari {parsedRows.length} baris. Semua baris akan diimport.
                 </p>
               )}
               {parseError && (
                 <div style={{ marginTop: 10, padding: "10px 14px", background: "#fef2f2", borderRadius: 8, border: "1px solid #fecaca" }}>
-                  <p style={{ margin: 0, fontSize: 12, color: "#dc2626" }}>{parseError}</p>
+                  <p style={{ margin: 0, fontSize: 14, color: "#dc2626" }}>{parseError}</p>
                 </div>
               )}
             </div>
@@ -288,32 +288,32 @@ export function XlsxImportModal({
                 <CheckCircle size={32} color="#5005A6" />
               </div>
               <h3 style={{ margin: "0 0 8px", fontSize: 18, fontWeight: 700, color: "#111827" }}>Import Selesai!</h3>
-              <p style={{ margin: "0 0 20px", fontSize: 13, color: "#6b7280" }}>Data berhasil diproses</p>
+              <p style={{ margin: "0 0 20px", fontSize: 15, color: "#6b7280" }}>Data berhasil diproses</p>
               <div style={{ display: "flex", gap: 12, justifyContent: "center", marginBottom: 20 }}>
                 <div style={{ padding: "14px 24px", background: "#f0fdf4", borderRadius: 12, border: "1px solid #bbf7d0" }}>
                   <p style={{ margin: 0, fontSize: 24, fontWeight: 800, color: "#5005A6" }}>{result.inserted}</p>
-                  <p style={{ margin: 0, fontSize: 12, color: "#166534" }}>Baris ditambahkan</p>
+                  <p style={{ margin: 0, fontSize: 14, color: "#166534" }}>Baris ditambahkan</p>
                 </div>
                 <div style={{ padding: "14px 24px", background: "#fffbeb", borderRadius: 12, border: "1px solid #fde68a" }}>
                   <p style={{ margin: 0, fontSize: 24, fontWeight: 800, color: "#92400e" }}>{result.skipped}</p>
-                  <p style={{ margin: 0, fontSize: 12, color: "#78350f" }}>Diperbarui / Dilewati</p>
+                  <p style={{ margin: 0, fontSize: 14, color: "#78350f" }}>Diperbarui / Dilewati</p>
                 </div>
                 <div style={{ padding: "14px 24px", background: "#f9fafb", borderRadius: 12, border: "1px solid #e5e7eb" }}>
                   <p style={{ margin: 0, fontSize: 24, fontWeight: 800, color: "#374151" }}>{result.total}</p>
-                  <p style={{ margin: 0, fontSize: 12, color: "#6b7280" }}>Total diproses</p>
+                  <p style={{ margin: 0, fontSize: 14, color: "#6b7280" }}>Total diproses</p>
                 </div>
               </div>
               {result.errors.length > 0 && (
                 <div style={{ textAlign: "left", background: "#fef2f2", borderRadius: 10, padding: "12px 16px", border: "1px solid #fecaca" }}>
-                  <p style={{ margin: "0 0 8px", fontSize: 12, fontWeight: 600, color: "#dc2626" }}>
+                  <p style={{ margin: "0 0 8px", fontSize: 14, fontWeight: 600, color: "#dc2626" }}>
                     <AlertTriangle size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />
                     {result.errors.length} baris dengan masalah:
                   </p>
                   <ul style={{ margin: 0, paddingLeft: 18 }}>
                     {result.errors.slice(0, 10).map((e, i) => (
-                      <li key={i} style={{ fontSize: 11, color: "#b91c1c", marginBottom: 2 }}>{e}</li>
+                      <li key={i} style={{ fontSize: 15, color: "#b91c1c", marginBottom: 2 }}>{e}</li>
                     ))}
-                    {result.errors.length > 10 && <li style={{ fontSize: 11, color: "#9ca3af" }}>... dan {result.errors.length - 10} lainnya</li>}
+                    {result.errors.length > 10 && <li style={{ fontSize: 15, color: "#9ca3af" }}>... dan {result.errors.length - 10} lainnya</li>}
                   </ul>
                 </div>
               )}

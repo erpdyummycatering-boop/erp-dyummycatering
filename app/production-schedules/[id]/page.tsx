@@ -185,7 +185,7 @@ export default function ScheduleDetailPage() {
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#111827" }}>
             Detail Jadwal Produksi
           </h1>
-          <p style={{ margin: 0, fontSize: 13, color: "#6b7280" }}>
+          <p style={{ margin: 0, fontSize: 15, color: "#6b7280" }}>
             {String(sched.target_date).slice(0, 10)} &nbsp;·&nbsp; Chef: {sched.chef_name}
           </p>
         </div>
@@ -195,19 +195,19 @@ export default function ScheduleDetailPage() {
       {/* ---- Info Cards ---- */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 16 }}>
         <div className="erp-card" style={{ padding: "14px 18px" }}>
-          <p style={{ margin: 0, fontSize: 11, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Omset (Revenue)</p>
+          <p style={{ margin: 0, fontSize: 15, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Omset (Revenue)</p>
           <p style={{ margin: "4px 0 0", fontSize: 20, fontWeight: 700, color: "#5005A6" }}>{fmt(totalRevenue)}</p>
-          <p style={{ margin: 0, fontSize: 11, color: "#6b7280" }}>{orders.length} order terkait</p>
+          <p style={{ margin: 0, fontSize: 15, color: "#6b7280" }}>{orders.length} order terkait</p>
         </div>
         <div className="erp-card" style={{ padding: "14px 18px" }}>
-          <p style={{ margin: 0, fontSize: 11, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Budget BPP Maks (50%)</p>
+          <p style={{ margin: 0, fontSize: 15, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Budget BPP Maks (50%)</p>
           <p style={{ margin: "4px 0 0", fontSize: 20, fontWeight: 700, color: "#378ADD" }}>{fmt(budgetLimit)}</p>
-          <p style={{ margin: 0, fontSize: 11, color: "#6b7280" }}>Batas yang diizinkan perusahaan</p>
+          <p style={{ margin: 0, fontSize: 15, color: "#6b7280" }}>Batas yang diizinkan perusahaan</p>
         </div>
         <div className="erp-card" style={{ padding: "14px 18px" }}>
-          <p style={{ margin: 0, fontSize: 11, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Estimasi HPP Total</p>
+          <p style={{ margin: 0, fontSize: 15, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Estimasi HPP Total</p>
           <p style={{ margin: "4px 0 0", fontSize: 20, fontWeight: 700, color: isOverBudget ? "#E24B4A" : "#111827" }}>{fmt(totalHPP)}</p>
-          <p style={{ margin: 0, fontSize: 11, color: isOverBudget ? "#E24B4A" : "#5005A6" }}>
+          <p style={{ margin: 0, fontSize: 15, color: isOverBudget ? "#E24B4A" : "#5005A6" }}>
             {budgetLimit > 0 ? `${((totalHPP / totalRevenue) * 100).toFixed(1)}% dari omset` : "Belum ada data"}
           </p>
         </div>
@@ -248,8 +248,8 @@ export default function ScheduleDetailPage() {
           }} />
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
-          <span style={{ fontSize: 11, color: "#6b7280" }}>Rp 0</span>
-          <span style={{ fontSize: 11, color: "#6b7280" }}>Max: {fmt(budgetLimit)}</span>
+          <span style={{ fontSize: 15, color: "#6b7280" }}>Rp 0</span>
+          <span style={{ fontSize: 15, color: "#6b7280" }}>Max: {fmt(budgetLimit)}</span>
         </div>
       </div>
 
@@ -258,7 +258,7 @@ export default function ScheduleDetailPage() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 20px", borderBottom: "1px solid #e5e7eb" }}>
           <div>
             <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>BOM Builder — Rencana Menu & Bahan</h2>
-            <p style={{ margin: 0, fontSize: 12, color: "#6b7280" }}>Input menu masakan (dari Resep) atau bahan baku custom</p>
+            <p style={{ margin: 0, fontSize: 14, color: "#6b7280" }}>Input menu masakan (dari Resep) atau bahan baku custom</p>
           </div>
           <button className="btn btn-primary btn-sm" onClick={() => setShowBomModal(true)}>
             <Plus size={13} /> Tambah Item
@@ -269,7 +269,7 @@ export default function ScheduleDetailPage() {
         {menus.length > 0 && (
           <>
             <div style={{ padding: "10px 20px 4px", background: "#f9fafb" }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              <span style={{ fontSize: 15, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                 <ChefHat size={11} style={{ marginRight: 4, verticalAlign: "middle" }} />
                 Menu dari Master Resep
               </span>
@@ -308,7 +308,7 @@ export default function ScheduleDetailPage() {
         {customItems.length > 0 && (
           <>
             <div style={{ padding: "10px 20px 4px", background: "#fefce8", borderTop: menus.length > 0 ? "1px solid #e5e7eb" : undefined }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: "#92400e", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              <span style={{ fontSize: 15, fontWeight: 600, color: "#92400e", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                 <ShoppingCart size={11} style={{ marginRight: 4, verticalAlign: "middle" }} />
                 Bahan Baku Custom
               </span>
@@ -346,7 +346,7 @@ export default function ScheduleDetailPage() {
         )}
 
         {menus.length === 0 && customItems.length === 0 && (
-          <div style={{ padding: "32px 24px", textAlign: "center", color: "#6b7280", fontSize: 13 }}>
+          <div style={{ padding: "32px 24px", textAlign: "center", color: "#6b7280", fontSize: 15 }}>
             Belum ada menu atau bahan baku. Klik "Tambah Item" untuk mulai merencanakan.
           </div>
         )}
@@ -354,7 +354,7 @@ export default function ScheduleDetailPage() {
         {/* Total row */}
         {(menus.length > 0 || customItems.length > 0) && (
           <div style={{ padding: "12px 20px", background: "#f9fafb", borderTop: "2px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontWeight: 600, fontSize: 13 }}>Total Estimasi HPP</span>
+            <span style={{ fontWeight: 600, fontSize: 15 }}>Total Estimasi HPP</span>
             <span style={{ fontWeight: 800, fontSize: 18, color: isOverBudget ? "#E24B4A" : "#5005A6" }}>{fmt(totalHPP)}</span>
           </div>
         )}
@@ -406,7 +406,7 @@ export default function ScheduleDetailPage() {
           </div>
           <div style={{ padding: "10px 16px" }}>
             {orders.map((o: any) => (
-              <div key={o.order_id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #f3f4f6", fontSize: 13 }}>
+              <div key={o.order_id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #f3f4f6", fontSize: 15 }}>
                 <span style={{ fontWeight: 600 }}>ORD-{o.order_id} — {o.customer}</span>
                 <span style={{ color: "#5005A6", fontWeight: 700 }}>{fmt(o.total)}</span>
               </div>
@@ -423,7 +423,7 @@ export default function ScheduleDetailPage() {
             <button key={mode} onClick={() => setBomMode(mode)}
               style={{
                 padding: "8px 16px", border: "none", background: "none", cursor: "pointer",
-                fontWeight: 600, fontSize: 13,
+                fontWeight: 600, fontSize: 15,
                 borderBottom: bomMode === mode ? "2px solid #5005A6" : "2px solid transparent",
                 color: bomMode === mode ? "#5005A6" : "#6b7280",
                 marginBottom: -2,
@@ -436,7 +436,7 @@ export default function ScheduleDetailPage() {
         {bomMode === "resep" ? (
           <>
             <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
+              <label style={{ fontSize: 14, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
                 Pilih Resep / Menu
               </label>
               <SearchableSelect
@@ -453,7 +453,7 @@ export default function ScheduleDetailPage() {
               />
             </div>
             <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
+              <label style={{ fontSize: 14, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
                 Jumlah Porsi
               </label>
               <input type="number" min="1" value={bomResep.quantity_pax}
@@ -463,7 +463,7 @@ export default function ScheduleDetailPage() {
             </div>
             {bomResep.recipe_id && bomResep.quantity_pax && (
               <div className="alert-info" style={{ marginBottom: 12 }}>
-                <span style={{ fontSize: 12 }}>
+                <span style={{ fontSize: 14 }}>
                   Estimasi Subtotal HPP: <strong>{fmt(
                     (recipes.find(r => String(r.id) === bomResep.recipe_id)?.standard_cost || 0) * Number(bomResep.quantity_pax)
                   )}</strong>
@@ -480,20 +480,20 @@ export default function ScheduleDetailPage() {
         ) : (
           <>
             <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Nama Bahan Baku</label>
+              <label style={{ fontSize: 14, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Nama Bahan Baku</label>
               <input type="text" value={bomCustom.item_name}
                 onChange={e => setBomCustom(f => ({ ...f, item_name: e.target.value }))}
                 placeholder="Contoh: Daging Sapi, Cabai, Beras" style={{ width: "100%" }} />
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
               <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Kuantitas</label>
+                <label style={{ fontSize: 14, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Kuantitas</label>
                 <input type="number" min="0" step="0.01" value={bomCustom.quantity}
                   onChange={e => setBomCustom(f => ({ ...f, quantity: e.target.value }))}
                   placeholder="10" style={{ width: "100%" }} />
               </div>
               <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Satuan</label>
+                <label style={{ fontSize: 14, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Satuan</label>
                 <SearchableSelect
                   value={bomCustom.uom}
                   onChange={v => setBomCustom(f => ({ ...f, uom: v }))}
@@ -503,14 +503,14 @@ export default function ScheduleDetailPage() {
               </div>
             </div>
             <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Estimasi Harga / Satuan (Rp)</label>
+              <label style={{ fontSize: 14, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Estimasi Harga / Satuan (Rp)</label>
               <input type="number" min="0" value={bomCustom.estimated_price}
                 onChange={e => setBomCustom(f => ({ ...f, estimated_price: e.target.value }))}
                 placeholder="Contoh: 120000" style={{ width: "100%" }} />
             </div>
             {bomCustom.quantity && bomCustom.estimated_price && (
               <div className="alert-info" style={{ marginBottom: 12 }}>
-                <span style={{ fontSize: 12 }}>
+                <span style={{ fontSize: 14 }}>
                   Subtotal: <strong>{fmt(Number(bomCustom.quantity) * Number(bomCustom.estimated_price))}</strong>
                 </span>
               </div>

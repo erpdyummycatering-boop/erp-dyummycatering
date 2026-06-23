@@ -125,7 +125,7 @@ export default function RecipesPage() {
       </div>
 
       <div className="erp-card-flush">
-        {loading ? <p style={{ padding: 24, color: "#6b7280", fontSize: 13 }}>Memuat...</p> : (
+        {loading ? <p style={{ padding: 24, color: "#6b7280", fontSize: 15 }}>Memuat...</p> : (
           <>
             <div style={{ overflowX: "auto" }}>
               <table>
@@ -140,10 +140,10 @@ export default function RecipesPage() {
                     <tr><td colSpan={6} style={{ textAlign: "center", padding: "24px", color: "#6b7280" }}>Belum ada resep</td></tr>
                   ) : rows.map((r: any, idx: number) => (
                     <tr key={r.id}>
-                      <td style={{ color: "#6b7280", fontSize: 12 }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
+                      <td style={{ color: "#6b7280", fontSize: 14 }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
                       <td style={{ fontWeight: 600 }}>{r.menu_name}</td>
                       <td><Badge color="blue">{r.product_name || "-"}</Badge></td>
-                      <td style={{ fontSize: 12, color: "#6b7280", maxWidth: 200 }}>{r.ingredients}</td>
+                      <td style={{ fontSize: 14, color: "#6b7280", maxWidth: 200 }}>{r.ingredients}</td>
                       <td style={{ fontWeight: 700, color: C.primary }}>{fmt(r.standard_cost)}</td>
                       <td>
                         <div style={{ display: "flex", gap: 4 }}>

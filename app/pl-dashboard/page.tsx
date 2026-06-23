@@ -25,7 +25,7 @@ export default function PLDashboardPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <p style={{ color: "#6b7280", fontSize: 13 }}>Memuat P&L data...</p>;
+  if (loading) return <p style={{ color: "#6b7280", fontSize: 15 }}>Memuat P&L data...</p>;
 
   const { plChart = [], summary = {}, leakage = [] } = data || {};
   const { totalRevenue = 0, totalBPP = 0, totalOverhead = 0, totalProfit = 0, avgMargin = 0 } = summary;
@@ -56,7 +56,7 @@ export default function PLDashboardPage() {
 
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16, marginBottom: 16 }}>
         <div className="erp-card">
-          <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 14 }}>Laporan P&L Harian (Area Chart)</p>
+          <p style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>Laporan P&L Harian (Area Chart)</p>
           <ResponsiveContainer width="100%" height={220}>
             <AreaChart data={chartData}>
               <defs>
@@ -70,10 +70,10 @@ export default function PLDashboardPage() {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-              <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-              <YAxis tickFormatter={(v) => (v / 1_000_000).toFixed(1) + "Jt"} tick={{ fontSize: 11 }} />
+              <XAxis dataKey="date" tick={{ fontSize: 15 }} />
+              <YAxis tickFormatter={(v) => (v / 1_000_000).toFixed(1) + "Jt"} tick={{ fontSize: 15 }} />
               <Tooltip formatter={(v: any) => fmt(Number(v))} />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Legend wrapperStyle={{ fontSize: 15 }} />
               <Area type="monotone" dataKey="revenue" name="Revenue" stroke={C.primary} fill="url(#revGrad)" strokeWidth={2} />
               <Area type="monotone" dataKey="bpp" name="BPP" stroke={C.coral} fill="none" strokeWidth={2} strokeDasharray="4 2" />
               <Area type="monotone" dataKey="gross_profit" name="Laba Kotor" stroke={C.secondary} fill="url(#profGrad)" strokeWidth={2} />
@@ -81,7 +81,7 @@ export default function PLDashboardPage() {
           </ResponsiveContainer>
         </div>
         <div className="erp-card">
-          <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 14 }}>Komposisi Biaya</p>
+          <p style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>Komposisi Biaya</p>
           <ResponsiveContainer width="100%" height={180}>
             <PieChart>
               <Pie data={pieData} cx="50%" cy="50%" outerRadius={70} dataKey="value"
@@ -89,7 +89,7 @@ export default function PLDashboardPage() {
                 {pieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i]} />)}
               </Pie>
               <Tooltip formatter={(v: any) => fmt(Number(v))} />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Legend wrapperStyle={{ fontSize: 15 }} />
             </PieChart>
           </ResponsiveContainer>
         </div>
@@ -142,9 +142,9 @@ export default function PLDashboardPage() {
 
       {/* Leakage Log */}
       <div className="erp-card">
-        <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>Leakage Log — Catatan Kebocoran Anggaran</p>
+        <p style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>Leakage Log — Catatan Kebocoran Anggaran</p>
         {leakage.length === 0 ? (
-          <div className="alert-success"><p style={{ fontSize: 12, color: "#3b047a", fontWeight: 600 }}>Tidak ada kebocoran anggaran</p></div>
+          <div className="alert-success"><p style={{ fontSize: 14, color: "#3b047a", fontWeight: 600 }}>Tidak ada kebocoran anggaran</p></div>
         ) : leakage.map((po: any) => (
           <div key={po.id} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "10px 0", borderBottom: "0.5px solid #f3f4f6" }}>
             <div style={{ width: 36, height: 36, borderRadius: 8, background: "#FCEBEB", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -152,10 +152,10 @@ export default function PLDashboardPage() {
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
-                <p style={{ fontSize: 12, fontWeight: 700 }}>PO #{po.id} — Est: {fmt(po.estimated_cost)} → Aktual: {fmt(po.actual_cost)}</p>
+                <p style={{ fontSize: 14, fontWeight: 700 }}>PO #{po.id} — Est: {fmt(po.estimated_cost)} → Aktual: {fmt(po.actual_cost)}</p>
                 <Badge color="red">+{fmt(po.variance)}</Badge>
               </div>
-              <p style={{ fontSize: 11, color: "#6b7280" }}>{po.variance_notes || "Tidak ada keterangan"}</p>
+              <p style={{ fontSize: 15, color: "#6b7280" }}>{po.variance_notes || "Tidak ada keterangan"}</p>
             </div>
           </div>
         ))}

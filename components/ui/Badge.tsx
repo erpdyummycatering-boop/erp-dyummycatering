@@ -23,7 +23,7 @@ export function Badge({ children, color = "gray" }: BadgeProps) {
       color: c.text,
       padding: "2px 10px",
       borderRadius: 20,
-      fontSize: 11,
+      fontSize: 15,
       fontWeight: 600,
       whiteSpace: "nowrap",
       display: "inline-block",

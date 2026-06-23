@@ -24,14 +24,14 @@ export function Pagination({ page, totalPages, total, limit, onChange, onLimitCh
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", borderTop: "0.5px solid #f3f4f6", flexWrap: "wrap", gap: 10 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <p style={{ fontSize: 12, color: "#6b7280", margin: 0, whiteSpace: "nowrap" }}>Menampilkan {from}–{to} dari {total} data</p>
+        <p style={{ fontSize: 14, color: "#6b7280", margin: 0, whiteSpace: "nowrap" }}>Menampilkan {from}–{to} dari {total} data</p>
         {onLimitChange && (
           <div style={{ display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
-            <span style={{ fontSize: 12, color: "#6b7280", whiteSpace: "nowrap" }}>| Baris per hal:</span>
+            <span style={{ fontSize: 14, color: "#6b7280", whiteSpace: "nowrap" }}>| Baris per hal:</span>
             <select
               value={limit}
               onChange={(e) => onLimitChange(Number(e.target.value))}
-              style={{ fontSize: 12, padding: "2px 4px", border: "1px solid #d1d5db", borderRadius: 4, cursor: "pointer" }}
+              style={{ fontSize: 14, padding: "2px 4px", border: "1px solid #d1d5db", borderRadius: 4, cursor: "pointer" }}
             >
               {[10, 20, 50, 100].map(val => (
                 <option key={val} value={val}>{val}</option>
@@ -46,7 +46,7 @@ export function Pagination({ page, totalPages, total, limit, onChange, onLimitCh
         </button>
         {pages.map((p, i) =>
           p === "..." ? (
-            <span key={i} style={{ padding: "4px 8px", fontSize: 12, color: "#9ca3af" }}>…</span>
+            <span key={i} style={{ padding: "4px 8px", fontSize: 14, color: "#9ca3af" }}>…</span>
           ) : (
             <button key={i} className="btn btn-sm" onClick={() => onChange(p as number)}
               style={{ background: p === page ? "var(--primary)" : "white", color: p === page ? "white" : "#374151", border: "1px solid", borderColor: p === page ? "var(--primary)" : "#e5e7eb" }}>

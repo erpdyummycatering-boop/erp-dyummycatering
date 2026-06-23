@@ -86,7 +86,7 @@ export default function FinancePage() {
       </div>
 
       <div className="erp-card-flush">
-        {loading ? <p style={{ padding: 24, color: "#6b7280", fontSize: 13 }}>Memuat...</p> : (
+        {loading ? <p style={{ padding: 24, color: "#6b7280", fontSize: 15 }}>Memuat...</p> : (
           <>
             <div style={{ overflowX: "auto" }}>
               <table>
@@ -98,13 +98,13 @@ export default function FinancePage() {
                     <tr><td colSpan={7} style={{ textAlign: "center", padding: 24, color: "#6b7280" }}>Tidak ada pengeluaran overhead</td></tr>
                   ) : rows.map((r: any, idx: number) => (
                     <tr key={r.id}>
-                      <td style={{ fontSize: 12, color: "#6b7280" }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
-                      <td style={{ fontSize: 12, color: "#6b7280" }}>OVH-{String(r.id).padStart(3, "0")}</td>
+                      <td style={{ fontSize: 14, color: "#6b7280" }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
+                      <td style={{ fontSize: 14, color: "#6b7280" }}>OVH-{String(r.id).padStart(3, "0")}</td>
                       <td style={{ fontWeight: 600 }}>{String(r.expense_date).slice(0, 10)}</td>
                       <td><Badge color="blue">{r.category}</Badge></td>
                       <td style={{ fontWeight: 700, color: "#E24B4A" }}>{fmt(r.amount)}</td>
-                      <td style={{ fontSize: 12, color: "#6b7280" }}>{r.notes || "-"}</td>
-                      <td style={{ fontSize: 12 }}>{r.finance_name}</td>
+                      <td style={{ fontSize: 14, color: "#6b7280" }}>{r.notes || "-"}</td>
+                      <td style={{ fontSize: 14 }}>{r.finance_name}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -151,8 +151,8 @@ export default function FinancePage() {
           <textarea rows={2} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
         </FormField>
         <div className="alert-info" style={{ marginBottom: 16 }}>
-          <p style={{ fontSize: 12, fontWeight: 600, color: "#185FA5" }}>Catatan Sistem</p>
-          <p style={{ fontSize: 11, color: "#185FA5" }}>Pengeluaran ini akan langsung mengurangi Net Profit di dashboard P&L.</p>
+          <p style={{ fontSize: 14, fontWeight: 600, color: "#185FA5" }}>Catatan Sistem</p>
+          <p style={{ fontSize: 15, color: "#185FA5" }}>Pengeluaran ini akan langsung mengurangi Net Profit di dashboard P&L.</p>
         </div>
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
           <button className="btn btn-secondary" onClick={() => setShowModal(false)}>Batal</button>

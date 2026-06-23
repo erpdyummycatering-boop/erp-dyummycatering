@@ -55,7 +55,7 @@ function GaugeChart({ value, max = 100, label }: { value: number; max?: number; 
           {pct.toFixed(0)}%
         </text>
       </svg>
-      <p style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textAlign: "center" }}>{label}</p>
+      <p style={{ fontSize: 15, fontWeight: 600, color: "#6b7280", textAlign: "center" }}>{label}</p>
     </div>
   );
 }
@@ -175,7 +175,7 @@ export default function TargetsPage() {
       />
 
       {/* Info banner */}
-      <div style={{ marginBottom: 16, padding: "10px 16px", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 10, fontSize: 13, color: "#1e40af", display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ marginBottom: 16, padding: "10px 16px", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 10, fontSize: 15, color: "#1e40af", display: "flex", alignItems: "center", gap: 8 }}>
         <span>ℹ️</span>
         <span>
           <strong>Capaian dihitung otomatis</strong> dari data real: omset order, jumlah lead, closing rate, dan margin aktual — bukan diinput manual.
@@ -185,7 +185,7 @@ export default function TargetsPage() {
       {targets.length === 0 ? (
         <div className="erp-card" style={{ padding: "48px 24px", textAlign: "center", color: "#6b7280" }}>
           <p style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>Belum ada target yang ditetapkan</p>
-          <p style={{ fontSize: 13 }}>Klik "Tambah Target" untuk mulai menetapkan KPI bulan ini</p>
+          <p style={{ fontSize: 15 }}>Klik "Tambah Target" untuk mulai menetapkan KPI bulan ini</p>
           <button className="btn btn-primary" onClick={openAdd} style={{ marginTop: 16 }}><Plus size={14} /> Tambah Target Pertama</button>
         </div>
       ) : (
@@ -193,8 +193,8 @@ export default function TargetsPage() {
           {/* Gauge Scorecard */}
           <div className="erp-card" style={{ marginBottom: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <p style={{ fontSize: 13, fontWeight: 700 }}>Scorecard Capaian — Gauge Persentase</p>
-              <span style={{ fontSize: 11, color: "#6b7280", background: "#f3f4f6", padding: "3px 10px", borderRadius: 20 }}>
+              <p style={{ fontSize: 15, fontWeight: 700 }}>Scorecard Capaian — Gauge Persentase</p>
+              <span style={{ fontSize: 15, color: "#6b7280", background: "#f3f4f6", padding: "3px 10px", borderRadius: 20 }}>
                 Real-time dari database
               </span>
             </div>
@@ -203,9 +203,9 @@ export default function TargetsPage() {
                 <div key={t.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "12px 8px", border: "0.5px solid #f3f4f6", borderRadius: 10, background: "#fafafa" }}>
                   <GaugeChart value={Number(t.realisasi)} max={Number(t.target)} label={t.jenis} />
                   <div style={{ marginTop: 4, textAlign: "center" }}>
-                    <p style={{ fontSize: 11, color: "#6b7280" }}>Real: <b style={{ color: "#1a1a1a" }}>{fmtVal(t, Number(t.realisasi))}</b></p>
-                    <p style={{ fontSize: 11, color: "#6b7280" }}>Target: <b style={{ color: "#1a1a1a" }}>{fmtVal(t, Number(t.target))}</b></p>
-                    <p style={{ fontSize: 10, color: "#9ca3af", marginTop: 2 }}>{t.periode}</p>
+                    <p style={{ fontSize: 15, color: "#6b7280" }}>Real: <b style={{ color: "#1a1a1a" }}>{fmtVal(t, Number(t.realisasi))}</b></p>
+                    <p style={{ fontSize: 15, color: "#6b7280" }}>Target: <b style={{ color: "#1a1a1a" }}>{fmtVal(t, Number(t.target))}</b></p>
+                    <p style={{ fontSize: 14, color: "#9ca3af", marginTop: 2 }}>{t.periode}</p>
                   </div>
                 </div>
               ))}
@@ -216,29 +216,29 @@ export default function TargetsPage() {
           {targets.length > 0 && (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
               <div className="erp-card">
-                <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 14 }}>Chart Target vs Realisasi</p>
+                <p style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>Chart Target vs Realisasi</p>
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={chartData} barSize={14}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                    <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 10 }} />
+                    <XAxis dataKey="name" tick={{ fontSize: 14 }} />
+                    <YAxis tick={{ fontSize: 14 }} />
                     <Tooltip />
-                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <Legend wrapperStyle={{ fontSize: 15 }} />
                     <Bar dataKey="Target" fill="#e5e7eb" name="Target" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="Realisasi" fill={C.primary} name="Realisasi" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
               <div className="erp-card">
-                <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 14 }}>Persentase Capaian (%)</p>
+                <p style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>Persentase Capaian (%)</p>
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={chartData} layout="vertical" barSize={14}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                    <XAxis type="number" domain={[0, 130]} tickFormatter={(v) => v + "%"} tick={{ fontSize: 10 }} />
-                    <YAxis dataKey="name" type="category" tick={{ fontSize: 10 }} width={90} />
+                    <XAxis type="number" domain={[0, 130]} tickFormatter={(v) => v + "%"} tick={{ fontSize: 14 }} />
+                    <YAxis dataKey="name" type="category" tick={{ fontSize: 14 }} width={90} />
                     <Tooltip formatter={(v: any) => v + "%"} />
                     <Bar dataKey="pct" name="Capaian %" radius={[0, 4, 4, 0]} fill={C.primary}
-                      label={{ position: "right", fontSize: 10, formatter: (v: any) => v + "%", fill: "#6b7280" }}
+                      label={{ position: "right", fontSize: 14, formatter: (v: any) => v + "%", fill: "#6b7280" }}
                     />
                   </BarChart>
                 </ResponsiveContainer>
@@ -249,7 +249,7 @@ export default function TargetsPage() {
           {/* CRUD Table */}
           <div className="erp-card-flush">
             <div style={{ padding: "14px 20px", borderBottom: "0.5px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <p style={{ fontSize: 13, fontWeight: 700 }}>Tabel Target KPI</p>
+              <p style={{ fontSize: 15, fontWeight: 700 }}>Tabel Target KPI</p>
               <button className="btn btn-primary btn-sm" onClick={openAdd}><Plus size={12} /> Tambah</button>
             </div>
             <div style={{ overflowX: "auto" }}>
@@ -276,12 +276,12 @@ export default function TargetsPage() {
                     const barColor = pct >= 100 ? C.primary : pct >= 80 ? C.success : pct >= 50 ? C.warning : C.danger;
                     return (
                       <tr key={t.id}>
-                        <td style={{ fontSize: 12, color: "#6b7280" }}>{t.periode}</td>
+                        <td style={{ fontSize: 14, color: "#6b7280" }}>{t.periode}</td>
                         <td style={{ fontWeight: 600 }}>{t.jenis}</td>
                         <td style={{ fontWeight: 600 }}>{fmtVal(t, target)}</td>
                         <td>
                           <span style={{ fontWeight: 700, color: C.primary }}>{fmtVal(t, real)}</span>
-                          <span style={{ fontSize: 10, color: "#9ca3af", marginLeft: 4 }}>otomatis</span>
+                          <span style={{ fontSize: 14, color: "#9ca3af", marginLeft: 4 }}>otomatis</span>
                         </td>
                         <td style={{ fontWeight: 700, color: barColor }}>{pct.toFixed(1)}%</td>
                         <td style={{ minWidth: 100 }}>
@@ -308,7 +308,7 @@ export default function TargetsPage() {
 
       {/* Modal — hanya isi target, TIDAK ada field realisasi */}
       <Modal show={showModal} onClose={() => setShowModal(false)} title={editItem ? "Edit Target KPI" : "Tambah Target KPI"}>
-        <div style={{ marginBottom: 12, padding: "8px 12px", background: "#f0fdf4", borderRadius: 8, fontSize: 12, color: "#166534" }}>
+        <div style={{ marginBottom: 12, padding: "8px 12px", background: "#f0fdf4", borderRadius: 8, fontSize: 14, color: "#166534" }}>
           ✓ Capaian akan dihitung otomatis dari data omset & leads — tidak perlu diinput manual
         </div>
         <FormRow>

@@ -97,7 +97,7 @@ export default function ProductionSchedulesPage() {
       </div>
 
       <div className="erp-card-flush">
-        {loading ? <p style={{ padding: 24, color: "#6b7280", fontSize: 13 }}>Memuat...</p> : (
+        {loading ? <p style={{ padding: 24, color: "#6b7280", fontSize: 15 }}>Memuat...</p> : (
           <>
             <div style={{ overflowX: "auto" }}>
               <table>
@@ -112,7 +112,7 @@ export default function ProductionSchedulesPage() {
                     const isOver = variance < 0;
                     return (
                       <tr key={r.id}>
-                        <td style={{ fontSize: 12, color: "#6b7280" }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
+                        <td style={{ fontSize: 14, color: "#6b7280" }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
                         <td style={{ fontWeight: 600 }}>{String(r.target_date).slice(0, 10)}</td>
                         <td>{r.chef_name}</td>
                         <td style={{ textAlign: "center" }}><Badge color="blue">{r.order_count} Orders</Badge></td>
@@ -131,7 +131,7 @@ export default function ProductionSchedulesPage() {
                               <button className="btn btn-primary btn-sm" onClick={() => generatePR(r.id)}><FileText size={11}/> Generate PR</button>
                             )}
                             {r.status === "Overbudget Warning" && (
-                              <span style={{ fontSize: 11, color: "#E24B4A", display: "flex", alignItems: "center", gap: 4 }}><AlertTriangle size={11}/> Overbudget</span>
+                              <span style={{ fontSize: 15, color: "#E24B4A", display: "flex", alignItems: "center", gap: 4 }}><AlertTriangle size={11}/> Overbudget</span>
                             )}
                           </div>
                         </td>
@@ -169,14 +169,14 @@ export default function ProductionSchedulesPage() {
 
         <FormField label="Pilih Order yang akan diproduksi" style={{ marginBottom: 14 }}>
           <div style={{ maxHeight: 200, overflowY: "auto", border: "1px solid #e5e7eb", borderRadius: 8, padding: 8, background: "#f9fafb" }}>
-            {unassignedOrders.length === 0 ? <p style={{ fontSize: 12, color: "#6b7280" }}>Semua order (Baru) sudah dijadwalkan.</p> : unassignedOrders.map((o: any) => (
+            {unassignedOrders.length === 0 ? <p style={{ fontSize: 14, color: "#6b7280" }}>Semua order (Baru) sudah dijadwalkan.</p> : unassignedOrders.map((o: any) => (
               <label key={o.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "8px", borderBottom: "1px solid #e5e7eb" }}>
                 <input type="checkbox" checked={form.order_ids.includes(o.id)}
                   onChange={e => setForm(f => ({ ...f, order_ids: e.target.checked ? [...f.order_ids, o.id] : f.order_ids.filter(id => id !== o.id) }))}
                 />
                 <div style={{ display: "flex", flexDirection: "column" }}>
-                  <span style={{ fontSize: 13, fontWeight: 600 }}>ORD-{o.id} ({o.customer_name})</span>
-                  <span style={{ fontSize: 11, color: "#6b7280" }}>Kirim: {String(o.delivery_date).slice(0,10)} | Rev: {fmt(o.grand_total)}</span>
+                  <span style={{ fontSize: 15, fontWeight: 600 }}>ORD-{o.id} ({o.customer_name})</span>
+                  <span style={{ fontSize: 15, color: "#6b7280" }}>Kirim: {String(o.delivery_date).slice(0,10)} | Rev: {fmt(o.grand_total)}</span>
                 </div>
               </label>
             ))}
@@ -184,8 +184,8 @@ export default function ProductionSchedulesPage() {
         </FormField>
         
         <div className="alert-info" style={{ marginBottom: 16 }}>
-          <p style={{ fontSize: 12, fontWeight: 600, color: "#185FA5" }}>Catatan Sistem Cost Control</p>
-          <p style={{ fontSize: 11, color: "#185FA5" }}>Budget Limit BPP dikunci maksimal 50% dari total Revenue order terpilih. Chef dapat mengisi menu masakan di detail jadwal nantinya.</p>
+          <p style={{ fontSize: 14, fontWeight: 600, color: "#185FA5" }}>Catatan Sistem Cost Control</p>
+          <p style={{ fontSize: 15, color: "#185FA5" }}>Budget Limit BPP dikunci maksimal 50% dari total Revenue order terpilih. Chef dapat mengisi menu masakan di detail jadwal nantinya.</p>
         </div>
 
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>

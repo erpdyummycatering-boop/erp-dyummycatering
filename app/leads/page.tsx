@@ -253,7 +253,7 @@ export default function LeadsPage() {
       </div>
 
       <div className="erp-card-flush">
-        {loading ? <p style={{ padding: 24, color: "#6b7280", fontSize: 13 }}>Memuat...</p> : (
+        {loading ? <p style={{ padding: 24, color: "#6b7280", fontSize: 15 }}>Memuat...</p> : (
           <>
             <div style={{ overflowX: "auto" }}>
               <table>
@@ -265,8 +265,8 @@ export default function LeadsPage() {
                     <tr><td colSpan={10} style={{ textAlign: "center", padding: 24, color: "#6b7280" }}>Tidak ada data</td></tr>
                   ) : rows.map((r: any, idx: number) => (
                     <tr key={r.id}>
-                      <td style={{ fontSize: 12, color: "#6b7280" }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
-                      <td style={{ fontSize: 12 }}>{String(r.lead_date).slice(0, 10)}</td>
+                      <td style={{ fontSize: 14, color: "#6b7280" }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
+                      <td style={{ fontSize: 14 }}>{String(r.lead_date).slice(0, 10)}</td>
                       <td style={{ fontWeight: 500 }}>{r.customer_name}</td>
                       <td>
                         <Badge color={r.customer_caste === "Customer" ? "green" : "yellow"}>
@@ -276,13 +276,13 @@ export default function LeadsPage() {
                       <td><Badge color="blue">{r.source}</Badge></td>
                       <td>
                         <select value={r.status} onChange={e => handleStatusChange(r.id, e.target.value)}
-                          style={{ border: "none", background: "transparent", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0, width: "auto", color: r.status === "Closing" ? "#5005A6" : r.status === "Reject" ? "#E24B4A" : "#374151" }}>
+                          style={{ border: "none", background: "transparent", fontSize: 14, fontWeight: 600, cursor: "pointer", padding: 0, width: "auto", color: r.status === "Closing" ? "#5005A6" : r.status === "Reject" ? "#E24B4A" : "#374151" }}>
                           {STATUSES.map(s => <option key={s}>{s}</option>)}
                         </select>
                       </td>
-                      <td style={{ fontSize: 12 }}>{r.pic_name || "-"}</td>
-                      <td style={{ fontSize: 11 }}>{r.tags || "-"}</td>
-                      <td style={{ fontSize: 11, color: "#6b7280", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.notes || "-"}</td>
+                      <td style={{ fontSize: 14 }}>{r.pic_name || "-"}</td>
+                      <td style={{ fontSize: 15 }}>{r.tags || "-"}</td>
+                      <td style={{ fontSize: 15, color: "#6b7280", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.notes || "-"}</td>
                       <td>
                         <div style={{ display: "flex", gap: 4 }}>
                           <button className="btn btn-secondary btn-sm" onClick={() => { setEditItem(r); setForm({ customer_id: r.customer_id, customer_name: "", customer_phone: "", pic_id: r.pic_id || "", lead_date: String(r.lead_date).slice(0, 10), source: r.source, status: r.status, tags: r.tags || "", notes: r.notes || "" }); setShowModal(true); }}>Edit</button>

@@ -61,7 +61,7 @@ export function ConfirmModal({
         </h3>
 
         {/* Message */}
-        <p style={{ textAlign: "center", margin: "0 0 24px", fontSize: 13, color: "#6b7280", lineHeight: 1.6 }}>
+        <p style={{ textAlign: "center", margin: "0 0 24px", fontSize: 15, color: "#6b7280", lineHeight: 1.6 }}>
           {message}
         </p>
 
@@ -83,7 +83,7 @@ export function ConfirmModal({
               borderRadius: 8,
               cursor: "pointer",
               fontWeight: 600,
-              fontSize: 13,
+              fontSize: 15,
               background: danger ? "#E24B4A" : "#BA7517",
               color: "white",
               transition: "opacity 0.15s",

@@ -51,13 +51,13 @@ function LoginForm() {
             </div>
             <div style={{ textAlign: "left" }}>
               <p style={{ fontSize: 20, fontWeight: 800, color: "white", letterSpacing: "-0.02em", lineHeight: 1 }}>Dyummy Catering</p>
-              <p style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>ERP & CRM Portal</p>
+              <p style={{ fontSize: 15, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>ERP & CRM Portal</p>
             </div>
           </div>
           <h1 style={{ fontSize: 24, fontWeight: 700, color: "white", margin: "16px 0 6px", letterSpacing: "-0.01em" }}>
             Selamat Datang Kembali
           </h1>
-          <p style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", margin: 0 }}>
+          <p style={{ fontSize: 15, color: "rgba(255,255,255,0.55)", margin: 0 }}>
             Silakan masuk dengan akun yang terdaftar untuk melanjutkan.
           </p>
         </div>
@@ -82,7 +82,7 @@ function LoginForm() {
               padding: "10px 12px",
               marginBottom: 16,
               color: "#fca5a5",
-              fontSize: 12,
+              fontSize: 14,
               lineHeight: 1.4,
               fontWeight: 500
             }}>

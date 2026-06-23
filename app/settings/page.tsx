@@ -78,17 +78,17 @@ export default function SettingsPage() {
                         width: 32, height: 32, borderRadius: "50%",
                         background: C.primary + "20",
                         display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 11, fontWeight: 700, color: C.primary,
+                        fontSize: 15, fontWeight: 700, color: C.primary,
                       }}>
                         {u.name.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase()}
                       </div>
                       <p style={{ fontWeight: 500 }}>{u.name}</p>
                     </div>
                   </td>
-                  <td style={{ fontSize: 12, fontFamily: "monospace" }}>{u.email}</td>
+                  <td style={{ fontSize: 14, fontFamily: "monospace" }}>{u.email}</td>
                   <td><Badge color={roleColor(u.role)}>{u.role}</Badge></td>
                   <td><Badge color={statusBadgeColor(u.status)}>{u.status}</Badge></td>
-                  <td style={{ fontSize: 12, color: "#6b7280" }}>{u.created_at?.slice(0, 10)}</td>
+                  <td style={{ fontSize: 14, color: "#6b7280" }}>{u.created_at?.slice(0, 10)}</td>
                   <td>
                     <div style={{ display: "flex", gap: 4 }}>
                       <button className="btn btn-secondary btn-sm" onClick={() => openEdit(u)}><Edit2 size={11} /></button>

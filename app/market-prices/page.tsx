@@ -92,8 +92,8 @@ export default function MarketPricesPage() {
                 <tr key={item.id}>
                   <td style={{ fontWeight: 600 }}>{item.name}</td>
                   <td><Badge color="gray">{item.category}</Badge></td>
-                  <td style={{ fontSize: 12 }}>{item.uom}</td>
-                  <td style={{ fontSize: 12, color: "#6b7280" }}>{fmt(item.lastPrice)}</td>
+                  <td style={{ fontSize: 14 }}>{item.uom}</td>
+                  <td style={{ fontSize: 14, color: "#6b7280" }}>{fmt(item.lastPrice)}</td>
                   <td style={{ fontWeight: 700 }}>{fmt(item.currentPrice)}</td>
                   <td>
                     <span style={{
@@ -105,8 +105,8 @@ export default function MarketPricesPage() {
                       {Math.abs(item.change).toFixed(1)}%
                     </span>
                   </td>
-                  <td style={{ fontSize: 12 }}>{item.updatedBy}</td>
-                  <td style={{ fontSize: 12, color: "#6b7280" }}>{item.updatedAt}</td>
+                  <td style={{ fontSize: 14 }}>{item.updatedBy}</td>
+                  <td style={{ fontSize: 14, color: "#6b7280" }}>{item.updatedAt}</td>
                   <td>
                     <div style={{ display: "flex", gap: 4 }}>
                       <button className="btn btn-secondary btn-sm" onClick={() => openEdit(item)}><Edit2 size={11} /></button>
