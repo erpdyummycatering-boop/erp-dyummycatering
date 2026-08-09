@@ -41,6 +41,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const body = await req.json();
   const {
     customer_id,
+    recipient_name,
+    recipient_phone,
     pic_id,
     order_date,
     delivery_date,
@@ -76,12 +78,14 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     // 2. Update order table
     const res = await client.query(
       `UPDATE orders SET 
-        customer_id=$1, pic_id=$2, order_date=$3, delivery_date=$4, 
-        departure_time=$5, arrival_time=$6, shipping_fee=$7, additional_menu_price=$8, venue=$9, order_notes=$10, 
-        status_order=$11, status_payment=$12, grand_total=$13, updated_at=NOW() 
-      WHERE id=$14 RETURNING *`,
+        customer_id=$1, recipient_name=$2, recipient_phone=$3, pic_id=$4, order_date=$5, delivery_date=$6, 
+        departure_time=$7, arrival_time=$8, shipping_fee=$9, additional_menu_price=$10, venue=$11, order_notes=$12, 
+        status_order=$13, status_payment=$14, grand_total=$15, updated_at=NOW() 
+      WHERE id=$16 RETURNING *`,
       [
         customer_id,
+        recipient_name || null,
+        recipient_phone || null,
         final_pic_id || null,
         order_date,
         delivery_date,

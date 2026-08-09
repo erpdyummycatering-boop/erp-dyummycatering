@@ -19,6 +19,11 @@ function formatRupiah(amount: number | string) {
   return "Rp " + val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
 
+function cleanPhone(phoneStr?: string | null) {
+  if (!phoneStr) return "";
+  return phoneStr.replace(/[\s-]/g, "");
+}
+
 export default async function OrderConfirmationPrintPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const client = await pool.connect();
@@ -48,6 +53,16 @@ export default async function OrderConfirmationPrintPage({ params }: { params: P
 
     const items = itemsRes.rows;
 
+    const formattedPemesanPhone = cleanPhone(order.phone);
+    const pemesanText = formattedPemesanPhone 
+      ? `${order.customer_name} (${formattedPemesanPhone})` 
+      : order.customer_name;
+
+    const formattedRecipientPhone = cleanPhone(order.recipient_phone);
+    const recipientText = order.recipient_name 
+      ? (formattedRecipientPhone ? `${order.recipient_name} (${formattedRecipientPhone})` : order.recipient_name)
+      : null;
+
     return (
       <div style={{ padding: "20px", maxWidth: "800px", margin: "0 auto", fontFamily: "sans-serif", color: "#000", backgroundColor: "white" }}>
 
@@ -65,23 +80,25 @@ export default async function OrderConfirmationPrintPage({ params }: { params: P
             <tr>
               <td style={{ border: "1px solid #000", padding: "10px 12px", width: "40%", fontSize: "14px" }}>Nama Pemesan</td>
               <td style={{ border: "1px solid #000", padding: "10px 12px", width: "60%", fontSize: "14px", fontWeight: "bold", textTransform: "uppercase" }}>
-                {order.customer_name}
+                {pemesanText}
               </td>
             </tr>
+
+            {/* Nama Penerima (Optional) */}
+            {recipientText && (
+              <tr>
+                <td style={{ border: "1px solid #000", padding: "10px 12px", fontSize: "14px" }}>Nama Penerima</td>
+                <td style={{ border: "1px solid #000", padding: "10px 12px", fontSize: "14px", fontWeight: "bold", textTransform: "uppercase" }}>
+                  {recipientText}
+                </td>
+              </tr>
+            )}
 
             {/* Instansi */}
             <tr>
               <td style={{ border: "1px solid #000", padding: "10px 12px", fontSize: "14px" }}>Instansi</td>
               <td style={{ border: "1px solid #000", padding: "10px 12px", fontSize: "14px" }}>
                 {order.customer_type === "Umum" ? "" : (order.customer_type || "")}
-              </td>
-            </tr>
-
-            {/* No. HP */}
-            <tr>
-              <td style={{ border: "1px solid #000", padding: "10px 12px", fontSize: "14px" }}>No. HP</td>
-              <td style={{ border: "1px solid #000", padding: "10px 12px", fontSize: "14px" }}>
-                {order.phone || "-"}
               </td>
             </tr>
 

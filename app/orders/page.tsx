@@ -21,6 +21,8 @@ const emptyForm = (userRole?: string, userId?: string) => ({
   customer_id: "",
   customer_name: "",
   customer_phone: "",
+  recipient_name: "",
+  recipient_phone: "",
   pic_id: userRole === "CS / Sales" ? String(userId) : "",
   order_date: new Date().toISOString().split("T")[0],
   delivery_date: "",
@@ -666,14 +668,26 @@ export default function OrdersPage() {
 
         {form.customer_id === "new" && (
           <FormRow>
-            <FormField label="Nama Customer Baru">
+            <FormField label="Nama Customer Baru (Pemesan)">
               <input value={form.customer_name} onChange={e => setForm(f => ({ ...f, customer_name: e.target.value }))} placeholder="Nama Lengkap / Instansi" />
             </FormField>
-            <FormField label="Nomor WhatsApp">
+            <FormField label="Nomor WhatsApp Pemesan">
               <input value={form.customer_phone} onChange={e => setForm(f => ({ ...f, customer_phone: e.target.value }))} placeholder="08123456789" />
             </FormField>
           </FormRow>
         )}
+
+        <FormRow>
+          <FormField label="Nama Penerima (Opsional)">
+            <input value={form.recipient_name || ""} onChange={e => setForm(f => ({ ...f, recipient_name: e.target.value }))} placeholder="Nama penerima di lokasi" />
+          </FormField>
+          <FormField label="No. HP Penerima (Opsional)">
+            <input value={form.recipient_phone || ""} onChange={e => setForm(f => ({ ...f, recipient_phone: e.target.value }))} placeholder="08123456789" />
+          </FormField>
+        </FormRow>
+        <p style={{ fontSize: "12px", color: "#6b7280", marginTop: "-6px", marginBottom: "12px" }}>
+          *Nama pemesan wajib diisi. Nama penerima & No HP penerima boleh dikosongkan jika penerima sama dengan pemesan.
+        </p>
         <FormRow>
           <FormField label="Tanggal Order"><input type="date" value={form.order_date} onChange={e => setForm(f => ({ ...f, order_date: e.target.value }))} /></FormField>
           <FormField label="Tanggal Kirim"><input type="date" value={form.delivery_date} onChange={e => setForm(f => ({ ...f, delivery_date: e.target.value }))} /></FormField>

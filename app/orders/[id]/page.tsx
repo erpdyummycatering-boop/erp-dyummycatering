@@ -40,6 +40,8 @@ export default function OrderDetailPage() {
   
   const [form, setForm] = useState<any>({
     customer_id: "",
+    recipient_name: "",
+    recipient_phone: "",
     pic_id: "",
     order_date: "",
     delivery_date: "",
@@ -106,6 +108,8 @@ export default function OrderDetailPage() {
       .then(d => {
         setForm({
           customer_id: String(d.customer_id),
+          recipient_name: d.recipient_name || "",
+          recipient_phone: d.recipient_phone || "",
           pic_id: d.pic_id ? String(d.pic_id) : "",
           order_date: String(d.order_date || "").slice(0, 10),
           delivery_date: String(d.delivery_date || "").slice(0, 10),
@@ -285,6 +289,18 @@ export default function OrderDetailPage() {
               </FormField>
             )}
           </FormRow>
+
+          <FormRow>
+            <FormField label="Nama Penerima (Opsional)">
+              <input value={form.recipient_name || ""} onChange={e => setForm((f: any) => ({ ...f, recipient_name: e.target.value }))} placeholder="Nama penerima di lokasi" />
+            </FormField>
+            <FormField label="No. HP Penerima (Opsional)">
+              <input value={form.recipient_phone || ""} onChange={e => setForm((f: any) => ({ ...f, recipient_phone: e.target.value }))} placeholder="08123456789" />
+            </FormField>
+          </FormRow>
+          <p style={{ fontSize: "12px", color: "#6b7280", marginTop: "-6px", marginBottom: "12px" }}>
+            *Nama pemesan wajib diisi. Nama penerima & No HP penerima boleh dikosongkan jika penerima sama dengan pemesan.
+          </p>
 
           <FormRow>
             <FormField label="Tanggal Order">

@@ -61,6 +61,14 @@ export default async function OrderPrintPage({ params }: { params: Promise<{ id:
             <h3 style={{ fontSize: "12px", color: "#666", textTransform: "uppercase", marginBottom: "10px", borderBottom: "1px solid #eee", paddingBottom: "5px" }}>Delivery Detail:</h3>
             <table style={{ width: "100%", fontSize: "13px", lineHeight: "1.8" }}>
               <tbody>
+                {order.recipient_name && (
+                  <tr>
+                    <td style={{ width: "100px", color: "#666" }}>Recipient:</td>
+                    <td style={{ fontWeight: "bold" }}>
+                      {order.recipient_name} {order.recipient_phone ? `(${order.recipient_phone.replace(/[\s-]/g, "")})` : ""}
+                    </td>
+                  </tr>
+                )}
                 <tr><td style={{ width: "100px", color: "#666" }}>Date:</td><td style={{ fontWeight: "bold" }}>{new Date(order.delivery_date).toLocaleDateString("id-ID", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</td></tr>
                 <tr>
                   <td style={{ color: "#666" }}>Time:</td>

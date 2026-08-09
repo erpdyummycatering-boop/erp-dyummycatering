@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Users, Plus, Edit2, Download, Upload, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Users, Plus, Edit2, Download, Upload, Trash2, Eye, FileText } from "lucide-react";
 import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
@@ -11,6 +13,7 @@ import { PageHeader, FormRow, FormField } from "@/components/ui/PageHeader";
 import { Pagination } from "@/components/ui/Pagination";
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { exportToExcel } from "@/lib/export";
+import { fmt, statusBadgeColor } from "@/lib/utils";
 import { useRole } from "@/contexts/RoleContext";
 
 const C = { primary: "#5005A6" };
@@ -55,6 +58,7 @@ const WhatsAppIcon = ({ size = 16 }: { size?: number }) => (
 );
 
 export default function CustomersPage() {
+  const router = useRouter();
   const { activeRole } = useRole();
   const [rows, setRows] = useState<any[]>([]);
   const [meta, setMeta] = useState({ total: 0, page: 1, limit: 10, totalPages: 1 });
@@ -92,6 +96,27 @@ export default function CustomersPage() {
   const [itemToDelete, setItemToDelete] = useState<any>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [loading, setLoading] = useState(true);
+
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [detailData, setDetailData] = useState<any>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+
+  const openDetail = async (c: any) => {
+    setShowDetailModal(true);
+    setLoadingDetail(true);
+    setDetailData(c);
+    try {
+      const res = await fetch(`/api/customers/${c.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setDetailData(data);
+      }
+    } catch (e) {
+      console.error("Gagal memuat detail customer:", e);
+    } finally {
+      setLoadingDetail(false);
+    }
+  };
 
   const buildQs = useCallback((page = 1, lim = meta.limit) => {
     const p = new URLSearchParams({ page: String(page), limit: String(lim) });
@@ -277,7 +302,15 @@ export default function CustomersPage() {
                   {rows.length === 0 ? (
                     <tr><td colSpan={activeRole !== "cs_sales" ? 8 : 7} style={{ textAlign: "center", padding: "24px", color: "#6b7280" }}>Tidak ada data</td></tr>
                   ) : rows.map((c: any, idx: number) => (
-                    <tr key={c.id}>
+                    <tr 
+                      key={c.id}
+                      onClick={(e) => {
+                        const target = e.target as HTMLElement;
+                        if (target.closest("button, a, select, input")) return;
+                        router.push(`/customers/${c.id}`);
+                      }}
+                      style={{ cursor: "pointer" }}
+                    >
                       <td style={{ fontSize: 14, color: "#6b7280" }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
                       <td style={{ fontSize: 14 }}>{c.created_at ? String(c.created_at).slice(0, 10) : "-"}</td>
                       <td>
@@ -385,7 +418,10 @@ export default function CustomersPage() {
                       )}
                       <td>
                         <div style={{ display: "flex", gap: 4 }}>
-                          <button className="btn btn-secondary btn-sm" onClick={() => openEdit(c)}><Edit2 size={11} /></button>
+                          <Link href={`/customers/${c.id}`}>
+                            <button className="btn btn-secondary btn-sm" title="Detail Customer"><Eye size={11} /></button>
+                          </Link>
+                          <button className="btn btn-secondary btn-sm" onClick={() => openEdit(c)} title="Edit Customer"><Edit2 size={11} /></button>
                           <button className="btn btn-secondary btn-sm" onClick={() => setItemToDelete(c)} title="Hapus"><Trash2 size={11} color="#E24B4A" /></button>
                         </div>
                       </td>

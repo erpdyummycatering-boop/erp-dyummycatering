@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
     ? `${session.user.name || ""} | ${(session.user as { name?: string; role?: string }).role || ""}`.trim()
     : null;
 
-  const { customer_id, customer_name, customer_phone, pic_id, order_date, delivery_date, departure_time, arrival_time, shipping_fee, additional_menu_price, venue, order_notes, status_payment, items } = await req.json();
+  const { customer_id, customer_name, customer_phone, recipient_name, recipient_phone, pic_id, order_date, delivery_date, departure_time, arrival_time, shipping_fee, additional_menu_price, venue, order_notes, status_payment, items } = await req.json();
   if (!customer_id || !delivery_date) return NextResponse.json({ error: "customer_id dan delivery_date wajib" }, { status: 400 });
 
   const client = await pool.connect();
@@ -114,27 +114,35 @@ export async function POST(req: NextRequest) {
 
     const grandTotal = (items || []).reduce((s: number, i: any) => s + (i.price * i.quantity - (i.discount || 0)), 0) + Number(shipping_fee || 0) + Number(additional_menu_price || 0);
     
-    // Check if repeat customer
-    const customerRes = await client.query("SELECT phone FROM customers WHERE id = $1", [final_customer_id]);
-    const phone = customerRes.rows[0]?.phone;
+    // Check if repeat customer (if customer has any previous orders in database)
+    const prevOrderRes = await client.query(
+      `SELECT COUNT(*) FROM orders WHERE customer_id = $1`,
+      [final_customer_id]
+    );
     let jenis_order = "New Order";
-    if (phone) {
-      const prevOrderRes = await client.query(
-        `SELECT COUNT(*) FROM orders o 
-         JOIN customers c ON o.customer_id = c.id 
-         WHERE c.phone = $1 AND (o.status_order = 'Selesai' OR o.status_payment = 'Lunas')`,
-        [phone]
-      );
-      if (Number(prevOrderRes.rows[0].count) > 0) {
-        jenis_order = "Repeat Order";
+    if (Number(prevOrderRes.rows[0].count) > 0) {
+      jenis_order = "Repeat Order";
+    } else {
+      // Also check by phone if phone exists
+      const customerRes = await client.query("SELECT phone FROM customers WHERE id = $1", [final_customer_id]);
+      const phone = customerRes.rows[0]?.phone;
+      if (phone && phone.trim()) {
+        const phoneOrdersRes = await client.query(
+          `SELECT COUNT(*) FROM orders o JOIN customers c ON o.customer_id = c.id WHERE c.phone = $1`,
+          [phone.trim()]
+        );
+        if (Number(phoneOrdersRes.rows[0].count) > 0) {
+          jenis_order = "Repeat Order";
+        }
       }
     }
+
     const final_order_date = order_date || new Date().toISOString().split("T")[0];
 
     const orderRes = await client.query(
-      `INSERT INTO orders (customer_id,pic_id,order_date,delivery_date,departure_time,arrival_time,shipping_fee,additional_menu_price,venue,order_notes,status_payment,grand_total,status_order,jenis_order,closing_date)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'Baru',$13,$14) RETURNING *`,
-      [final_customer_id, final_pic_id || null, final_order_date, delivery_date, departure_time || null, arrival_time || null, Number(shipping_fee || 0), Number(additional_menu_price || 0), venue, order_notes, status_payment || "Belum Lunas", grandTotal, jenis_order, final_order_date]
+      `INSERT INTO orders (customer_id,recipient_name,recipient_phone,pic_id,order_date,delivery_date,departure_time,arrival_time,shipping_fee,additional_menu_price,venue,order_notes,status_payment,grand_total,status_order,jenis_order,closing_date)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'Baru',$13,$14,$15,$16) RETURNING *`,
+      [final_customer_id, recipient_name || null, recipient_phone || null, final_pic_id || null, final_order_date, delivery_date, departure_time || null, arrival_time || null, Number(shipping_fee || 0), Number(additional_menu_price || 0), venue, order_notes, status_payment || "Belum Lunas", grandTotal, jenis_order, final_order_date]
     );
     const orderId = orderRes.rows[0].id;
     for (const item of (items || [])) {
