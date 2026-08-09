@@ -18,6 +18,8 @@ export async function GET(req: NextRequest) {
   const date_from = p.get("date_from") || "";
   const date_to = p.get("date_to") || "";
   const pic_id = p.get("pic_id") || "";
+  const sort_by = p.get("sort_by") || "delivery_date";
+  const sort_dir = (p.get("sort_dir") || "desc").toLowerCase() === "asc" ? "ASC" : "DESC";
 
   const wheres: string[] = [];
   const vals: any[] = [];
@@ -41,6 +43,14 @@ export async function GET(req: NextRequest) {
   if (date_to) { wheres.push(`o.delivery_date <= $${idx}`); vals.push(date_to); idx++; }
 
   const where = wheres.length ? "WHERE " + wheres.join(" AND ") : "";
+
+  let orderBySql = `ORDER BY o.delivery_date ${sort_dir}, o.id ${sort_dir}`;
+  if (sort_by === "closing_date" || sort_by === "order_date") {
+    orderBySql = `ORDER BY COALESCE(o.closing_date, o.order_date) ${sort_dir}, o.id ${sort_dir}`;
+  } else if (sort_by === "delivery_date") {
+    orderBySql = `ORDER BY o.delivery_date ${sort_dir}, o.id ${sort_dir}`;
+  }
+
   const client = await pool.connect();
   try {
     const [countRes, dataRes] = await Promise.all([
@@ -53,7 +63,7 @@ export async function GET(req: NextRequest) {
             'custom_menu',oi.custom_menu
           )) FROM order_items oi LEFT JOIN products pr ON oi.product_id=pr.id WHERE oi.order_id=o.id) AS items
         FROM orders o JOIN customers c ON o.customer_id=c.id LEFT JOIN users u ON o.pic_id=u.id
-        ${where} ORDER BY o.delivery_date DESC, o.id DESC LIMIT $${idx} OFFSET $${idx+1}`,
+        ${where} ${orderBySql} LIMIT $${idx} OFFSET $${idx+1}`,
         [...vals, limit, offset])
     ]);
     const total = Number(countRes.rows[0].count);
@@ -140,9 +150,32 @@ export async function POST(req: NextRequest) {
     const final_order_date = order_date || new Date().toISOString().split("T")[0];
 
     const orderRes = await client.query(
-      `INSERT INTO orders (customer_id,recipient_name,recipient_phone,pic_id,order_date,delivery_date,departure_time,arrival_time,shipping_fee,additional_menu_price,venue,order_notes,status_payment,grand_total,status_order,jenis_order,closing_date)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'Baru',$13,$14,$15,$16) RETURNING *`,
-      [final_customer_id, recipient_name || null, recipient_phone || null, final_pic_id || null, final_order_date, delivery_date, departure_time || null, arrival_time || null, Number(shipping_fee || 0), Number(additional_menu_price || 0), venue, order_notes, status_payment || "Belum Lunas", grandTotal, jenis_order, final_order_date]
+      `INSERT INTO orders (
+        customer_id, recipient_name, recipient_phone, pic_id, order_date, delivery_date, 
+        departure_time, arrival_time, shipping_fee, additional_menu_price, venue, order_notes, 
+        status_payment, grand_total, status_order, jenis_order, closing_date
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) 
+      RETURNING *`,
+      [
+        final_customer_id,
+        recipient_name || null,
+        recipient_phone || null,
+        final_pic_id || null,
+        final_order_date,
+        delivery_date,
+        departure_time || null,
+        arrival_time || null,
+        Number(shipping_fee || 0),
+        Number(additional_menu_price || 0),
+        venue,
+        order_notes,
+        status_payment || "Belum Lunas",
+        grandTotal,
+        "Baru",
+        jenis_order,
+        final_order_date
+      ]
     );
     const orderId = orderRes.rows[0].id;
     for (const item of (items || [])) {

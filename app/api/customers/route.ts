@@ -10,7 +10,8 @@ export async function GET(req: NextRequest) {
 
   const { searchParams: p } = new URL(req.url);
   const page = Math.max(1, Number(p.get("page") || 1));
-  const limit = Math.min(100, Number(p.get("limit") || 20));
+  const rawLimit = Number(p.get("limit") || 20);
+  const limit = Math.min(10000, Math.max(1, rawLimit));
   const offset = (page - 1) * limit;
   const search = p.get("search") || "";
   const type = p.get("type") || "";
@@ -18,6 +19,7 @@ export async function GET(req: NextRequest) {
   const pic_id = p.get("pic_id") || "";
   const date_from = p.get("date_from") || "";
   const date_to = p.get("date_to") || "";
+  const isDropdown = p.get("dropdown") === "true" || rawLimit >= 500;
 
   const wheres: string[] = [];
   const vals: unknown[] = [];
@@ -33,14 +35,16 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  if (userRole === "CS / Sales" && userName) {
-    wheres.push(`c.created_by = $${idx}`);
-    vals.push(`${userName} | CS / Sales`);
-    idx++;
-  } else if (pic_id) {
-    wheres.push(`c.created_by = (SELECT name || ' | CS / Sales' FROM users WHERE id = $${idx})`);
-    vals.push(pic_id);
-    idx++;
+  if (!isDropdown) {
+    if (userRole === "CS / Sales" && userName) {
+      wheres.push(`c.created_by = $${idx}`);
+      vals.push(`${userName} | CS / Sales`);
+      idx++;
+    } else if (pic_id) {
+      wheres.push(`c.created_by = (SELECT name || ' | CS / Sales' FROM users WHERE id = $${idx})`);
+      vals.push(pic_id);
+      idx++;
+    }
   }
 
   if (date_from) {
@@ -55,6 +59,7 @@ export async function GET(req: NextRequest) {
   }
 
   const where = wheres.length ? "WHERE " + wheres.join(" AND ") : "";
+  const orderBy = isDropdown ? "ORDER BY c.name ASC" : "ORDER BY c.created_at DESC";
   const client = await pool.connect();
   try {
     const [countRes, dataRes] = await Promise.all([
@@ -66,7 +71,7 @@ export async function GET(req: NextRequest) {
           CASE WHEN c.status = 'Closing' OR EXISTS (SELECT 1 FROM orders WHERE customer_id = c.id) THEN 'Customer' ELSE 'Lead' END AS caste
         FROM customers c
         ${where}
-        ORDER BY c.created_at DESC
+        ${orderBy}
         LIMIT $${idx} OFFSET $${idx+1}
       `, [...vals, limit, offset])
     ]);

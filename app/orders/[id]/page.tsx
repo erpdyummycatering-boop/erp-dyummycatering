@@ -88,9 +88,9 @@ export default function OrderDetailPage() {
 
     // Fetch master data
     Promise.all([
-      fetch("/api/customers?limit=100", { signal }).then(r => r.json()),
+      fetch("/api/customers?limit=10000", { signal }).then(r => r.json()),
       fetch("/api/users", { signal }).then(r => r.json()),
-      fetch("/api/products?limit=100", { signal }).then(r => r.json())
+      fetch("/api/products?limit=1000", { signal }).then(r => r.json())
     ]).then(([cData, uData, pData]) => {
       setCustomers(cData.data || []);
       setUsers(uData || []);

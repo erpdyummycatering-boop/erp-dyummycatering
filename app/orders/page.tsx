@@ -89,6 +89,17 @@ export default function OrdersPage() {
   const [fDateFrom, setFDateFrom] = useState("");
   const [fDateTo, setFDateTo] = useState("");
   const [fPicId, setFPicId] = useState("");
+  const [sortBy, setSortBy] = useState<"delivery_date" | "closing_date">("delivery_date");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const handleSort = (field: "delivery_date" | "closing_date") => {
+    if (sortBy === field) {
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(field);
+      setSortDir("desc");
+    }
+  };
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -366,7 +377,7 @@ export default function OrdersPage() {
   };
 
   const buildQs = useCallback((page = 1, lim = meta.limit) => {
-    const p = new URLSearchParams({ page: String(page), limit: String(lim) });
+    const p = new URLSearchParams({ page: String(page), limit: String(lim), sort_by: sortBy, sort_dir: sortDir });
     if (search) p.set("search", search);
     if (fStatus) p.set("status_order", fStatus);
     if (fPay) p.set("status_payment", fPay);
@@ -378,7 +389,7 @@ export default function OrdersPage() {
     if (fDateFrom) p.set("date_from", fDateFrom);
     if (fDateTo) p.set("date_to", fDateTo);
     return p.toString();
-  }, [search, fStatus, fPay, fDateFrom, fDateTo, fPicId, userRole, userId, meta.limit]);
+  }, [search, fStatus, fPay, fDateFrom, fDateTo, fPicId, userRole, userId, meta.limit, sortBy, sortDir]);
 
   const fetchOrders = useCallback((page = 1, lim = meta.limit, signal?: AbortSignal) => {
     setLoading(true);
@@ -404,7 +415,7 @@ export default function OrdersPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch("/api/customers?limit=100", { signal: controller.signal })
+    fetch("/api/customers?limit=10000", { signal: controller.signal })
       .then(r => r.json())
       .then(d => setCustomers(d.data || []))
       .catch(() => { });
@@ -412,7 +423,7 @@ export default function OrdersPage() {
       .then(r => r.json())
       .then(setUsers)
       .catch(() => { });
-    fetch("/api/products?limit=100", { signal: controller.signal })
+    fetch("/api/products?limit=1000", { signal: controller.signal })
       .then(r => r.json())
       .then(d => setProducts(d.data || []))
       .catch(() => { });
@@ -457,7 +468,7 @@ export default function OrdersPage() {
         setShowModal(false); 
         setForm(emptyForm(userRole, userId)); 
         fetchOrders(1); 
-        fetch("/api/customers?limit=100").then(r => r.json()).then(d => setCustomers(d.data || []));
+        fetch("/api/customers?limit=10000").then(r => r.json()).then(d => setCustomers(d.data || []));
       } else {
         const err = await res.json().catch(() => ({}));
         alert(err.error || "Gagal menyimpan order.");
@@ -570,7 +581,41 @@ export default function OrdersPage() {
             <div style={{ overflowX: "auto" }}>
               <table>
                 <thead>
-                  <tr><th>No.</th><th>No. Order</th><th>Customer</th><th>PIC CS</th><th>Tgl Kirim</th><th>Tgl Closing</th><th>Jenis</th><th>Item</th><th>Total</th><th>Status</th><th>Aksi</th></tr>
+                  <tr>
+                    <th>No.</th>
+                    <th>No. Order</th>
+                    <th>Customer</th>
+                    <th>PIC CS</th>
+                    <th 
+                      onClick={() => handleSort("delivery_date")} 
+                      style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}
+                      title="Klik untuk urutkan Tgl Kirim (Asc/Desc)"
+                    >
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                        <span>Tgl Kirim</span>
+                        <span style={{ fontSize: 11, color: sortBy === "delivery_date" ? "#5005A6" : "#9ca3af" }}>
+                          {sortBy === "delivery_date" ? (sortDir === "asc" ? "▲" : "▼") : "↕"}
+                        </span>
+                      </div>
+                    </th>
+                    <th 
+                      onClick={() => handleSort("closing_date")} 
+                      style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}
+                      title="Klik untuk urutkan Tgl Closing (Asc/Desc)"
+                    >
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                        <span>Tgl Closing</span>
+                        <span style={{ fontSize: 11, color: sortBy === "closing_date" ? "#5005A6" : "#9ca3af" }}>
+                          {sortBy === "closing_date" ? (sortDir === "asc" ? "▲" : "▼") : "↕"}
+                        </span>
+                      </div>
+                    </th>
+                    <th>Jenis</th>
+                    <th>Item</th>
+                    <th>Total</th>
+                    <th>Status</th>
+                    <th>Aksi</th>
+                  </tr>
                 </thead>
                 <tbody>
                   {rows.length === 0 ? (
