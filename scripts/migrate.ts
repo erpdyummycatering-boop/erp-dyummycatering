@@ -21,7 +21,7 @@ async function migrate() {
 
   const sqlPath = path.resolve(
     process.cwd(),
-    "refs/dyummy2026.sql"
+    "refs/dyummy_v4_migration.sql"
   );
   const sqlContent = fs.readFileSync(sqlPath, "utf8");
 

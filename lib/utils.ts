@@ -44,3 +44,33 @@ export const roleColor = (role: string): BadgeColor => {
   };
   return map[role] || "gray";
 };
+
+export const formatDate = (d: string | Date | null | undefined): string => {
+  if (!d) return "-";
+  try {
+    const s = String(d).trim();
+    if (!s) return "-";
+
+    // If string is YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      const [y, m, day] = s.split("-");
+      const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agt", "Sep", "Okt", "Nov", "Des"];
+      const mi = parseInt(m, 10) - 1;
+      if (mi >= 0 && mi < 12) {
+        return `${parseInt(day, 10)} ${months[mi]} ${y}`;
+      }
+    }
+
+    const dateObj = new Date(s);
+    if (isNaN(dateObj.getTime())) return s;
+
+    return dateObj.toLocaleDateString("id-ID", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      timeZone: "Asia/Jakarta",
+    });
+  } catch {
+    return String(d);
+  }
+};

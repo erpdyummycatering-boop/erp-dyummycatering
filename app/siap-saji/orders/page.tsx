@@ -1,0 +1,1319 @@
+"use client";
+
+import { useState, useEffect, useTransition } from "react";
+import {
+  ShoppingCart,
+  Plus,
+  Search,
+  Filter,
+  Printer,
+  X,
+  CheckCircle2,
+  AlertCircle,
+  Clock,
+  Phone,
+  MapPin,
+  Building,
+  CreditCard,
+  Trash2,
+  Eye,
+  Copy,
+  ChevronDown,
+  RefreshCw,
+  FileText,
+} from "lucide-react";
+import { toast } from "sonner";
+import { Pagination } from "@/components/ui/Pagination";
+import { formatDate } from "@/lib/utils";
+
+interface Product {
+  id: number;
+  sku: string;
+  name: string;
+  category_id: number;
+  price: number;
+  is_half_portion: boolean;
+  parent_sku: string | null;
+  channel_prices?: { channel_id: number; harga_override: number | null }[];
+}
+
+interface Channel {
+  id: number;
+  name: string;
+  harga_type: string;
+}
+
+interface Area {
+  id: number;
+  kecamatan: string;
+  kota: string;
+  shipping_zone: string;
+}
+
+interface KasBank {
+  id: number;
+  nama_rekening: string;
+  no_rekening: string;
+  nama_bank: string;
+  is_payment_default: boolean;
+}
+
+interface OrderItemInput {
+  product_id: number;
+  sku: string;
+  name: string;
+  price: number;
+  quantity: number;
+  discount: number;
+  notes: string;
+  is_half_portion: boolean;
+}
+
+interface Order {
+  id: number;
+  no_struk: string;
+  order_date: string;
+  delivery_date: string;
+  customer_name: string;
+  customer_phone: string;
+  customer_address: string;
+  customer_patokan: string;
+  area_kecamatan: string;
+  area_kota: string;
+  channel_name: string;
+  shipping_fee: number;
+  grand_total: number;
+  payment_bank: string;
+  payment_account: string;
+  status_order: string;
+  status_payment: string;
+  cancel_reason?: string;
+  created_at: string;
+  items?: any[];
+}
+
+export default function SiapSajiOrdersPage() {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [meta, setMeta] = useState({ total: 0, page: 1, limit: 10, totalPages: 1 });
+  const [loading, setLoading] = useState(true);
+  const [summary, setSummary] = useState({ total_penjualan: 0, total_orders: 0, orders_today: 0 });
+
+  // Filters
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [channelFilter, setChannelFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
+  // Modals
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [selectedStruk, setSelectedStruk] = useState<Order | null>(null);
+  const [cancelOrderTarget, setCancelOrderTarget] = useState<Order | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
+
+  // Master Data state for Form Order
+  const [masterChannels, setMasterChannels] = useState<Channel[]>([]);
+  const [masterAreas, setMasterAreas] = useState<Area[]>([]);
+  const [masterKasBank, setMasterKasBank] = useState<KasBank[]>([]);
+  const [masterProducts, setMasterProducts] = useState<Product[]>([]);
+
+  // Form Order State
+  const [selectedChannelId, setSelectedChannelId] = useState<number | "">("");
+  const [customerMode, setCustomerMode] = useState<"new" | "select">("new");
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [selectedAreaId, setSelectedAreaId] = useState<number | "">("");
+  const [customerAddress, setCustomerAddress] = useState("");
+  const [customerPatokan, setCustomerPatokan] = useState("");
+  const [orderDate, setOrderDate] = useState(new Date().toISOString().split("T")[0]);
+  const [deliveryDate, setDeliveryDate] = useState(new Date().toISOString().split("T")[0]);
+  const [shippingFee, setShippingFee] = useState<number>(0);
+  const [isShippingAuto, setIsShippingAuto] = useState(true);
+  const [selectedBankId, setSelectedBankId] = useState<number | "">("");
+  const [orderNotes, setOrderNotes] = useState("");
+  const [cartItems, setCartItems] = useState<OrderItemInput[]>([]);
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+
+  // Fetch Orders
+  const fetchOrders = async (page = meta.page, lim = meta.limit) => {
+    setLoading(true);
+    try {
+      const q = new URLSearchParams();
+      q.append("page", String(page));
+      q.append("limit", String(lim));
+      if (search) q.append("search", search);
+      if (statusFilter) q.append("status_order", statusFilter);
+      if (channelFilter) q.append("channel_id", channelFilter);
+      if (dateFrom) q.append("date_from", dateFrom);
+      if (dateTo) q.append("date_to", dateTo);
+
+      const res = await fetch(`/api/siap-saji/orders?${q.toString()}`);
+      if (!res.ok) throw new Error("Gagal memuat daftar transaksi");
+      const json = await res.json();
+      setOrders(json.data || []);
+      setMeta({
+        total: json.total || 0,
+        page: json.page || page,
+        limit: json.limit || lim,
+        totalPages: json.totalPages || 1,
+      });
+      if (json.summary) setSummary(json.summary);
+    } catch (err: any) {
+      toast.error(err.message || "Gagal memuat data");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch Master Data
+  const fetchMasterData = async () => {
+    try {
+      const res = await fetch("/api/siap-saji/master");
+      if (res.ok) {
+        const data = await res.json();
+        setMasterChannels(data.channels || []);
+        setMasterAreas(data.areas || []);
+        setMasterKasBank(data.kas_bank || []);
+        setMasterProducts(data.products || []);
+
+        if (data.channels?.length > 0 && !selectedChannelId) {
+          setSelectedChannelId(data.channels[0].id);
+        }
+        if (data.kas_bank?.length > 0 && !selectedBankId) {
+          const def = data.kas_bank.find((k: KasBank) => k.is_payment_default) || data.kas_bank[0];
+          setSelectedBankId(def.id);
+        }
+      }
+    } catch (e) {
+      console.error("Master data fetch error:", e);
+    }
+  };
+
+  useEffect(() => {
+    fetchOrders();
+    fetchMasterData();
+  }, []);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [search, statusFilter, channelFilter, dateFrom, dateTo]);
+
+  // Recalculate Shipping Fee when Area or Channel changes in Form
+  useEffect(() => {
+    if (selectedAreaId && selectedChannelId && isShippingAuto) {
+      fetch(`/api/siap-saji/shipping-fee?area_id=${selectedAreaId}&channel_id=${selectedChannelId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.shipping_fee !== undefined) {
+            setShippingFee(data.shipping_fee);
+          }
+        })
+        .catch((e) => console.error(e));
+    }
+  }, [selectedAreaId, selectedChannelId, isShippingAuto]);
+
+  // Handle Cart item addition / adjustment
+  const handleAddProductToCart = (prod: Product) => {
+    let effectivePrice = prod.price;
+    if (selectedChannelId && prod.channel_prices) {
+      const overrideObj = prod.channel_prices.find((cp) => cp.channel_id === Number(selectedChannelId));
+      if (overrideObj && overrideObj.harga_override !== null) {
+        effectivePrice = overrideObj.harga_override;
+      }
+    }
+
+    const existingIdx = cartItems.findIndex((it) => it.product_id === prod.id);
+    if (existingIdx >= 0) {
+      const updated = [...cartItems];
+      updated[existingIdx].quantity += 1;
+      setCartItems(updated);
+    } else {
+      setCartItems([
+        ...cartItems,
+        {
+          product_id: prod.id,
+          sku: prod.sku,
+          name: prod.name,
+          price: effectivePrice,
+          quantity: 1,
+          discount: 0,
+          notes: "",
+          is_half_portion: prod.is_half_portion,
+        },
+      ]);
+    }
+  };
+
+  const handleUpdateItemQty = (index: number, newQty: number) => {
+    if (newQty <= 0) {
+      setCartItems(cartItems.filter((_, i) => i !== index));
+    } else {
+      const updated = [...cartItems];
+      updated[index].quantity = newQty;
+      setCartItems(updated);
+    }
+  };
+
+  const handleUpdateItemNotes = (index: number, notes: string) => {
+    const updated = [...cartItems];
+    updated[index].notes = notes;
+    setCartItems(updated);
+  };
+
+  // Cart total calculations
+  const cartSubtotal = cartItems.reduce((acc, it) => acc + (it.price * it.quantity - it.discount), 0);
+  const cartGrandTotal = cartSubtotal + Number(shippingFee || 0);
+
+  // Submit New Order
+  const handleSubmitOrder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedChannelId) return toast.error("Pilih channel penjualan");
+    if (!customerName || !customerPhone || !selectedAreaId) {
+      return toast.error("Nama, No HP, dan Kecamatan customer wajib diisi");
+    }
+    if (cartItems.length === 0) return toast.error("Pilih minimal 1 produk");
+
+    setIsSubmittingOrder(true);
+    try {
+      const payload = {
+        channel_id: Number(selectedChannelId),
+        customer_id: "new",
+        customer_name: customerName,
+        customer_phone: customerPhone,
+        area_id: Number(selectedAreaId),
+        address: customerAddress,
+        patokan: customerPatokan,
+        order_date: orderDate,
+        delivery_date: deliveryDate,
+        shipping_fee: shippingFee,
+        payment_bank_id: selectedBankId ? Number(selectedBankId) : null,
+        order_notes: orderNotes,
+        items: cartItems.map((it) => ({
+          product_id: it.product_id,
+          price: it.price,
+          quantity: it.quantity,
+          discount: it.discount,
+          notes: it.notes,
+        })),
+      };
+
+      const res = await fetch("/api/siap-saji/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json();
+        throw new Error(errJson.error || "Gagal membuat order");
+      }
+
+      const createdOrder = await res.json();
+      toast.success(`Penjualan Siap Saji berhasil disimpan! No Struk: ${createdOrder.no_struk}`);
+
+      setIsFormOpen(false);
+      resetForm();
+      fetchOrders();
+
+      // Fetch detail & open Struk modal immediately
+      const detailRes = await fetch(`/api/siap-saji/orders/${createdOrder.id}`);
+      if (detailRes.ok) {
+        const detailData = await detailRes.json();
+        setSelectedStruk(detailData);
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Gagal menyimpan order");
+    } finally {
+      setIsSubmittingOrder(false);
+    }
+  };
+
+  const resetForm = () => {
+    setCustomerName("");
+    setCustomerPhone("");
+    setSelectedAreaId(masterAreas.length > 0 ? masterAreas[0].id : "");
+    setCustomerAddress("");
+    setCustomerPatokan("");
+    setCartItems([]);
+    setOrderNotes("");
+    setShippingFee(0);
+    setIsShippingAuto(true);
+  };
+
+  // Handle Cancel Order
+  const handleConfirmCancel = async () => {
+    if (!cancelOrderTarget) return;
+    if (!cancelReason || cancelReason.trim().length < 10) {
+      return toast.error("Alasan pembatalan wajib diisi minimal 10 karakter.");
+    }
+
+    setIsSubmittingCancel(true);
+    try {
+      const res = await fetch(`/api/siap-saji/orders/${cancelOrderTarget.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "cancel", cancel_reason: cancelReason }),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json();
+        throw new Error(errJson.error || "Gagal membatalkan order");
+      }
+
+      toast.success(`Order ${cancelOrderTarget.no_struk} berhasil dibatalkan.`);
+      setCancelOrderTarget(null);
+      setCancelReason("");
+      fetchOrders();
+    } catch (err: any) {
+      toast.error(err.message || "Gagal membatalkan order");
+    } finally {
+      setIsSubmittingCancel(false);
+    }
+  };
+
+  // Copy Struk Text to Clipboard (Format WhatsApp)
+  const copyStrukToClipboard = (order: Order) => {
+    const lines = [
+      `*DYUMMY CATERING — STRUK PENJUALAN*`,
+      `No. Struk: ${order.no_struk}`,
+      `Tanggal: ${order.delivery_date}`,
+      `Customer: ${order.customer_name}`,
+      `No. HP: ${order.customer_phone}`,
+      `Alamat: ${order.customer_address}`,
+      order.customer_patokan ? `Patokan: ${order.customer_patokan}` : null,
+      `Kecamatan: ${order.area_kecamatan} (${order.area_kota})`,
+      `---------------------------------`,
+      ...(order.items || []).map(
+        (it: any) => `${it.product_name} x${it.quantity} @ Rp${it.price.toLocaleString("id-ID")}`
+      ),
+      `---------------------------------`,
+      `Biaya Kirim: Rp${order.shipping_fee.toLocaleString("id-ID")}`,
+      `*TOTAL: Rp${order.grand_total.toLocaleString("id-ID")}*`,
+      `Rekening: ${order.payment_bank} (${order.payment_account})`,
+      `Status: ${order.status_payment}`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    navigator.clipboard.writeText(lines);
+    toast.success("Teks Struk berhasil disalin ke clipboard!");
+  };
+
+  return (
+    <div style={{ maxWidth: 1280, margin: "0 auto", paddingBottom: 40 }}>
+      {/* ── HEADER & STATS ────────────────────────────────────────── */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <div>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: "#1f2937", margin: 0, letterSpacing: "-0.02em" }}>
+            Penjualan Siap Saji
+          </h1>
+          <p style={{ fontSize: 14, color: "#6b7280", marginTop: 4 }}>
+            Kelola transaksi harian retail Siap Saji & cetak struk pengiriman
+          </p>
+        </div>
+        <button
+          onClick={() => {
+            resetForm();
+            setIsFormOpen(true);
+          }}
+          style={{
+            background: "linear-gradient(135deg, #5005A6 0%, #B10FBD 100%)",
+            color: "white",
+            border: "none",
+            borderRadius: 10,
+            padding: "10px 18px",
+            fontSize: 14,
+            fontWeight: 700,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            boxShadow: "0 4px 12px rgba(177, 15, 189, 0.25)",
+            transition: "transform 0.15s ease",
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-1px)")}
+          onMouseLeave={(e) => (e.currentTarget.style.transform = "none")}
+        >
+          <Plus size={18} />
+          Buat Penjualan
+        </button>
+      </div>
+
+      {/* Stats Cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16, marginBottom: 24 }}>
+        <div style={{ background: "white", borderRadius: 12, padding: "16px 20px", border: "1px solid #e5e7eb", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+          <p style={{ fontSize: 13, color: "#6b7280", fontWeight: 600 }}>Total Omset Siap Saji</p>
+          <p style={{ fontSize: 22, fontWeight: 800, color: "#5005A6", marginTop: 6 }}>
+            Rp {summary.total_penjualan.toLocaleString("id-ID")}
+          </p>
+        </div>
+        <div style={{ background: "white", borderRadius: 12, padding: "16px 20px", border: "1px solid #e5e7eb", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+          <p style={{ fontSize: 13, color: "#6b7280", fontWeight: 600 }}>Total Transaksi Aktif</p>
+          <p style={{ fontSize: 22, fontWeight: 800, color: "#378ADD", marginTop: 6 }}>
+            {summary.total_orders} Pesanan
+          </p>
+        </div>
+        <div style={{ background: "white", borderRadius: 12, padding: "16px 20px", border: "1px solid #e5e7eb", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+          <p style={{ fontSize: 13, color: "#6b7280", fontWeight: 600 }}>Order Hari Ini</p>
+          <p style={{ fontSize: 22, fontWeight: 800, color: "#639922", marginTop: 6 }}>
+            {summary.orders_today} Transaksi
+          </p>
+        </div>
+      </div>
+
+      {/* ── FILTERS BAR ────────────────────────────────────────── */}
+      <div
+        style={{
+          background: "white",
+          borderRadius: 12,
+          padding: "12px 16px",
+          border: "1px solid #e5e7eb",
+          marginBottom: 20,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          overflowX: "auto",
+          whiteSpace: "nowrap",
+        }}
+      >
+        <div style={{ flex: "1 1 200px", minWidth: 160, maxWidth: 280, position: "relative" }}>
+          <Search size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
+          <input
+            type="text"
+            placeholder="Cari No Struk, Customer, HP..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{
+              width: "100%",
+              padding: "7px 12px 7px 34px",
+              borderRadius: 8,
+              border: "1px solid #d1d5db",
+              fontSize: 13,
+              outline: "none",
+            }}
+          />
+        </div>
+
+        <select
+          value={channelFilter}
+          onChange={(e) => setChannelFilter(e.target.value)}
+          style={{ width: 140, padding: "7px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, outline: "none", background: "white" }}
+        >
+          <option value="">Semua Channel</option>
+          {masterChannels.map((ch) => (
+            <option key={ch.id} value={ch.id}>
+              {ch.name}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          style={{ width: 130, padding: "7px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, outline: "none", background: "white" }}
+        >
+          <option value="">Semua Status</option>
+          <option value="Aktif">Aktif</option>
+          <option value="Dibatalkan">Dibatalkan</option>
+        </select>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            style={{ width: 130, padding: "7px 8px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, outline: "none" }}
+          />
+          <span style={{ color: "#9ca3af", fontSize: 12 }}>s/d</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            style={{ width: 130, padding: "7px 8px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, outline: "none" }}
+          />
+        </div>
+
+        {(search || statusFilter || channelFilter || dateFrom || dateTo) && (
+          <button
+            onClick={() => {
+              setSearch("");
+              setStatusFilter("");
+              setChannelFilter("");
+              setDateFrom("");
+              setDateTo("");
+            }}
+            style={{
+              padding: "7px 12px",
+              background: "#f3f4f6",
+              color: "#4b5563",
+              border: "none",
+              borderRadius: 8,
+              fontSize: 13,
+              cursor: "pointer",
+              fontWeight: 600,
+              flexShrink: 0,
+            }}
+          >
+            Reset
+          </button>
+        )}
+      </div>
+
+      {/* ── TRANSACTIONS TABLE ────────────────────────────────── */}
+      <div style={{ background: "white", borderRadius: 12, border: "1px solid #e5e7eb", overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 14, whiteSpace: "nowrap" }}>
+          <thead>
+            <tr style={{ background: "#fafafa", borderBottom: "1px solid #e5e7eb", color: "#6b7280", fontWeight: 700, fontSize: 12, textTransform: "uppercase" }}>
+              <th style={{ padding: "12px 16px", width: 50 }}>No.</th>
+              <th style={{ padding: "12px 16px" }}>No. Struk</th>
+              <th style={{ padding: "12px 16px" }}>Tanggal</th>
+              <th style={{ padding: "12px 16px" }}>Pelanggan</th>
+              <th style={{ padding: "12px 16px" }}>Kecamatan</th>
+              <th style={{ padding: "12px 16px" }}>Channel</th>
+              <th style={{ padding: "12px 16px" }}>Total</th>
+              <th style={{ padding: "12px 16px" }}>Rekening</th>
+              <th style={{ padding: "12px 16px" }}>Status</th>
+              <th style={{ padding: "12px 16px", textAlign: "right" }}>Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan={10} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                  Memuat data penjualan...
+                </td>
+              </tr>
+            ) : orders.length === 0 ? (
+              <tr>
+                <td colSpan={10} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                  Tidak ada transaksi Siap Saji ditemukan.
+                </td>
+              </tr>
+            ) : (
+              orders.map((o, idx) => (
+                <tr key={o.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                  <td style={{ padding: "14px 16px", color: "#6b7280" }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
+                  <td style={{ padding: "14px 16px", fontWeight: 700, color: "#5005A6" }}>{o.no_struk || "-"}</td>
+                  <td style={{ padding: "14px 16px", color: "#374151" }}>{formatDate(o.delivery_date)}</td>
+                  <td style={{ padding: "14px 16px" }}>
+                    <p style={{ fontWeight: 600, color: "#111827", margin: 0 }}>{o.customer_name}</p>
+                    <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>{o.customer_phone}</p>
+                  </td>
+                  <td style={{ padding: "14px 16px", color: "#4b5563" }}>
+                    {o.area_kecamatan ? `${o.area_kecamatan}` : "-"}
+                  </td>
+                  <td style={{ padding: "14px 16px" }}>
+                    <span
+                      style={{
+                        padding: "3px 8px",
+                        borderRadius: 6,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        background: "rgba(55, 138, 221, 0.1)",
+                        color: "#378ADD",
+                      }}
+                    >
+                      {o.channel_name || "Gojek"}
+                    </span>
+                  </td>
+                  <td style={{ padding: "14px 16px", fontWeight: 700, color: "#111827" }}>
+                    Rp {Number(o.grand_total).toLocaleString("id-ID")}
+                  </td>
+                  <td style={{ padding: "14px 16px", color: "#4b5563", fontSize: 13 }}>
+                    {o.payment_bank} ({o.payment_account})
+                  </td>
+                  <td style={{ padding: "14px 16px" }}>
+                    <span
+                      style={{
+                        padding: "4px 10px",
+                        borderRadius: 20,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        background: o.status_order === "Dibatalkan" ? "#fef2f2" : "#f0fdf4",
+                        color: o.status_order === "Dibatalkan" ? "#E24B4A" : "#639922",
+                        border: `1px solid ${o.status_order === "Dibatalkan" ? "#fecaca" : "#bbf7d0"}`,
+                      }}
+                    >
+                      {o.status_order}
+                    </span>
+                  </td>
+                  <td style={{ padding: "14px 16px", textAlign: "right" }}>
+                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                      <button
+                        onClick={async () => {
+                          const res = await fetch(`/api/siap-saji/orders/${o.id}`);
+                          if (res.ok) setSelectedStruk(await res.json());
+                        }}
+                        style={{
+                          padding: "6px 10px",
+                          background: "#f3f4f6",
+                          border: "1px solid #d1d5db",
+                          borderRadius: 6,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: "#374151",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        <Printer size={14} /> Struk
+                      </button>
+                      {o.status_order !== "Dibatalkan" && (
+                        <button
+                          onClick={() => {
+                            setCancelOrderTarget(o);
+                            setCancelReason("");
+                          }}
+                          style={{
+                            padding: "6px 10px",
+                            background: "rgba(226, 75, 74, 0.1)",
+                            border: "1px solid rgba(226, 75, 74, 0.3)",
+                            borderRadius: 6,
+                            fontSize: 12,
+                            fontWeight: 600,
+                            color: "#E24B4A",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Batal
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+
+        {/* Pagination Bar */}
+        <Pagination
+          page={meta.page}
+          totalPages={meta.totalPages}
+          total={meta.total}
+          limit={meta.limit}
+          onChange={(p) => fetchOrders(p, meta.limit)}
+          onLimitChange={(lim) => fetchOrders(1, lim)}
+        />
+      </div>
+
+      {/* ── MODAL: FORM ORDER BARU ────────────────────────────────── */}
+      {isFormOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 100,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              background: "white",
+              borderRadius: 16,
+              maxWidth: 900,
+              width: "100%",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              padding: 24,
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #e5e7eb", paddingBottom: 16, marginBottom: 20 }}>
+              <div>
+                <h2 style={{ fontSize: 20, fontWeight: 800, color: "#111827", margin: 0 }}>
+                  Buat Penjualan Siap Saji
+                </h2>
+                <p style={{ fontSize: 13, color: "#6b7280", margin: "2px 0 0" }}>
+                  Struk otomatis ter-generate dan jurnal penjualan tercatat
+                </p>
+              </div>
+              <button onClick={() => setIsFormOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af" }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitOrder}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
+                {/* 1. Channel Penjualan */}
+                <div>
+                  <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 6 }}>
+                    Channel Penjualan *
+                  </label>
+                  <select
+                    value={selectedChannelId}
+                    onChange={(e) => setSelectedChannelId(Number(e.target.value))}
+                    required
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, outline: "none" }}
+                  >
+                    {masterChannels.map((ch) => (
+                      <option key={ch.id} value={ch.id}>
+                        {ch.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 2. Rekening Pembayaran */}
+                <div>
+                  <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 6 }}>
+                    Rekening Pembayaran *
+                  </label>
+                  <select
+                    value={selectedBankId}
+                    onChange={(e) => setSelectedBankId(Number(e.target.value))}
+                    required
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, outline: "none" }}
+                  >
+                    {masterKasBank.map((kb) => (
+                      <option key={kb.id} value={kb.id}>
+                        {kb.nama_rekening} ({kb.no_rekening})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Customer Information */}
+              <div style={{ background: "#f9fafb", borderRadius: 12, padding: 16, border: "1px solid #e5e7eb", marginBottom: 20 }}>
+                <h3 style={{ fontSize: 15, fontWeight: 700, color: "#111827", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                  <Phone size={16} color="#5005A6" /> Data Pelanggan & Pengiriman
+                </h3>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 12 }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>
+                      Nama Pelanggan *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Contoh: Ibu Elly"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      required
+                      style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>
+                      No. WhatsApp / HP *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Contoh: 08111100004"
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value)}
+                      required
+                      style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 12 }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>
+                      Kecamatan (Lookup Ongkir) *
+                    </label>
+                    <select
+                      value={selectedAreaId}
+                      onChange={(e) => setSelectedAreaId(Number(e.target.value))}
+                      required
+                      style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                    >
+                      <option value="">-- Pilih Kecamatan --</option>
+                      {masterAreas.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.kecamatan} ({a.kota}) — [{a.shipping_zone}]
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>
+                      Biaya Kirim (Ongkir Otomatis)
+                    </label>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <input
+                        type="number"
+                        value={shippingFee}
+                        onChange={(e) => {
+                          setShippingFee(Number(e.target.value));
+                          setIsShippingAuto(false);
+                        }}
+                        style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setIsShippingAuto(true)}
+                        title="Hitung ulang otomatis dari matriks ongkir"
+                        style={{ padding: "8px 12px", background: "#e5e7eb", border: "none", borderRadius: 8, fontSize: 12, cursor: "pointer" }}
+                      >
+                        Auto
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>
+                    Alamat Lengkap *
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Jl Pluto I Blok C No 5 Kel Margasari"
+                    value={customerAddress}
+                    onChange={(e) => setCustomerAddress(e.target.value)}
+                    required
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>
+                    Patokan / Landmark Lokasi (Khusus Kurir)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Dekat Griya Margahayuraya, depan puskesmas gerbang putih..."
+                    value={customerPatokan}
+                    onChange={(e) => setCustomerPatokan(e.target.value)}
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                  />
+                </div>
+              </div>
+
+              {/* Product Selection */}
+              <div style={{ marginBottom: 20 }}>
+                <h3 style={{ fontSize: 15, fontWeight: 700, color: "#111827", marginBottom: 12 }}>
+                  Pilih Produk & Qty
+                </h3>
+
+                {/* Product Catalog Grid */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10, maxHeight: 220, overflowY: "auto", border: "1px solid #e5e7eb", borderRadius: 10, padding: 10, marginBottom: 16 }}>
+                  {masterProducts.map((p) => {
+                    let displayPrice = p.price;
+                    if (selectedChannelId && p.channel_prices) {
+                      const ov = p.channel_prices.find((cp) => cp.channel_id === Number(selectedChannelId));
+                      if (ov && ov.harga_override !== null) displayPrice = ov.harga_override;
+                    }
+                    return (
+                      <div
+                        key={p.id}
+                        onClick={() => handleAddProductToCart(p)}
+                        style={{
+                          border: p.is_half_portion ? "1px dashed #b10fbd" : "1px solid #e5e7eb",
+                          borderRadius: 8,
+                          padding: "10px 12px",
+                          background: p.is_half_portion ? "#fdf4ff" : "white",
+                          cursor: "pointer",
+                          transition: "all 0.12s",
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                          <p style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: 0 }}>{p.name}</p>
+                          {p.is_half_portion && (
+                            <span style={{ fontSize: 10, fontWeight: 800, background: "#b10fbd", color: "white", padding: "1px 4px", borderRadius: 4 }}>
+                              ½ Porsi
+                            </span>
+                          )}
+                        </div>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: "#5005A6", marginTop: 4 }}>
+                          Rp {displayPrice.toLocaleString("id-ID")}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Cart Selected Items Table */}
+                {cartItems.length > 0 && (
+                  <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                      <thead>
+                        <tr style={{ background: "#f3f4f6", borderBottom: "1px solid #e5e7eb", textTransform: "uppercase", fontSize: 11, color: "#6b7280" }}>
+                          <th style={{ padding: "8px 12px", textAlign: "left" }}>Item</th>
+                          <th style={{ padding: "8px 12px", textAlign: "center" }}>Harga</th>
+                          <th style={{ padding: "8px 12px", textAlign: "center" }}>Qty</th>
+                          <th style={{ padding: "8px 12px", textAlign: "left" }}>Catatan Item</th>
+                          <th style={{ padding: "8px 12px", textAlign: "right" }}>Subtotal</th>
+                          <th style={{ padding: "8px 12px", textAlign: "center" }}>Hapus</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cartItems.map((it, idx) => (
+                          <tr key={idx} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                            <td style={{ padding: "8px 12px", fontWeight: 600 }}>
+                              {it.name} {it.is_half_portion && <span style={{ color: "#b10fbd", fontSize: 11 }}>(½)</span>}
+                            </td>
+                            <td style={{ padding: "8px 12px", textAlign: "center" }}>
+                              Rp {it.price.toLocaleString("id-ID")}
+                            </td>
+                            <td style={{ padding: "8px 12px", textAlign: "center" }}>
+                              <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateItemQty(idx, it.quantity - 1)}
+                                  style={{ width: 22, height: 22, border: "1px solid #d1d5db", borderRadius: 4, background: "#f9fafb", cursor: "pointer" }}
+                                >
+                                  -
+                                </button>
+                                <span>{it.quantity}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateItemQty(idx, it.quantity + 1)}
+                                  style={{ width: 22, height: 22, border: "1px solid #d1d5db", borderRadius: 4, background: "#f9fafb", cursor: "pointer" }}
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </td>
+                            <td style={{ padding: "8px 12px" }}>
+                              <input
+                                type="text"
+                                placeholder="Misal: pedas, kuah pisah..."
+                                value={it.notes}
+                                onChange={(e) => handleUpdateItemNotes(idx, e.target.value)}
+                                style={{ width: "100%", padding: "4px 8px", borderRadius: 6, border: "1px solid #d1d5db", fontSize: 12 }}
+                              />
+                            </td>
+                            <td style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700 }}>
+                              Rp {(it.price * it.quantity - it.discount).toLocaleString("id-ID")}
+                            </td>
+                            <td style={{ padding: "8px 12px", textAlign: "center" }}>
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateItemQty(idx, 0)}
+                                style={{ background: "none", border: "none", color: "#E24B4A", cursor: "pointer" }}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Order Summary & Submit */}
+              <div style={{ background: "#f3f4f6", borderRadius: 12, padding: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <p style={{ fontSize: 13, color: "#6b7280", margin: 0 }}>
+                    Subtotal Item: Rp {cartSubtotal.toLocaleString("id-ID")} | Biaya Kirim: Rp {Number(shippingFee).toLocaleString("id-ID")}
+                  </p>
+                  <p style={{ fontSize: 20, fontWeight: 800, color: "#5005A6", marginTop: 4 }}>
+                    Total Akhir: Rp {cartGrandTotal.toLocaleString("id-ID")}
+                  </p>
+                </div>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => setIsFormOpen(false)}
+                    style={{ padding: "10px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "white", fontSize: 14, fontWeight: 600, cursor: "pointer" }}
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmittingOrder}
+                    style={{
+                      padding: "10px 24px",
+                      borderRadius: 8,
+                      border: "none",
+                      background: "linear-gradient(135deg, #5005A6 0%, #B10FBD 100%)",
+                      color: "white",
+                      fontSize: 14,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {isSubmittingOrder ? "Menyimpan..." : "Simpan & Cetak Struk"}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: STRUK DIGITAL PENJUALAN ────────────────────────── */}
+      {selectedStruk && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 110,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              background: "white",
+              borderRadius: 16,
+              maxWidth: 440,
+              width: "100%",
+              padding: 24,
+              boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)",
+            }}
+          >
+            {/* POS 80mm Thermal Receipt Print CSS */}
+            <style>{`
+              @media print {
+                @page {
+                  size: 80mm auto; /* POS Thermal Receipt Paper Size (80mm) */
+                  margin: 0;
+                }
+                body * {
+                  visibility: hidden;
+                }
+                #struk-print-area, #struk-print-area * {
+                  visibility: visible;
+                }
+                #struk-print-area {
+                  position: fixed;
+                  left: 0;
+                  top: 0;
+                  width: 80mm !important;
+                  max-width: 80mm !important;
+                  padding: 8px !important;
+                  border: none !important;
+                  box-shadow: none !important;
+                  background: white !important;
+                }
+              }
+            `}</style>
+
+            {/* Struk Card View */}
+            <div
+              id="struk-print-area"
+              style={{
+                fontFamily: "'Courier New', Courier, monospace",
+                fontSize: 13,
+                color: "#111827",
+                background: "#fefefe",
+                padding: 16,
+                border: "1px dashed #9ca3af",
+                borderRadius: 8,
+                lineHeight: 1.4,
+              }}
+            >
+              <div style={{ textAlign: "center", marginBottom: 12 }}>
+                <p style={{ fontWeight: 800, fontSize: 16, margin: 0 }}>DYummy Catering</p>
+                <p style={{ fontSize: 11, color: "#4b5563", margin: "2px 0 0" }}>
+                  Jl Sindangsari 4 No 48 Kota Bandung Jawa Barat
+                </p>
+              </div>
+
+              <div style={{ borderBottom: "1px dashed #9ca3af", paddingBottom: 8, marginBottom: 8, fontSize: 12 }}>
+                <p style={{ margin: 0 }}>
+                  <strong>{selectedStruk.no_struk}</strong> - {formatDate(selectedStruk.delivery_date)}
+                </p>
+              </div>
+
+              <div style={{ borderBottom: "1px dashed #9ca3af", paddingBottom: 8, marginBottom: 8 }}>
+                <p style={{ fontWeight: 700, margin: 0 }}>{selectedStruk.customer_name}</p>
+                <p style={{ margin: "2px 0 0" }}>{selectedStruk.customer_address}</p>
+                {selectedStruk.customer_patokan && (
+                  <p style={{ margin: "2px 0 0", color: "#4b5563" }}>
+                    -Patokan : {selectedStruk.customer_patokan}
+                  </p>
+                )}
+                <p style={{ fontSize: 11, color: "#6b7280", margin: "2px 0 0" }}>
+                  Kec. {selectedStruk.area_kecamatan || "-"} ({selectedStruk.area_kota || "-"})
+                </p>
+              </div>
+
+              <table style={{ width: "100%", fontSize: 12, marginBottom: 8 }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px dashed #9ca3af", textTransform: "uppercase" }}>
+                    <th style={{ textAlign: "left", paddingBottom: 4 }}>Nama Barang</th>
+                    <th style={{ textAlign: "right", paddingBottom: 4 }}>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(selectedStruk.items || []).map((it: any, i: number) => (
+                    <tr key={i}>
+                      <td style={{ paddingTop: 4 }}>
+                        {it.product_name}
+                        <br />
+                        <span style={{ fontSize: 11, color: "#6b7280" }}>
+                          {it.quantity} x {Number(it.price).toLocaleString("id-ID")}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: "right", verticalAlign: "top", paddingTop: 4 }}>
+                        {Number(it.subtotal).toLocaleString("id-ID")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <div style={{ borderTop: "1px dashed #9ca3af", paddingTop: 8, fontSize: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>Biaya Kirim</span>
+                  <span>{Number(selectedStruk.shipping_fee).toLocaleString("id-ID")}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 800, fontSize: 14, marginTop: 4 }}>
+                  <span>Total</span>
+                  <span>Rp {Number(selectedStruk.grand_total).toLocaleString("id-ID")}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#4b5563", marginTop: 4 }}>
+                  <span>Pembayaran</span>
+                  <span>{selectedStruk.payment_bank} ({selectedStruk.payment_account})</span>
+                </div>
+              </div>
+
+              <div style={{ borderTop: "1px dashed #9ca3af", marginTop: 12, paddingTop: 6, textAlign: "center", fontSize: 11, color: "#6b7280" }}>
+                Wanti Nova, {new Date(selectedStruk.created_at || Date.now()).toLocaleDateString("id-ID")}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16 }}>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  onClick={() => window.print()}
+                  style={{
+                    flex: 1,
+                    padding: "10px",
+                    background: "#5005A6",
+                    color: "white",
+                    border: "none",
+                    borderRadius: 8,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                  }}
+                >
+                  <Printer size={16} /> Cetak (POS Thermal 80mm)
+                </button>
+
+                <button
+                  onClick={() => window.open(`/api/siap-saji/orders/${selectedStruk.id}/pdf`, "_blank")}
+                  style={{
+                    flex: 1,
+                    padding: "10px",
+                    background: "#b10fbd",
+                    color: "white",
+                    border: "none",
+                    borderRadius: 8,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                  }}
+                >
+                  <FileText size={16} /> Live PDF Preview (Native)
+                </button>
+              </div>
+
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  onClick={() => copyStrukToClipboard(selectedStruk)}
+                  style={{
+                    flex: 1,
+                    padding: "10px",
+                    background: "#f3f4f6",
+                    color: "#374151",
+                    border: "1px solid #d1d5db",
+                    borderRadius: 8,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                  }}
+                >
+                  <Copy size={16} /> Salin WA
+                </button>
+                <button
+                  onClick={() => setSelectedStruk(null)}
+                  style={{ padding: "10px 18px", background: "#e5e7eb", color: "#4b5563", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer", fontWeight: 600 }}
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: PEMBATALAN ORDER ────────────────────────────── */}
+      {cancelOrderTarget && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 120,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <div style={{ background: "white", borderRadius: 16, maxWidth: 440, width: "100%", padding: 24 }}>
+            <h3 style={{ fontSize: 18, fontWeight: 800, color: "#E24B4A", margin: 0 }}>
+              Batalkan Order {cancelOrderTarget.no_struk}
+            </h3>
+            <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>
+              Jurnal akuntansi dan mutasi kas akan di-reverse secara otomatis.
+            </p>
+
+            <div style={{ marginTop: 16, marginBottom: 20 }}>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 6 }}>
+                Alasan Pembatalan (Wajib min. 10 karakter) *
+              </label>
+              <textarea
+                rows={3}
+                placeholder="Contoh: Customer membatalkan secara mendadak karena perubahan jadwal..."
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, outline: "none" }}
+              />
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button
+                onClick={() => setCancelOrderTarget(null)}
+                style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "white", fontSize: 14, cursor: "pointer" }}
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleConfirmCancel}
+                disabled={isSubmittingCancel}
+                style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "#E24B4A", color: "white", fontSize: 14, fontWeight: 700, cursor: "pointer" }}
+              >
+                {isSubmittingCancel ? "Proses..." : "Konfirmasi Pembatalan"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
