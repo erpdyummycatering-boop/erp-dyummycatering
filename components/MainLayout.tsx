@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Inbox, Users, ShoppingBag, BarChart2,
   CalendarDays, BookOpen, ClipboardList, TrendingUp, CreditCard,
   PieChart, Settings, Menu, X, Utensils, Target, ChefHat,
-  ShoppingCart, DollarSign, Layers, LogIn, LogOut,
+  ShoppingCart, DollarSign, Layers, LogIn, LogOut, MapPin,
 } from "lucide-react";
 import { useRole } from "@/contexts/RoleContext";
 import { getRoleConfig, ROLES } from "@/lib/roleConfig";
@@ -20,10 +20,10 @@ const ALL_MENU = [
     ],
   },
   {
-    section: "CRM",
+    section: "CRM (Catering)",
     items: [
       { href: "/customers", label: "Data Kontak", icon: Users },
-      { href: "/orders", label: "Order", icon: ShoppingBag },
+      { href: "/orders", label: "Order Catering", icon: ShoppingBag },
     ],
   },
   {
@@ -53,6 +53,21 @@ const ALL_MENU = [
       { href: "/targets", label: "Target & Realisasi", icon: Target },
       { href: "/settings", label: "Manajemen User", icon: Settings },
       { href: "/products", label: "Katalog Produk", icon: Layers },
+    ],
+  },
+  {
+    section: "Penjualan Siap Saji",
+    items: [
+      { href: "/siap-saji/dashboard", label: "Dashboard SS", icon: LayoutDashboard },
+      { href: "/siap-saji/orders", label: "Order Siap Saji", icon: ShoppingCart },
+      { href: "/siap-saji/documents", label: "Dokumen Harian", icon: ClipboardList },
+      { href: "/siap-saji/analytics/products", label: "Analisa Produk", icon: BarChart2 },
+      { href: "/siap-saji/analytics/customers", label: "Analisa Customer (RFM)", icon: PieChart },
+      { href: "/siap-saji/finance", label: "Laporan Keuangan", icon: CreditCard },
+      { href: "/siap-saji/shipping", label: "Master Ongkir", icon: MapPin },
+      { href: "/siap-saji/customers", label: "Master Pelanggan", icon: Users },
+      { href: "/siap-saji/products", label: "Katalog Produk", icon: Layers },
+      { href: "/siap-saji/master-data", label: "Wilayah & Channel", icon: Settings },
     ],
   },
 ];

@@ -1,0 +1,563 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { Users, Plus, Search, Filter, Phone, MapPin, Edit3, Trash2, Eye, Award, ShoppingBag, X } from "lucide-react";
+import { toast } from "sonner";
+import { Pagination } from "@/components/ui/Pagination";
+import { formatDate } from "@/lib/utils";
+
+interface Area {
+  id: number;
+  kecamatan: string;
+  kota: string;
+}
+
+interface Customer {
+  id: number;
+  name: string;
+  phone: string;
+  address: string;
+  patokan: string;
+  area_id: number;
+  area_kecamatan: string;
+  area_kota: string;
+  segmen: string;
+  total_omset: number;
+  total_orders: number;
+  last_order_date: string;
+  channel_favorit: string;
+  status: string;
+}
+
+export default function SiapSajiCustomersPage() {
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [meta, setMeta] = useState({ total: 0, page: 1, limit: 10, totalPages: 1 });
+  const [areas, setAreas] = useState<Area[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Filters
+  const [search, setSearch] = useState("");
+  const [segmenFilter, setSegmenFilter] = useState("");
+
+  // Add/Edit Modal
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingCust, setEditingCust] = useState<Customer | null>(null);
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
+  const [patokan, setPatokan] = useState("");
+  const [areaId, setAreaId] = useState<number | "">("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Customer Detail Drawer
+  const [selectedCustDetail, setSelectedCustDetail] = useState<{ customer: Customer; orders: any[] } | null>(null);
+
+  const fetchCustomers = async (page = meta.page, lim = meta.limit) => {
+    setLoading(true);
+    try {
+      const q = new URLSearchParams();
+      q.append("page", String(page));
+      q.append("limit", String(lim));
+      if (search) q.append("search", search);
+      if (segmenFilter) q.append("segmen", segmenFilter);
+
+      const res = await fetch(`/api/siap-saji/customers?${q.toString()}`);
+      if (!res.ok) throw new Error("Gagal memuat data pelanggan");
+      const json = await res.json();
+      setCustomers(json.data || []);
+      setMeta({
+        total: json.total || 0,
+        page: json.page || page,
+        limit: json.limit || lim,
+        totalPages: json.totalPages || 1,
+      });
+    } catch (err: any) {
+      toast.error(err.message || "Gagal memuat pelanggan");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchAreas = async () => {
+    try {
+      const res = await fetch("/api/siap-saji/master");
+      if (res.ok) {
+        const json = await res.json();
+        setAreas(json.areas || []);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    fetchCustomers();
+    fetchAreas();
+  }, []);
+
+  useEffect(() => {
+    fetchCustomers();
+  }, [search, segmenFilter]);
+
+  const handleOpenAdd = () => {
+    setEditingCust(null);
+    setName("");
+    setPhone("");
+    setAddress("");
+    setPatokan("");
+    setAreaId(areas.length > 0 ? areas[0].id : "");
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEdit = (cust: Customer) => {
+    setEditingCust(cust);
+    setName(cust.name);
+    setPhone(cust.phone);
+    setAddress(cust.address || "");
+    setPatokan(cust.patokan || "");
+    setAreaId(cust.area_id || "");
+    setIsModalOpen(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name || !phone) return toast.error("Nama dan No Phone wajib diisi.");
+
+    setIsSubmitting(true);
+    try {
+      const url = editingCust ? `/api/siap-saji/customers/${editingCust.id}` : "/api/siap-saji/customers";
+      const method = editingCust ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, phone, address, patokan, area_id: areaId }),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json();
+        throw new Error(errJson.error || "Gagal menyimpan customer");
+      }
+
+      toast.success(editingCust ? "Data pelanggan berhasil diperbarui!" : "Pelanggan baru berhasil ditambahkan!");
+      setIsModalOpen(false);
+      fetchCustomers();
+    } catch (err: any) {
+      toast.error(err.message || "Gagal menyimpan data");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleViewDetail = async (custId: number) => {
+    try {
+      const res = await fetch(`/api/siap-saji/customers/${custId}`);
+      if (res.ok) {
+        const json = await res.json();
+        setSelectedCustDetail(json);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // RFM Badge Color helper
+  const getSegmenBadgeStyle = (segmen: string) => {
+    switch (segmen) {
+      case "Champions":
+        return { bg: "#fef3c7", color: "#b45309", border: "#fde68a" };
+      case "Loyal Customers":
+        return { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0" };
+      case "New Customers":
+        return { bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" };
+      case "At Risk":
+        return { bg: "#fef2f2", color: "#b91c1c", border: "#fecaca" };
+      case "Dormant":
+        return { bg: "#f3f4f6", color: "#4b5563", border: "#e5e7eb" };
+      default:
+        return { bg: "#fdf4ff", color: "#b10fbd", border: "#f5d0fe" };
+    }
+  };
+
+  return (
+    <div style={{ maxWidth: 1280, margin: "0 auto", paddingBottom: 40 }}>
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <div>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: "#1f2937", margin: 0, letterSpacing: "-0.02em" }}>
+            Master Pelanggan Siap Saji
+          </h1>
+          <p style={{ fontSize: 14, color: "#6b7280", marginTop: 4 }}>
+            Kelola kontak customer retail, landmark patokan lokasi, dan segmen RFM analytics
+          </p>
+        </div>
+
+        <button
+          onClick={handleOpenAdd}
+          style={{
+            background: "linear-gradient(135deg, #5005A6 0%, #B10FBD 100%)",
+            color: "white",
+            border: "none",
+            borderRadius: 10,
+            padding: "10px 18px",
+            fontSize: 14,
+            fontWeight: 700,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            boxShadow: "0 4px 12px rgba(177, 15, 189, 0.25)",
+          }}
+        >
+          <Plus size={18} /> Tambah Pelanggan
+        </button>
+      </div>
+
+      {/* Filter Toolbar */}
+      <div
+        style={{
+          background: "white",
+          borderRadius: 12,
+          padding: "12px 16px",
+          border: "1px solid #e5e7eb",
+          marginBottom: 20,
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          overflowX: "auto",
+          whiteSpace: "nowrap",
+        }}
+      >
+        <div style={{ flex: "1 1 300px", minWidth: 200, position: "relative" }}>
+          <Search size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
+          <input
+            type="text"
+            placeholder="Cari Nama, No HP, Patokan, atau Kecamatan..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ width: "100%", padding: "7px 12px 7px 34px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, outline: "none" }}
+          />
+        </div>
+
+        <select
+          value={segmenFilter}
+          onChange={(e) => setSegmenFilter(e.target.value)}
+          style={{ width: 180, padding: "7px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, outline: "none", background: "white", flexShrink: 0 }}
+        >
+          <option value="">Semua Segmen RFM</option>
+          <option value="Champions">Champions</option>
+          <option value="Loyal Customers">Loyal Customers</option>
+          <option value="New Customers">New Customers</option>
+          <option value="Potential Loyalist">Potential Loyalist</option>
+          <option value="At Risk">At Risk</option>
+          <option value="Dormant">Dormant</option>
+        </select>
+      </div>
+
+      {/* Customer Table */}
+      <div style={{ background: "white", borderRadius: 12, border: "1px solid #e5e7eb", overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 14, whiteSpace: "nowrap" }}>
+          <thead>
+            <tr style={{ background: "#fafafa", borderBottom: "1px solid #e5e7eb", color: "#6b7280", fontWeight: 700, fontSize: 12, textTransform: "uppercase" }}>
+              <th style={{ padding: "12px 16px", width: 50 }}>No.</th>
+              <th style={{ padding: "12px 16px" }}>Pelanggan</th>
+              <th style={{ padding: "12px 16px" }}>Kecamatan & Alamat</th>
+              <th style={{ padding: "12px 16px" }}>Patokan / Landmark</th>
+              <th style={{ padding: "12px 16px", textAlign: "center" }}>Order</th>
+              <th style={{ padding: "12px 16px" }}>Total Omset</th>
+              <th style={{ padding: "12px 16px" }}>Segmen RFM</th>
+              <th style={{ padding: "12px 16px", textAlign: "right" }}>Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan={8} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                  Memuat data pelanggan...
+                </td>
+              </tr>
+            ) : customers.length === 0 ? (
+              <tr>
+                <td colSpan={8} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                  Tidak ada pelanggan Siap Saji ditemukan.
+                </td>
+              </tr>
+            ) : (
+              customers.map((c, idx) => {
+                const sStyle = getSegmenBadgeStyle(c.segmen || "Potential Loyalist");
+                return (
+                  <tr key={c.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                    <td style={{ padding: "14px 16px", color: "#6b7280" }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
+                    <td style={{ padding: "14px 16px" }}>
+                      <p style={{ fontWeight: 700, color: "#111827", margin: 0 }}>{c.name}</p>
+                      <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>{c.phone}</p>
+                    </td>
+                    <td style={{ padding: "14px 16px" }}>
+                      <p style={{ fontWeight: 600, color: "#374151", margin: 0 }}>
+                        {c.area_kecamatan ? `${c.area_kecamatan}` : "-"}
+                      </p>
+                      <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>{c.address || "-"}</p>
+                    </td>
+                    <td style={{ padding: "14px 16px", color: "#b10fbd", fontWeight: 600, fontSize: 13, whiteSpace: "normal", minWidth: 200, maxWidth: 320, wordBreak: "break-word", lineHeight: 1.4 }}>
+                      {c.patokan ? `📍 ${c.patokan}` : "-"}
+                    </td>
+                    <td style={{ padding: "14px 16px", textAlign: "center", fontWeight: 700 }}>
+                      {c.total_orders || 0}
+                    </td>
+                    <td style={{ padding: "14px 16px", fontWeight: 700, color: "#5005A6" }}>
+                      Rp {Number(c.total_omset || 0).toLocaleString("id-ID")}
+                    </td>
+                    <td style={{ padding: "14px 16px" }}>
+                      <span
+                        style={{
+                          padding: "3px 10px",
+                          borderRadius: 20,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          background: sStyle.bg,
+                          color: sStyle.color,
+                          border: `1px solid ${sStyle.border}`,
+                        }}
+                      >
+                        {c.segmen || "Potential Loyalist"}
+                      </span>
+                    </td>
+                    <td style={{ padding: "14px 16px", textAlign: "right" }}>
+                      <div style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
+                        <button
+                          onClick={() => handleViewDetail(c.id)}
+                          style={{ padding: "6px 10px", background: "#f3f4f6", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 12, cursor: "pointer" }}
+                        >
+                          <Eye size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleOpenEdit(c)}
+                          style={{ padding: "6px 10px", background: "#5005A6", color: "white", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer" }}
+                        >
+                          <Edit3 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+
+        {/* Pagination Bar */}
+        <Pagination
+          page={meta.page}
+          totalPages={meta.totalPages}
+          total={meta.total}
+          limit={meta.limit}
+          onChange={(p) => fetchCustomers(p, meta.limit)}
+          onLimitChange={(lim) => fetchCustomers(1, lim)}
+        />
+      </div>
+
+      {/* ── MODAL: ADD / EDIT CUSTOMER ────────────────────────────── */}
+      {isModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 100,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <div style={{ background: "white", borderRadius: 16, maxWidth: 500, width: "100%", padding: 24 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 800, color: "#111827", margin: 0 }}>
+                {editingCust ? "Edit Data Pelanggan" : "Tambah Pelanggan Baru"}
+              </h3>
+              <button onClick={() => setIsModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af" }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit}>
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                  Nama Pelanggan *
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: Ibu Elly"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                  No. WhatsApp / HP *
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: 08111100004"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  required
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                  Kecamatan (Wilayah) *
+                </label>
+                <select
+                  value={areaId}
+                  onChange={(e) => setAreaId(Number(e.target.value))}
+                  required
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                >
+                  <option value="">-- Pilih Kecamatan --</option>
+                  {areas.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.kecamatan} ({a.kota})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                  Alamat Lengkap
+                </label>
+                <input
+                  type="text"
+                  placeholder="Jl Pluto I Blok C No 5 Kel Margasari"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                  Patokan / Landmark Lokasi (Khusus Kurir)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Dekat Griya Margahayuraya, depan puskesmas ada gerbang..."
+                  value={patokan}
+                  onChange={(e) => setPatokan(e.target.value)}
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                />
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "white", fontSize: 14, cursor: "pointer" }}
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "#5005A6", color: "white", fontSize: 14, fontWeight: 700, cursor: "pointer" }}
+                >
+                  {isSubmitting ? "Simpan..." : "Simpan Data"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── DRAWER: DETAIL CUSTOMER & ORDERS ────────────────────────── */}
+      {selectedCustDetail && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 110,
+            display: "flex",
+            justifyContent: "flex-end",
+          }}
+        >
+          <div style={{ background: "white", width: 440, height: "100%", padding: 24, overflowY: "auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>Profil Pelanggan</h3>
+              <button onClick={() => setSelectedCustDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Profile Summary */}
+            <div style={{ background: "#fdf4ff", borderRadius: 12, padding: 16, border: "1px solid #f5d0fe", marginBottom: 20 }}>
+              <h4 style={{ fontSize: 16, fontWeight: 800, color: "#111827", margin: 0 }}>
+                {selectedCustDetail.customer.name}
+              </h4>
+              <p style={{ fontSize: 13, color: "#6b7280", margin: "2px 0 0" }}>{selectedCustDetail.customer.phone}</p>
+              <p style={{ fontSize: 13, color: "#374151", marginTop: 8 }}>
+                <strong>Kecamatan:</strong> {selectedCustDetail.customer.area_kecamatan || "-"} ({selectedCustDetail.customer.area_kota || "-"})
+              </p>
+              <p style={{ fontSize: 13, color: "#374151", marginTop: 4 }}>
+                <strong>Alamat:</strong> {selectedCustDetail.customer.address || "-"}
+              </p>
+              {selectedCustDetail.customer.patokan && (
+                <p style={{ fontSize: 13, color: "#b10fbd", marginTop: 4, fontWeight: 600 }}>
+                  📍 Patokan: {selectedCustDetail.customer.patokan}
+                </p>
+              )}
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 14, paddingTop: 12, borderTop: "1px dashed #e5e7eb" }}>
+                <div>
+                  <span style={{ fontSize: 11, color: "#6b7280" }}>Total Omset</span>
+                  <p style={{ fontSize: 15, fontWeight: 800, color: "#5005A6", margin: "2px 0 0" }}>
+                    Rp {Number(selectedCustDetail.customer.total_omset || 0).toLocaleString("id-ID")}
+                  </p>
+                </div>
+                <div>
+                  <span style={{ fontSize: 11, color: "#6b7280" }}>Segmen RFM</span>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: "#b10fbd", margin: "2px 0 0" }}>
+                    {selectedCustDetail.customer.segmen || "Potential Loyalist"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Order History */}
+            <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
+              Riwayat Transaksi Siap Saji ({selectedCustDetail.orders?.length || 0})
+            </h4>
+
+            {selectedCustDetail.orders?.length === 0 ? (
+              <p style={{ fontSize: 13, color: "#9ca3af" }}>Belum ada riwayat transaksi.</p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {selectedCustDetail.orders.map((o: any) => (
+                  <div key={o.id} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 12, background: "#fafafa" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontWeight: 700, color: "#5005A6", fontSize: 13 }}>{o.no_struk}</span>
+                      <span style={{ fontSize: 12, color: "#6b7280" }}>{formatDate(o.delivery_date)}</span>
+                    </div>
+                    <p style={{ fontSize: 14, fontWeight: 800, color: "#111827", margin: "6px 0 0" }}>
+                      Rp {Number(o.grand_total).toLocaleString("id-ID")}
+                    </p>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#6b7280", marginTop: 4 }}>
+                      <span>Channel: {o.channel_name || "Gojek"}</span>
+                      <span>Bank: {o.payment_bank}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
