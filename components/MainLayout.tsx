@@ -20,21 +20,6 @@ const ALL_MENU = [
     ],
   },
   {
-    section: "Penjualan Siap Saji",
-    items: [
-      { href: "/siap-saji/dashboard", label: "Dashboard SS", icon: LayoutDashboard },
-      { href: "/siap-saji/orders", label: "Order Siap Saji", icon: ShoppingCart },
-      { href: "/siap-saji/documents", label: "Dokumen Harian", icon: ClipboardList },
-      { href: "/siap-saji/analytics/products", label: "Analisa Produk", icon: BarChart2 },
-      { href: "/siap-saji/analytics/customers", label: "Analisa Customer (RFM)", icon: PieChart },
-      { href: "/siap-saji/finance", label: "Laporan Keuangan", icon: CreditCard },
-      { href: "/siap-saji/shipping", label: "Master Ongkir", icon: MapPin },
-      { href: "/siap-saji/customers", label: "Master Pelanggan", icon: Users },
-      { href: "/siap-saji/products", label: "Katalog Produk", icon: Layers },
-      { href: "/siap-saji/master-data", label: "Wilayah & Channel", icon: Settings },
-    ],
-  },
-  {
     section: "CRM (Catering)",
     items: [
       { href: "/customers", label: "Data Kontak", icon: Users },
@@ -68,6 +53,21 @@ const ALL_MENU = [
       { href: "/targets", label: "Target & Realisasi", icon: Target },
       { href: "/settings", label: "Manajemen User", icon: Settings },
       { href: "/products", label: "Katalog Produk", icon: Layers },
+    ],
+  },
+  {
+    section: "Penjualan Siap Saji",
+    items: [
+      { href: "/siap-saji/dashboard", label: "Dashboard SS", icon: LayoutDashboard },
+      { href: "/siap-saji/orders", label: "Order Siap Saji", icon: ShoppingCart },
+      { href: "/siap-saji/documents", label: "Dokumen Harian", icon: ClipboardList },
+      { href: "/siap-saji/analytics/products", label: "Analisa Produk", icon: BarChart2 },
+      { href: "/siap-saji/analytics/customers", label: "Analisa Customer (RFM)", icon: PieChart },
+      { href: "/siap-saji/finance", label: "Laporan Keuangan", icon: CreditCard },
+      { href: "/siap-saji/shipping", label: "Master Ongkir", icon: MapPin },
+      { href: "/siap-saji/customers", label: "Master Pelanggan", icon: Users },
+      { href: "/siap-saji/products", label: "Katalog Produk", icon: Layers },
+      { href: "/siap-saji/master-data", label: "Wilayah & Channel", icon: Settings },
     ],
   },
 ];
