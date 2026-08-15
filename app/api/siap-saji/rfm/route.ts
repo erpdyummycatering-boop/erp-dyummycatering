@@ -24,8 +24,12 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const client = await pool.connect();
   try {
-    // Refresh materialized view
-    await client.query("REFRESH MATERIALIZED VIEW CONCURRENTLY public.rfm_scores");
+    // Refresh materialized view (try CONCURRENTLY, fallback to standard)
+    try {
+      await client.query("REFRESH MATERIALIZED VIEW CONCURRENTLY public.rfm_scores");
+    } catch (e) {
+      await client.query("REFRESH MATERIALIZED VIEW public.rfm_scores");
+    }
     
     // Update setting timestamp
     const nowStr = new Date().toISOString();

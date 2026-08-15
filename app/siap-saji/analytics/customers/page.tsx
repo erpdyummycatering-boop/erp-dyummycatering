@@ -54,26 +54,36 @@ export default function SiapSajiCustomerAnalyticsPage() {
           </p>
         </div>
 
-        <button
-          onClick={handleRefreshRfm}
-          disabled={isRefreshing}
-          style={{
-            background: "white",
-            color: "#5005A6",
-            border: "1px solid #5005A6",
-            borderRadius: 10,
-            padding: "9px 16px",
-            fontSize: 13,
-            fontWeight: 700,
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-          }}
-        >
-          <RefreshCw size={16} className={isRefreshing ? "animate-spin" : ""} />
-          {isRefreshing ? "Hitung Ulang..." : "Hitung Ulang Skor RFM"}
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {data?.last_refreshed_at && (
+            <span style={{ fontSize: 12, color: "#6b7280", background: "#f3f4f6", padding: "6px 12px", borderRadius: 8, fontWeight: 500 }}>
+              Terakhir diperbarui: {new Date(data.last_refreshed_at).toLocaleString("id-ID")}
+            </span>
+          )}
+
+          <button
+            onClick={handleRefreshRfm}
+            disabled={isRefreshing}
+            style={{
+              background: "#5005A6",
+              color: "white",
+              border: "none",
+              borderRadius: 10,
+              padding: "9px 18px",
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              boxShadow: "0 2px 8px rgba(80, 5, 166, 0.25)",
+              opacity: isRefreshing ? 0.7 : 1,
+            }}
+          >
+            <RefreshCw size={16} className={isRefreshing ? "animate-spin" : ""} />
+            {isRefreshing ? "Menghitung Ulang..." : "🔄 Hitung Ulang Skor RFM (Manual Rescoring)"}
+          </button>
+        </div>
       </div>
 
       {/* Main Grid: Donut Chart (Mockup 08) & Segment Table */}
