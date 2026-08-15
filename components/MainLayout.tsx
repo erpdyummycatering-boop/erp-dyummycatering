@@ -184,14 +184,14 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           transition: "all 0.22s ease",
           flexShrink: 0,
           zIndex: 99,
-          position: isMobile ? "fixed" : "relative",
-          height: isMobile ? "100vh" : "auto",
+          position: isMobile ? "fixed" : "sticky",
+          height: "100vh",
           top: 0,
           left: 0,
         }}
       >
         {/* Brand */}
-        <div style={{ padding: "20px 16px 14px", borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
+        <div style={{ padding: "20px 16px 14px", borderBottom: "1px solid rgba(255,255,255,0.12)", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{
               width: 36, height: 36, borderRadius: 10,
@@ -212,7 +212,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         </div>
 
         {/* Role badge in sidebar */}
-        <div style={{ padding: "8px 12px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+        <div style={{ padding: "8px 12px", borderBottom: "1px solid rgba(255,255,255,0.08)", flexShrink: 0 }}>
           <div style={{
             background: "rgba(255,255,255,0.1)", borderRadius: 8, padding: "6px 10px",
             display: "flex", alignItems: "center", gap: 8,
@@ -234,7 +234,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         </div>
 
         {/* Nav */}
-        <nav style={{ flex: 1, overflowY: "auto", padding: "10px 0" }}>
+        <nav style={{ flex: 1, overflowY: "auto", minHeight: 0, padding: "10px 0" }}>
           {visibleMenu.map((section) => (
             <div key={section.section}>
               <p style={{
