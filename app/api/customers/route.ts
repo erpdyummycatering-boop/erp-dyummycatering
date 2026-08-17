@@ -28,7 +28,13 @@ export async function GET(req: NextRequest) {
 
   if (search) { wheres.push(`(c.name ILIKE $${idx} OR c.phone ILIKE $${idx} OR c.email ILIKE $${idx})`); vals.push(`%${search}%`); idx++; }
   if (type) { wheres.push(`c.type = $${idx}`); vals.push(type); idx++; }
-  if (lini) { wheres.push(`c.lini = $${idx}`); vals.push(lini); idx++; }
+  if (lini) {
+    wheres.push(`c.lini = $${idx}`);
+    vals.push(lini);
+    idx++;
+  } else {
+    wheres.push("(c.lini IS NULL OR c.lini = 'catering')");
+  }
   if (caste) {
     if (caste === "Customer") {
       wheres.push(`(c.status = 'Closing' OR EXISTS (SELECT 1 FROM orders WHERE customer_id = c.id))`);
@@ -96,7 +102,7 @@ export async function POST(req: NextRequest) {
     await client.query("BEGIN");
     
     const res = await client.query(
-      `INSERT INTO customers (name, phone, email, type, address, notes, created_by, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      `INSERT INTO customers (name, phone, email, type, address, notes, created_by, status, lini) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'catering') RETURNING *`,
       [name, phone || null, email || null, type || "Perorangan", address || null, notes || null, createdBy, status || "Prospek"]
     );
     const newCustomer = res.rows[0];

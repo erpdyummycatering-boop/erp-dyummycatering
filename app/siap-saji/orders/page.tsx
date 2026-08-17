@@ -659,10 +659,10 @@ export default function SiapSajiOrdersPage() {
               Batal Pilih
             </button>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <button
               onClick={() => {
-                const url = `/api/siap-saji/orders/bulk-pdf?ids=${selectedOrderIds.join(",")}`;
+                const url = `/api/siap-saji/orders/bulk-pdf?ids=${selectedOrderIds.join(",")}&mode=exact`;
                 window.open(url, "_blank");
               }}
               style={{
@@ -670,18 +670,42 @@ export default function SiapSajiOrdersPage() {
                 color: "white",
                 border: "none",
                 borderRadius: 10,
-                padding: "10px 18px",
-                fontSize: 14,
+                padding: "9px 16px",
+                fontSize: 13,
                 fontWeight: 700,
                 cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
-                gap: 8,
-                boxShadow: "0 4px 12px rgba(80, 5, 166, 0.3)",
+                gap: 6,
+                boxShadow: "0 4px 12px rgba(80, 5, 166, 0.25)",
               }}
             >
-              <FileText size={16} />
-              Cetak Masal PDF Native ({selectedOrderIds.length} Halaman)
+              <FileText size={15} />
+              PDF Pas Ukuran ({selectedOrderIds.length} Struk)
+            </button>
+
+            <button
+              onClick={() => {
+                const url = `/api/siap-saji/orders/bulk-pdf?ids=${selectedOrderIds.join(",")}&mode=roll`;
+                window.open(url, "_blank");
+              }}
+              style={{
+                background: "#15803d",
+                color: "white",
+                border: "none",
+                borderRadius: 10,
+                padding: "9px 16px",
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                boxShadow: "0 4px 12px rgba(21, 128, 61, 0.25)",
+              }}
+            >
+              <Printer size={15} />
+              PDF Roll Kontinu (Kassen BTP3100)
             </button>
             <button
               onClick={handleOpenBulkPrint}
@@ -1566,7 +1590,7 @@ export default function SiapSajiOrdersPage() {
 
               <button
                 onClick={() => {
-                  const url = `/api/siap-saji/orders/bulk-pdf?ids=${selectedOrderIds.join(",")}`;
+                  const url = `/api/siap-saji/orders/bulk-pdf?ids=${selectedOrderIds.join(",")}&mode=exact`;
                   window.open(url, "_blank");
                 }}
                 style={{
@@ -1583,7 +1607,29 @@ export default function SiapSajiOrdersPage() {
                   gap: 6,
                 }}
               >
-                <FileText size={15} /> Live PDF Preview (Native)
+                <FileText size={15} /> PDF Pas Ukuran (Zero Space)
+              </button>
+
+              <button
+                onClick={() => {
+                  const url = `/api/siap-saji/orders/bulk-pdf?ids=${selectedOrderIds.join(",")}&mode=roll`;
+                  window.open(url, "_blank");
+                }}
+                style={{
+                  padding: "8px 14px",
+                  background: "#15803d",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <Printer size={15} /> PDF Roll Kontinu (Kassen BTP3100)
               </button>
 
               <button

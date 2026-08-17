@@ -234,8 +234,8 @@ export default function CustomersPage() {
   return (
     <div>
       <PageHeader
-        title="Data Kontak Customer"
-        subtitle={`${meta.total} total kontak terdaftar`}
+        title="Data Kontak Customer Catering"
+        subtitle={`${meta.total} total kontak catering terdaftar`}
         actions={
           <div style={{ display: "flex", gap: 8 }}>
             <button className="btn btn-secondary btn-sm" onClick={handleExport}><Download size={14} /> Export Excel</button>
@@ -246,18 +246,12 @@ export default function CustomersPage() {
       />
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 16 }}>
-        <StatCard label="Total Kontak" value={meta.total} icon={Users} color={C.primary} />
+        <StatCard label="Total Kontak Catering" value={meta.total} icon={Users} color={C.primary} />
       </div>
 
       <div className="erp-card" style={{ marginBottom: 12, padding: "12px 16px" }}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <input value={searchInput} onChange={e => setSearchInput(e.target.value)} placeholder="🔍 Cari nama, telepon, email..." style={{ width: 220 }} />
-          <SearchableSelect 
-            value={liniFilter} onChange={setLiniFilter} 
-            options={[{ value: "", label: "Semua Lini" }, { value: "catering", label: "Catering" }, { value: "siap_saji", label: "Siap Saji" }]} 
-            placeholder="Semua Lini"
-            style={{ width: 140 }} 
-          />
           <SearchableSelect 
             value={typeFilter} onChange={setTypeFilter} 
             options={[{ value: "", label: "Semua Tipe" }, ...["Perorangan", "Corporate", "Instansi"].map(t => ({ value: t, label: t }))]} 
@@ -300,14 +294,14 @@ export default function CustomersPage() {
               <table>
                 <thead>
                   <tr>
-                    <th>No.</th><th>Tanggal</th><th>Lini</th><th>Nama</th><th>WhatsApp</th><th>Status Prospek</th><th>Total Order</th>
+                    <th>No.</th><th>Tanggal</th><th>Nama</th><th>WhatsApp</th><th>Status Prospek</th><th>Total Order</th>
                     {activeRole !== "cs_sales" && <th>Dibuat Oleh</th>}
                     <th>Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.length === 0 ? (
-                    <tr><td colSpan={activeRole !== "cs_sales" ? 9 : 8} style={{ textAlign: "center", padding: "24px", color: "#6b7280" }}>Tidak ada data</td></tr>
+                    <tr><td colSpan={activeRole !== "cs_sales" ? 8 : 7} style={{ textAlign: "center", padding: "24px", color: "#6b7280" }}>Tidak ada data</td></tr>
                   ) : rows.map((c: any, idx: number) => (
                     <tr 
                       key={c.id}
@@ -320,11 +314,6 @@ export default function CustomersPage() {
                     >
                       <td style={{ fontSize: 14, color: "#6b7280" }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
                       <td style={{ fontSize: 14 }}>{c.created_at ? String(c.created_at).slice(0, 10) : "-"}</td>
-                      <td>
-                        <Badge color={c.lini === "siap_saji" ? "yellow" : "purple"}>
-                          {c.lini === "siap_saji" ? "Siap Saji" : "Catering"}
-                        </Badge>
-                      </td>
                       <td>
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                           <div style={{

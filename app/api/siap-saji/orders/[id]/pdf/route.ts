@@ -58,7 +58,19 @@ export async function GET(
 
     // 80mm POS Thermal receipt width: 80mm = 226.77 pt
     const width = 226.77;
-    const height = Math.max(380, 240 + items.length * 36);
+
+    // Calculate exact dynamic content height to avoid wasted white paper
+    let calculatedHeight = 150;
+    calculatedHeight += Math.max(1, Math.ceil(String(order.customer_address || "").length / 34)) * 11;
+    if (order.customer_patokan) {
+      calculatedHeight += Math.max(1, Math.ceil(String(order.customer_patokan).length / 30)) * 11;
+    }
+    items.forEach((it: any) => {
+      calculatedHeight += Math.max(1, Math.ceil(String(it.product_name || "").length / 35)) * 11;
+      calculatedHeight += 14;
+    });
+
+    const height = Math.max(180, Math.ceil(calculatedHeight));
 
     const pdfDoc = await PDFDocument.create();
     const page = pdfDoc.addPage([width, height]);

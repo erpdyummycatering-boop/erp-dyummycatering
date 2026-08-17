@@ -11,6 +11,19 @@ export async function GET(
 
   const client = await pool.connect();
   try {
+    // Ensure loyalty_settings table exists
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS loyalty_settings (
+        id INT PRIMARY KEY DEFAULT 1,
+        min_order NUMERIC(12,2) DEFAULT 100000,
+        point_percentage NUMERIC(5,2) DEFAULT 2.0,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      INSERT INTO loyalty_settings (id, min_order, point_percentage)
+      VALUES (1, 100000, 2.0)
+      ON CONFLICT (id) DO NOTHING;
+    `);
+
     const [custRes, ordersRes] = await Promise.all([
       client.query(
         `SELECT 
@@ -18,7 +31,20 @@ export async function GET(
           a.kecamatan AS area_kecamatan,
           a.kota AS area_kota,
           a.shipping_zone,
-          r.r_score, r.f_score, r.m_score, r.rfm_total, r.segmen, r.channel_favorit
+          r.r_score, r.f_score, r.m_score, r.rfm_total, r.segmen, r.channel_favorit,
+          COALESCE((SELECT SUM(grand_total) FROM orders WHERE customer_id = c.id AND status_order <> 'Dibatalkan' AND lini = 'siap_saji'), 0) AS total_omset,
+          COALESCE((SELECT COUNT(*) FROM orders WHERE customer_id = c.id AND status_order <> 'Dibatalkan' AND lini = 'siap_saji'), 0) AS total_orders,
+          COALESCE((
+            SELECT SUM(
+              CASE 
+                WHEN o.grand_total >= ls.min_order THEN ROUND(o.grand_total * (ls.point_percentage / 100.0))
+                ELSE 0 
+              END
+            )
+            FROM orders o 
+            CROSS JOIN loyalty_settings ls
+            WHERE o.customer_id = c.id AND o.status_order <> 'Dibatalkan' AND o.lini = 'siap_saji' AND ls.id = 1
+          ), 0)::numeric AS loyalty_points
         FROM customers c
         LEFT JOIN areas a ON c.area_id = a.id
         LEFT JOIN rfm_scores r ON r.customer_id = c.id
