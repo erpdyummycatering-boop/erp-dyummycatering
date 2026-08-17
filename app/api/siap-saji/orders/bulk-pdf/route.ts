@@ -126,8 +126,7 @@ export async function GET(req: NextRequest) {
       // Summary: Sub Total (17), Diskon (17), line (15), Total (20), line (15)
       h += 17 + 17 + 15 + 20 + 15;
 
-      // Footer: CS SIAP SAJI, Date (16)
-      h += 16;
+      // Cutter divider line if not last order
 
       // Cutter divider line if not last order
       if (!isLast) {
@@ -287,12 +286,6 @@ export async function GET(req: NextRequest) {
 
       drawSolidLineOnPage(pageObj, y);
       y -= 15;
-
-      // Footer Right Aligned: CS SIAP SAJI, 31 Jul 2026, 20:20
-      const footerText = `${order.pic_name || "CS SIAP SAJI"},  ${createdDate} ${createdTime}`.trim();
-      const footerWidth = fontOblique.widthOfTextAtSize(footerText, 11.5);
-      pageObj.drawText(footerText, { x: width - margin - footerWidth, y, size: 11.5, font: fontOblique });
-      y -= 16;
 
       // Cutter divider line between receipts (if not last)
       if (!isLastInRoll) {

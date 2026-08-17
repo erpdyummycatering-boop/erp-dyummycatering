@@ -70,12 +70,6 @@ export async function GET(
 
     const order = orderRes.rows[0];
     const items = order.items || [];
-    const createdDate = order.created_at
-      ? new Date(order.created_at).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })
-      : new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
-    const createdTime = order.created_at
-      ? new Date(order.created_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
-      : "";
 
     // 72mm Printable Thermal Head Width (204 pt)
     const width = 204;
@@ -84,7 +78,7 @@ export async function GET(
     // Helper for measuring single order height accurately with 1.3-1.5x line spacing
     const measureOrderHeight = () => {
       let h = 0;
-      // Header: DYummy Catering (26), Jl Sindangsari (16), Kota Bandung (16), SI.Struk (18), line (15)
+      // Header: D'Yummy Siap Saji (26), Jl Sindangsari (16), Kota Bandung (16), SI.Struk (18), line (15)
       h += 26 + 16 + 16 + 18 + 15;
 
       // Customer info: Name (18), Address lines (lines * 16), Patokan lines (lines * 15), Kec (16), line (15)
@@ -120,9 +114,6 @@ export async function GET(
       // Summary: Sub Total (17), Diskon (17), line (15), Total (20), line (15)
       h += 17 + 17 + 15 + 20 + 15;
 
-      // Footer: CS SIAP SAJI, Date (16)
-      h += 16;
-
       return h;
     };
 
@@ -134,7 +125,6 @@ export async function GET(
 
     const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    const fontOblique = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
 
     // Initial baseline offset at (height - 36) so top cap height of 22pt title font is at (height - 18)
     let y = height - 36;
@@ -157,7 +147,7 @@ export async function GET(
     };
 
     // Header (Title font size 22pt starts at y = height - 36, cap height top = height - 18pt)
-    drawCenterText("DYummy Catering", fontBold, 22);
+    drawCenterText("D'Yummy Siap Saji", fontBold, 22);
     drawCenterText("Jl Sindangsari 4 No 48", fontRegular, 13);
     drawCenterText("Kota Bandung Jawa Barat Indonesia", fontRegular, 13);
     const dateFormatted = order.delivery_date
@@ -269,11 +259,6 @@ export async function GET(
     y -= 20;
 
     drawSolidLine();
-
-    // Footer Right Aligned: CS SIAP SAJI, 31 Jul 2026, 20:20
-    const footerText = `${order.pic_name || "CS SIAP SAJI"},  ${createdDate} ${createdTime}`.trim();
-    const footerWidth = fontOblique.widthOfTextAtSize(footerText, 11.5);
-    page.drawText(footerText, { x: width - margin - footerWidth, y, size: 11.5, font: fontOblique });
 
     const pdfBytes = await pdfDoc.save();
 
