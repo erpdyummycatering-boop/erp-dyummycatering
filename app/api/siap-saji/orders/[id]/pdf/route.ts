@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
-const wrapText = (text: string, maxChars: number = 36): string[] => {
+const wrapText = (text: string, maxChars: number = 34): string[] => {
   if (!text) return [];
   const words = text.trim().split(/\s+/);
   const lines: string[] = [];
@@ -79,54 +79,54 @@ export async function GET(
 
     // 80mm POS Thermal receipt width: 80mm = 226.77 pt
     const width = 226.77;
-    const margin = 4; // Narrow margin to span full paper width like reference receipt
+    const margin = 1.5; // Ultra-narrow side margin (1.5pt) to span full paper width like reference receipt
 
     // Helper for measuring single order height accurately
     const measureOrderHeight = () => {
       let h = 0;
-      // Header: DYummy Catering (21), Jl Sindangsari (14), Kota Bandung (14), SI.Struk (16), line (12)
-      h += 21 + 14 + 14 + 16 + 12;
+      // Header: DYummy Catering (24), Jl Sindangsari (15), Kota Bandung (15), SI.Struk (17), line (14)
+      h += 24 + 15 + 15 + 17 + 14;
 
-      // Customer info: name (15), address lines (lines * 13.5), patokan lines (lines * 13), kec (13.5), line (12)
-      h += 15;
-      const addrLines = wrapText(order.customer_address || "-", 36);
-      h += addrLines.length * 13.5;
+      // Customer info: Name (17), Address lines (lines * 15), Patokan lines (lines * 14), Kec (15), line (14)
+      h += 17;
+      const addrLines = wrapText(order.customer_address || "-", 34);
+      h += addrLines.length * 15;
       if (order.customer_patokan) {
-        const patLines = wrapText(`-Patokan: ${order.customer_patokan}`, 36);
-        h += patLines.length * 13;
+        const patLines = wrapText(`-Patokan: ${order.customer_patokan}`, 34);
+        h += patLines.length * 14;
       }
       const kecText = `Kec. ${order.area_kecamatan || "-"} (${order.area_kota || "-"})`;
-      const kecLines = wrapText(kecText, 36);
-      h += kecLines.length * 13.5 + 12;
+      const kecLines = wrapText(kecText, 34);
+      h += kecLines.length * 15 + 14;
 
-      // Table header bar: "Nama Barang .... Total Harga" (15), line (12)
-      h += 15 + 12;
+      // Table header bar: "Nama Barang .... Total Harga" (17), line (14)
+      h += 17 + 14;
 
       // Items
       items.forEach((it: any) => {
-        const pLines = wrapText(it.product_name || "-", 36);
-        h += pLines.length * 14;
-        h += 15;
+        const pLines = wrapText(it.product_name || "-", 34);
+        h += pLines.length * 15;
+        h += 16;
       });
 
       // Shipping fee if > 0
       if (Number(order.shipping_fee) > 0) {
-        h += 14;
         h += 15;
+        h += 16;
       }
 
-      h += 12; // line
+      h += 14; // line
 
-      // Summary: Sub Total (15), Diskon (15), line (12), Total (17), line (12)
-      h += 15 + 15 + 12 + 17 + 12;
+      // Summary: Sub Total (16), Diskon (16), line (14), Total (19), line (14)
+      h += 16 + 16 + 14 + 19 + 14;
 
-      // Footer: CS SIAP SAJI, Date (14)
-      h += 14;
+      // Footer: CS SIAP SAJI, Date (15)
+      h += 15;
 
       return h;
     };
 
-    const height = Math.ceil(measureOrderHeight() + 24); // 12pt top + 12pt bottom
+    const height = Math.ceil(measureOrderHeight() + 20); // 10pt top + 10pt bottom
 
     const pdfDoc = await PDFDocument.create();
     const page = pdfDoc.addPage([width, height]);
@@ -135,69 +135,69 @@ export async function GET(
     const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const fontOblique = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
 
-    let y = height - 12;
+    let y = height - 10;
 
     const drawCenterText = (text: string, font: any, size: number) => {
       const textWidth = font.widthOfTextAtSize(text, size);
       const x = (width - textWidth) / 2;
-      page.drawText(text, { x, y, size, font, color: rgb(0.07, 0.09, 0.15) });
-      y -= size + 4;
+      page.drawText(text, { x, y, size, font, color: rgb(0.05, 0.05, 0.05) });
+      y -= size + 5;
     };
 
     const drawSolidLine = () => {
       page.drawLine({
         start: { x: margin, y },
         end: { x: width - margin, y },
-        thickness: 0.8,
-        color: rgb(0.15, 0.15, 0.15),
+        thickness: 0.9,
+        color: rgb(0.1, 0.1, 0.1),
       });
-      y -= 12;
+      y -= 14;
     };
 
     // Header
-    drawCenterText("DYummy Catering", fontBold, 17);
-    drawCenterText("Jl Sindangsari 4 No 48", fontRegular, 11);
-    drawCenterText("Kota Bandung Jawa Barat Indonesia", fontRegular, 11);
+    drawCenterText("DYummy Catering", fontBold, 19);
+    drawCenterText("Jl Sindangsari 4 No 48", fontRegular, 12);
+    drawCenterText("Kota Bandung Jawa Barat Indonesia", fontRegular, 12);
     const dateFormatted = order.delivery_date
       ? new Date(order.delivery_date).toLocaleDateString("id-ID", { day: "2-digit", month: "2-digit", year: "numeric" })
       : "";
-    drawCenterText(`${order.no_struk || `SI-${orderId}`} - ${dateFormatted}`, fontBold, 11.5);
+    drawCenterText(`${order.no_struk || `SI-${orderId}`} - ${dateFormatted}`, fontBold, 12.5);
 
     drawSolidLine();
 
     // Customer Info
-    page.drawText(order.customer_name || "Pelanggan", { x: margin, y, size: 12, font: fontBold });
-    y -= 15;
+    page.drawText(order.customer_name || "Pelanggan", { x: margin, y, size: 13, font: fontBold });
+    y -= 17;
 
-    const addrLines = wrapText(order.customer_address || "-", 36);
+    const addrLines = wrapText(order.customer_address || "-", 34);
     addrLines.forEach((line) => {
-      page.drawText(line, { x: margin, y, size: 11, font: fontRegular });
-      y -= 13.5;
+      page.drawText(line, { x: margin, y, size: 12, font: fontRegular });
+      y -= 15;
     });
 
     if (order.customer_patokan) {
-      const patLines = wrapText(`-Patokan: ${order.customer_patokan}`, 36);
+      const patLines = wrapText(`-Patokan: ${order.customer_patokan}`, 34);
       patLines.forEach((line) => {
-        page.drawText(line, { x: margin, y, size: 10.5, font: fontRegular, color: rgb(0.25, 0.25, 0.25) });
-        y -= 13;
+        page.drawText(line, { x: margin, y, size: 11.5, font: fontRegular, color: rgb(0.2, 0.2, 0.2) });
+        y -= 14;
       });
     }
 
     const kecText = `Kec. ${order.area_kecamatan || "-"} (${order.area_kota || "-"})`;
-    const kecLines = wrapText(kecText, 36);
+    const kecLines = wrapText(kecText, 34);
     kecLines.forEach((line) => {
-      page.drawText(line, { x: margin, y, size: 11, font: fontRegular });
-      y -= 13.5;
+      page.drawText(line, { x: margin, y, size: 12, font: fontRegular });
+      y -= 15;
     });
 
     drawSolidLine();
 
     // Table Header Bar: "Nama Barang" vs "Total Harga"
-    page.drawText("Nama Barang", { x: margin, y, size: 11.5, font: fontBold });
+    page.drawText("Nama Barang", { x: margin, y, size: 12.5, font: fontBold });
     const headerRightText = "Total Harga";
-    const headerRightWidth = fontBold.widthOfTextAtSize(headerRightText, 11.5);
-    page.drawText(headerRightText, { x: width - margin - headerRightWidth, y, size: 11.5, font: fontBold });
-    y -= 15;
+    const headerRightWidth = fontBold.widthOfTextAtSize(headerRightText, 12.5);
+    page.drawText(headerRightText, { x: width - margin - headerRightWidth, y, size: 12.5, font: fontBold });
+    y -= 17;
 
     drawSolidLine();
 
@@ -207,34 +207,34 @@ export async function GET(
       const subVal = Number(it.subtotal || 0);
       subtotalItems += subVal;
 
-      const pLines = wrapText(it.product_name || "-", 36);
+      const pLines = wrapText(it.product_name || "-", 34);
       pLines.forEach((line) => {
-        page.drawText(line, { x: margin, y, size: 11.5, font: fontBold });
-        y -= 14;
+        page.drawText(line, { x: margin, y, size: 12.5, font: fontBold });
+        y -= 15;
       });
 
       const qtyPriceText = `${it.quantity} x ${Number(it.price).toLocaleString("id-ID")}`;
       const subtotalText = Number(it.subtotal).toLocaleString("id-ID");
 
-      page.drawText(qtyPriceText, { x: margin, y, size: 11, font: fontRegular, color: rgb(0.2, 0.2, 0.2) });
-      const subWidth = fontBold.widthOfTextAtSize(subtotalText, 11.5);
-      page.drawText(subtotalText, { x: width - margin - subWidth, y, size: 11.5, font: fontBold });
-      y -= 15;
+      page.drawText(qtyPriceText, { x: margin, y, size: 12, font: fontRegular, color: rgb(0.15, 0.15, 0.15) });
+      const subWidth = fontBold.widthOfTextAtSize(subtotalText, 12.5);
+      page.drawText(subtotalText, { x: width - margin - subWidth, y, size: 12.5, font: fontBold });
+      y -= 16;
     });
 
     // Shipping Fee
     const shippingFee = Number(order.shipping_fee || 0);
     if (shippingFee > 0) {
-      page.drawText("Biaya Kirim", { x: margin, y, size: 11.5, font: fontBold });
-      y -= 14;
+      page.drawText("Biaya Kirim", { x: margin, y, size: 12.5, font: fontBold });
+      y -= 15;
 
       const shipQtyText = `1 x ${shippingFee.toLocaleString("id-ID")}`;
       const shipSubText = shippingFee.toLocaleString("id-ID");
 
-      page.drawText(shipQtyText, { x: margin, y, size: 11, font: fontRegular, color: rgb(0.2, 0.2, 0.2) });
-      const shipWidth = fontBold.widthOfTextAtSize(shipSubText, 11.5);
-      page.drawText(shipSubText, { x: width - margin - shipWidth, y, size: 11.5, font: fontBold });
-      y -= 15;
+      page.drawText(shipQtyText, { x: margin, y, size: 12, font: fontRegular, color: rgb(0.15, 0.15, 0.15) });
+      const shipWidth = fontBold.widthOfTextAtSize(shipSubText, 12.5);
+      page.drawText(shipSubText, { x: width - margin - shipWidth, y, size: 12.5, font: fontBold });
+      y -= 16;
     }
 
     drawSolidLine();
@@ -244,34 +244,34 @@ export async function GET(
     const discountVal = Number(order.discount || 0);
 
     // Sub Total Line
-    page.drawText("Sub Total", { x: margin, y, size: 11.5, font: fontBold });
+    page.drawText("Sub Total", { x: margin, y, size: 12.5, font: fontBold });
     const subTotalTextStr = subTotalAll.toLocaleString("id-ID");
-    const subTotalWidth = fontBold.widthOfTextAtSize(subTotalTextStr, 11.5);
-    page.drawText(subTotalTextStr, { x: width - margin - subTotalWidth, y, size: 11.5, font: fontBold });
-    y -= 15;
+    const subTotalWidth = fontBold.widthOfTextAtSize(subTotalTextStr, 12.5);
+    page.drawText(subTotalTextStr, { x: width - margin - subTotalWidth, y, size: 12.5, font: fontBold });
+    y -= 16;
 
     // Diskon Line
-    page.drawText("Diskon", { x: margin, y, size: 11.5, font: fontBold });
+    page.drawText("Diskon", { x: margin, y, size: 12.5, font: fontBold });
     const diskonTextStr = discountVal.toLocaleString("id-ID");
-    const diskonWidth = fontBold.widthOfTextAtSize(diskonTextStr, 11.5);
-    page.drawText(diskonTextStr, { x: width - margin - diskonWidth, y, size: 11.5, font: fontBold });
-    y -= 15;
+    const diskonWidth = fontBold.widthOfTextAtSize(diskonTextStr, 12.5);
+    page.drawText(diskonTextStr, { x: width - margin - diskonWidth, y, size: 12.5, font: fontBold });
+    y -= 16;
 
     drawSolidLine();
 
     // Grand Total Line
-    page.drawText("Total", { x: margin, y, size: 13, font: fontBold });
+    page.drawText("Total", { x: margin, y, size: 14.5, font: fontBold });
     const grandTotalTextStr = Number(order.grand_total || subTotalAll - discountVal).toLocaleString("id-ID");
-    const grandTotalWidth = fontBold.widthOfTextAtSize(grandTotalTextStr, 13);
-    page.drawText(grandTotalTextStr, { x: width - margin - grandTotalWidth, y, size: 13, font: fontBold });
-    y -= 17;
+    const grandTotalWidth = fontBold.widthOfTextAtSize(grandTotalTextStr, 14.5);
+    page.drawText(grandTotalTextStr, { x: width - margin - grandTotalWidth, y, size: 14.5, font: fontBold });
+    y -= 19;
 
     drawSolidLine();
 
     // Footer Right Aligned: CS SIAP SAJI, 31 Jul 2026, 20:20
     const footerText = `${order.pic_name || "CS SIAP SAJI"},  ${createdDate} ${createdTime}`.trim();
-    const footerWidth = fontOblique.widthOfTextAtSize(footerText, 10);
-    page.drawText(footerText, { x: width - margin - footerWidth, y, size: 10, font: fontOblique });
+    const footerWidth = fontOblique.widthOfTextAtSize(footerText, 11);
+    page.drawText(footerText, { x: width - margin - footerWidth, y, size: 11, font: fontOblique });
 
     const pdfBytes = await pdfDoc.save();
 

@@ -21,6 +21,7 @@ import {
   ChevronDown,
   RefreshCw,
   FileText,
+  ClipboardList,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/ui/Pagination";
@@ -599,6 +600,33 @@ export default function SiapSajiOrdersPage() {
           />
         </div>
 
+        <button
+          onClick={() => {
+            const q = new URLSearchParams();
+            if (dateFrom) q.append("date_from", dateFrom);
+            if (dateTo) q.append("date_to", dateTo);
+            const url = `/api/siap-saji/orders/recap-pdf?${q.toString()}`;
+            window.open(url, "_blank");
+          }}
+          style={{
+            padding: "7px 12px",
+            background: "#eff6ff",
+            color: "#1d4ed8",
+            border: "1px solid #bfdbfe",
+            borderRadius: 8,
+            fontSize: 13,
+            cursor: "pointer",
+            fontWeight: 700,
+            flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+          title="Cetak rekap akumulasi kuantitas produk & catatan untuk dapur"
+        >
+          <ClipboardList size={15} /> 🍳 Rekap Dapur A4
+        </button>
+
         {(search || statusFilter || channelFilter || dateFrom || dateTo) && (
           <button
             onClick={() => {
@@ -706,6 +734,30 @@ export default function SiapSajiOrdersPage() {
             >
               <Printer size={15} />
               PDF Roll Kontinu (Kassen BTP3100)
+            </button>
+
+            <button
+              onClick={() => {
+                const url = `/api/siap-saji/orders/recap-pdf?ids=${selectedOrderIds.join(",")}`;
+                window.open(url, "_blank");
+              }}
+              style={{
+                background: "#378ADD",
+                color: "white",
+                border: "none",
+                borderRadius: 10,
+                padding: "9px 16px",
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                boxShadow: "0 4px 12px rgba(55, 138, 221, 0.25)",
+              }}
+            >
+              <ClipboardList size={15} />
+              🍳 Cetak Rekap Dapur (A4)
             </button>
             <button
               onClick={handleOpenBulkPrint}
