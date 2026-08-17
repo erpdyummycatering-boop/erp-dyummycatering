@@ -57,7 +57,8 @@ export async function GET(req: NextRequest) {
               'sku', pr.sku,
               'price', oi.price,
               'quantity', oi.quantity,
-              'subtotal', oi.subtotal
+              'subtotal', oi.subtotal,
+              'notes', oi.notes
             )
           )
           FROM order_items oi
@@ -113,6 +114,13 @@ export async function GET(req: NextRequest) {
         const pLines = wrapText(it.product_name || "-", 29);
         h += pLines.length * 16;
         h += 17;
+        if (it.notes || it.note) {
+          const noteText = String(it.notes || it.note).trim();
+          if (noteText) {
+            const nLines = wrapText(`* ${noteText}`, 29);
+            h += nLines.length * 14;
+          }
+        }
       });
 
       // Shipping fee if > 0
@@ -242,7 +250,7 @@ export async function GET(req: NextRequest) {
           if (noteText) {
             const nLines = wrapText(`* ${noteText}`, 29);
             nLines.forEach((line) => {
-              pageObj.drawText(line, { x: margin + 8, y, size: 11, font: fontRegular, color: rgb(0.85, 0.15, 0.15) });
+              pageObj.drawText(line, { x: margin + 8, y, size: 11, font: fontRegular, color: rgb(0.1, 0.1, 0.1) });
               y -= 14;
             });
           }

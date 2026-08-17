@@ -76,34 +76,42 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { expense_date, keterangan, nominal, coa_id, kas_bank_id } = body;
 
-  if (!expense_date || !keterangan || !nominal || !coa_id || !kas_bank_id) {
+  if (!expense_date || !keterangan || !nominal || !coa_id) {
     return NextResponse.json(
-      { error: "Tanggal, Keterangan, Nominal, Kategori Beban, dan Kas/Bank wajib diisi." },
+      { error: "Tanggal, Keterangan, Nominal, dan Kategori Beban wajib diisi." },
       { status: 400 }
     );
   }
+
+  const isHutang = kas_bank_id === "hutang" || kas_bank_id === "0" || !kas_bank_id;
 
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
     const amount = Number(nominal);
 
-    // Resolve Kredit Account from kas_bank
-    const kbRes = await client.query("SELECT * FROM kas_bank WHERE id = $1", [kas_bank_id]);
-    if (kbRes.rows.length === 0) {
-      await client.query("ROLLBACK");
-      return NextResponse.json({ error: "Rekening kas/bank tidak ditemukan" }, { status: 404 });
+    // Resolve Kredit Account
+    let coaKreditId: number | null = null;
+
+    if (isHutang) {
+      const coaUtangRes = await client.query("SELECT id FROM coa WHERE kode_akun = '2-1001' AND lini = 'siap_saji' LIMIT 1");
+      if (coaUtangRes.rows.length > 0) coaKreditId = coaUtangRes.rows[0].id;
+    } else {
+      const kbRes = await client.query("SELECT * FROM kas_bank WHERE id = $1", [kas_bank_id]);
+      if (kbRes.rows.length > 0) {
+        const bankName = kbRes.rows[0].nama_bank || kbRes.rows[0].nama_rekening;
+        let kreditKode = "1-1002";
+        if (bankName.toUpperCase().includes("MANDIRI")) kreditKode = "1-1003";
+        else if (bankName.toUpperCase().includes("KAS")) kreditKode = "1-1001";
+
+        const coaKreditRes = await client.query("SELECT id FROM coa WHERE kode_akun = $1 AND lini = 'siap_saji' LIMIT 1", [kreditKode]);
+        if (coaKreditRes.rows.length > 0) coaKreditId = coaKreditRes.rows[0].id;
+      }
     }
 
-    const bankName = kbRes.rows[0].nama_bank || kbRes.rows[0].nama_rekening;
-    let kreditKode = "1-1002";
-    if (bankName.toUpperCase().includes("MANDIRI")) kreditKode = "1-1003";
-    else if (bankName.toUpperCase().includes("KAS")) kreditKode = "1-1001";
-
-    const coaKreditRes = await client.query("SELECT id FROM coa WHERE kode_akun = $1 AND lini = 'siap_saji' LIMIT 1", [kreditKode]);
-    if (coaKreditRes.rows.length === 0) {
+    if (!coaKreditId) {
       await client.query("ROLLBACK");
-      return NextResponse.json({ error: "Akun kas/bank di CoA tidak ditemukan" }, { status: 404 });
+      return NextResponse.json({ error: "Akun kredit CoA tidak ditemukan." }, { status: 400 });
     }
 
     // Insert Journal
@@ -114,26 +122,28 @@ export async function POST(req: NextRequest) {
       [
         expense_date,
         Number(coa_id),
-        coaKreditRes.rows[0].id,
+        coaKreditId,
         amount,
-        keterangan.trim(),
+        isHutang ? `Biaya Operasional (Hutang Usaha / Tempo): ${keterangan.trim()}` : keterangan.trim(),
       ]
     );
 
     const journalId = jRes.rows[0].id;
-    await client.query("UPDATE journals SET ref_id = $1 WHERE id = $1", [journalId]);
+    await client.query("UPDATE journals SET ref_id = $1, ref_no = $2 WHERE id = $1", [journalId, `EXP-${journalId}`]);
 
-    // Record Kas Mutasi & Subtract Kas Balance
-    await client.query(
-      `INSERT INTO kas_mutasi (kas_bank_id, lini, mutasi_date, jenis, nominal, ref_type, ref_id, keterangan)
-       VALUES ($1, 'siap_saji', $2, 'Keluar', $3, 'biaya', $4, $5)`,
-      [kas_bank_id, expense_date, amount, journalId, `Biaya Operasional: ${keterangan.trim()}`]
-    );
+    // Record Kas Mutasi & Subtract Kas Balance ONLY if not Hutang
+    if (!isHutang) {
+      await client.query(
+        `INSERT INTO kas_mutasi (kas_bank_id, lini, mutasi_date, jenis, nominal, ref_type, ref_id, keterangan)
+         VALUES ($1, 'siap_saji', $2, 'Keluar', $3, 'biaya', $4, $5)`,
+        [kas_bank_id, expense_date, amount, journalId, `Biaya Operasional: ${keterangan.trim()}`]
+      );
 
-    await client.query(
-      "UPDATE kas_bank SET saldo_kini = saldo_kini - $1, updated_at = NOW() WHERE id = $2",
-      [amount, kas_bank_id]
-    );
+      await client.query(
+        "UPDATE kas_bank SET saldo_kini = saldo_kini - $1, updated_at = NOW() WHERE id = $2",
+        [amount, kas_bank_id]
+      );
+    }
 
     await client.query("COMMIT");
     return NextResponse.json(jRes.rows[0], { status: 201 });

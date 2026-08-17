@@ -7,9 +7,23 @@ import { Pagination } from "@/components/ui/Pagination";
 import { formatDate } from "@/lib/utils";
 
 export default function SiapSajiFinancePage() {
-  const [activeTab, setActiveTab] = useState<"pl" | "purchases" | "expenses" | "kas_bank" | "journals" | "coa">("pl");
+  const [activeTab, setActiveTab] = useState<"pl" | "purchases" | "expenses" | "kas_bank" | "journals" | "coa" | "neraca">("pl");
 
   const [loading, setLoading] = useState(true);
+  const [neracaData, setNeracaData] = useState<any[]>([]);
+
+  // Thousand Separator Formatter Helpers
+  const formatThousand = (val: number | string) => {
+    if (val === "" || val === undefined || val === null || val === 0) return "";
+    const num = typeof val === "number" ? val : Number(String(val).replace(/[^0-9]/g, ""));
+    if (isNaN(num) || num === 0) return "";
+    return num.toLocaleString("id-ID");
+  };
+
+  const parseThousand = (str: string): number => {
+    const clean = str.replace(/[^0-9]/g, "");
+    return clean ? Number(clean) : 0;
+  };
 
   // Pagination states
   const [purPage, setPurPage] = useState(1);
@@ -32,7 +46,7 @@ export default function SiapSajiFinancePage() {
   const [purchaseKeterangan, setPurchaseKeterangan] = useState("");
   const [purchaseAmount, setPurchaseAmount] = useState<number>(0);
   const [purchaseCoaId, setPurchaseCoaId] = useState<number | "">("");
-  const [purchaseKasBankId, setPurchaseKasBankId] = useState<number | "">("");
+  const [purchaseKasBankId, setPurchaseKasBankId] = useState<number | "hutang" | "">("");
   const [purSearch, setPurSearch] = useState("");
   const [purDateFrom, setPurDateFrom] = useState("");
   const [purDateTo, setPurDateTo] = useState("");
@@ -44,7 +58,7 @@ export default function SiapSajiFinancePage() {
   const [expenseKeterangan, setExpenseKeterangan] = useState("");
   const [expenseAmount, setExpenseAmount] = useState<number>(0);
   const [expenseCoaId, setExpenseCoaId] = useState<number | "">("");
-  const [expenseKasBankId, setExpenseKasBankId] = useState<number | "">("");
+  const [expenseKasBankId, setExpenseKasBankId] = useState<number | "hutang" | "">("");
   const [expSearch, setExpSearch] = useState("");
   const [expDateFrom, setExpDateFrom] = useState("");
   const [expDateTo, setExpDateTo] = useState("");
@@ -169,6 +183,9 @@ export default function SiapSajiFinancePage() {
           const json = await res.json();
           setCoaListAll(json.data || []);
         }
+      } else if (activeTab === "neraca") {
+        const res = await fetch("/api/siap-saji/finance/reports?type=neraca");
+        if (res.ok) setNeracaData(await res.json());
       }
     } catch (err: any) {
       toast.error(err.message || "Gagal memuat data keuangan");
@@ -543,6 +560,28 @@ export default function SiapSajiFinancePage() {
           }}
         >
           <BookOpen size={15} /> Buku Jurnal
+        </button>
+
+        <button
+          onClick={() => setActiveTab("neraca")}
+          style={{
+            padding: "10px 14px",
+            background: "none",
+            border: "none",
+            borderBottom: activeTab === "neraca" ? "3px solid #5005A6" : "3px solid transparent",
+            color: activeTab === "neraca" ? "#5005A6" : "#6b7280",
+            fontSize: 13,
+            fontWeight: activeTab === "neraca" ? 700 : 500,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            marginBottom: -2,
+            whiteSpace: "nowrap",
+            flexShrink: 0,
+          }}
+        >
+          <PieChart size={15} /> Neraca Keuangan
         </button>
 
         <button
@@ -1229,7 +1268,7 @@ export default function SiapSajiFinancePage() {
                 </label>
                 <input
                   type="text"
-                  placeholder="NOTA-20260618-01"
+                  placeholder="Kosongkan untuk auto-generate (Opsional)"
                   value={purchaseNotaRef}
                   onChange={(e) => setPurchaseNotaRef(e.target.value)}
                   style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
@@ -1272,14 +1311,15 @@ export default function SiapSajiFinancePage() {
 
               <div style={{ marginBottom: 12 }}>
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
-                  Rekening Pembayaran *
+                  Rekening Pembayaran / Metode *
                 </label>
                 <select
                   value={purchaseKasBankId}
-                  onChange={(e) => setPurchaseKasBankId(Number(e.target.value))}
+                  onChange={(e) => setPurchaseKasBankId(e.target.value === "hutang" ? "hutang" : Number(e.target.value))}
                   required
                   style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
                 >
+                  <option value="hutang">💳 Hutang Usaha / Tempo (Belum Dibayar)</option>
                   {accounts.map((a) => (
                     <option key={a.id} value={a.id}>
                       {a.nama_rekening} (Saldo: Rp{Number(a.saldo_kini).toLocaleString("id-ID")})
@@ -1293,11 +1333,12 @@ export default function SiapSajiFinancePage() {
                   Total Nominal (Rp) *
                 </label>
                 <input
-                  type="number"
-                  value={purchaseAmount}
-                  onChange={(e) => setPurchaseAmount(Number(e.target.value))}
+                  type="text"
+                  placeholder="0"
+                  value={formatThousand(purchaseAmount)}
+                  onChange={(e) => setPurchaseAmount(parseThousand(e.target.value))}
                   required
-                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 16, fontWeight: 700 }}
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 16, fontWeight: 700, textAlign: "right" }}
                 />
               </div>
 
@@ -1375,14 +1416,15 @@ export default function SiapSajiFinancePage() {
 
               <div style={{ marginBottom: 12 }}>
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
-                  Sumber Dana Kas/Bank *
+                  Sumber Dana Kas/Bank / Metode *
                 </label>
                 <select
                   value={expenseKasBankId}
-                  onChange={(e) => setExpenseKasBankId(Number(e.target.value))}
+                  onChange={(e) => setExpenseKasBankId(e.target.value === "hutang" ? "hutang" : Number(e.target.value))}
                   required
                   style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
                 >
+                  <option value="hutang">💳 Hutang Usaha / Tempo (Belum Dibayar)</option>
                   {accounts.map((a) => (
                     <option key={a.id} value={a.id}>
                       {a.nama_rekening} (Saldo: Rp{Number(a.saldo_kini).toLocaleString("id-ID")})
@@ -1396,11 +1438,12 @@ export default function SiapSajiFinancePage() {
                   Nominal Biaya (Rp) *
                 </label>
                 <input
-                  type="number"
-                  value={expenseAmount}
-                  onChange={(e) => setExpenseAmount(Number(e.target.value))}
+                  type="text"
+                  placeholder="0"
+                  value={formatThousand(expenseAmount)}
+                  onChange={(e) => setExpenseAmount(parseThousand(e.target.value))}
                   required
-                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 16, fontWeight: 700 }}
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 16, fontWeight: 700, textAlign: "right" }}
                 />
               </div>
 
@@ -1592,6 +1635,155 @@ export default function SiapSajiFinancePage() {
               />
             )}
           </div>
+        </div>
+      )}
+
+      {/* ── TAB 7: NERACA KEUANGAN (BALANCE SHEET) ───────────────────── */}
+      {activeTab === "neraca" && (
+        <div>
+          {loading ? (
+            <div style={{ background: "white", borderRadius: 16, border: "1px solid #e5e7eb", padding: 60, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+              <RefreshCw size={36} className="animate-spin" style={{ color: "#5005A6", marginBottom: 16 }} />
+              <p style={{ fontSize: 15, fontWeight: 700, color: "#111827", margin: 0 }}>Memuat Neraca Keuangan Siap Saji...</p>
+              <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>Kalkulasi otomatis Aktiva (Aset) vs Passiva (Liabilitas & Ekuitas)</p>
+            </div>
+          ) : (
+            <>
+              {/* Summary Scorecards */}
+          {(() => {
+            const asetRows = neracaData.filter((r) => r.kelompok === "Aset");
+            const liabRows = neracaData.filter((r) => r.kelompok === "Liabilitas");
+            const ekuitasRows = neracaData.filter((r) => r.kelompok === "Ekuitas");
+            const pendRows = neracaData.filter((r) => r.kelompok === "Pendapatan");
+            const bebanRows = neracaData.filter((r) => r.kelompok === "Beban");
+
+            const totalAset = asetRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0);
+            const totalLiabilitas = Math.abs(liabRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0));
+            const totalEkuitasAwal = Math.abs(ekuitasRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0));
+            const totalPendapatan = Math.abs(pendRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0));
+            const totalBeban = bebanRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0);
+            const labaBerjalan = totalPendapatan - totalBeban;
+            const totalEkuitasTotal = totalEkuitasAwal + labaBerjalan;
+            const totalPassiva = totalLiabilitas + totalEkuitasTotal;
+
+            const isBalanced = Math.abs(totalAset - totalPassiva) < 1;
+
+            return (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16, marginBottom: 20 }}>
+                  <div style={{ background: "white", borderRadius: 12, padding: "16px 20px", border: "1px solid #e5e7eb" }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "#1d4ed8", textTransform: "uppercase" }}>🔷 Total Aktiva (Aset)</span>
+                    <div style={{ fontSize: 22, fontWeight: 900, color: "#1e3a8a", marginTop: 4 }}>
+                      Rp{totalAset.toLocaleString("id-ID")}
+                    </div>
+                  </div>
+
+                  <div style={{ background: "white", borderRadius: 12, padding: "16px 20px", border: "1px solid #e5e7eb" }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "#b91c1c", textTransform: "uppercase" }}>🔴 Total Liabilitas (Utang)</span>
+                    <div style={{ fontSize: 22, fontWeight: 900, color: "#991b1b", marginTop: 4 }}>
+                      Rp{totalLiabilitas.toLocaleString("id-ID")}
+                    </div>
+                  </div>
+
+                  <div style={{ background: "white", borderRadius: 12, padding: "16px 20px", border: "1px solid #e5e7eb" }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "#15803d", textTransform: "uppercase" }}>🟢 Total Ekuitas (Modal & Laba)</span>
+                    <div style={{ fontSize: 22, fontWeight: 900, color: "#166534", marginTop: 4 }}>
+                      Rp{totalEkuitasTotal.toLocaleString("id-ID")}
+                    </div>
+                  </div>
+
+                  <div style={{ background: "white", borderRadius: 12, padding: "16px 20px", border: "1px solid #e5e7eb" }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "#6b7280", textTransform: "uppercase" }}>⚖️ Status Neraca</span>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: isBalanced ? "#16a34a" : "#dc2626", marginTop: 4 }}>
+                      {isBalanced ? "BALANCED (Seimbang)" : "TIDAK SEIMBANG"}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Balance Sheet 2 Columns: Aktiva vs Passiva */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+                  {/* Left Column: AKTIVA (ASET) */}
+                  <div style={{ background: "white", borderRadius: 12, border: "1px solid #e5e7eb", overflow: "hidden" }}>
+                    <div style={{ padding: "14px 16px", background: "#eff6ff", borderBottom: "1px solid #dbeafe" }}>
+                      <h4 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: "#1e40af" }}>AKTIVA / ASET</h4>
+                    </div>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                      <thead>
+                        <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", color: "#64748b", fontSize: 11, textTransform: "uppercase" }}>
+                          <th style={{ padding: "8px 12px", textAlign: "left" }}>Kode</th>
+                          <th style={{ padding: "8px 12px", textAlign: "left" }}>Nama Akun</th>
+                          <th style={{ padding: "8px 12px", textAlign: "right" }}>Saldo (Rp)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {asetRows.map((r) => (
+                          <tr key={r.kode_akun} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                            <td style={{ padding: "10px 12px", fontFamily: "monospace", color: "#3b82f6", fontWeight: 700 }}>{r.kode_akun}</td>
+                            <td style={{ padding: "10px 12px", fontWeight: 600 }}>{r.nama_akun}</td>
+                            <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700 }}>Rp{Number(r.saldo || 0).toLocaleString("id-ID")}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{ background: "#eff6ff", fontWeight: 900 }}>
+                          <td colSpan={2} style={{ padding: "12px", color: "#1e40af" }}>TOTAL AKTIVA (ASET)</td>
+                          <td style={{ padding: "12px", textAlign: "right", color: "#1e40af" }}>Rp{totalAset.toLocaleString("id-ID")}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+
+                  {/* Right Column: PASSIVA (LIABILITAS & EKUITAS) */}
+                  <div style={{ background: "white", borderRadius: 12, border: "1px solid #e5e7eb", overflow: "hidden" }}>
+                    <div style={{ padding: "14px 16px", background: "#fdf4ff", borderBottom: "1px solid #fae8ff" }}>
+                      <h4 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: "#86198f" }}>PASSIVA (LIABILITAS & EKUITAS)</h4>
+                    </div>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                      <thead>
+                        <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", color: "#64748b", fontSize: 11, textTransform: "uppercase" }}>
+                          <th style={{ padding: "8px 12px", textAlign: "left" }}>Kode</th>
+                          <th style={{ padding: "8px 12px", textAlign: "left" }}>Nama Akun / Komponen</th>
+                          <th style={{ padding: "8px 12px", textAlign: "right" }}>Saldo (Rp)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {/* Liabilitas Rows */}
+                        {liabRows.map((r) => (
+                          <tr key={r.kode_akun} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                            <td style={{ padding: "10px 12px", fontFamily: "monospace", color: "#ef4444", fontWeight: 700 }}>{r.kode_akun}</td>
+                            <td style={{ padding: "10px 12px", fontWeight: 600 }}>{r.nama_akun}</td>
+                            <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700 }}>Rp{Math.abs(Number(r.saldo || 0)).toLocaleString("id-ID")}</td>
+                          </tr>
+                        ))}
+                        {/* Ekuitas Rows */}
+                        {ekuitasRows.map((r) => (
+                          <tr key={r.kode_akun} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                            <td style={{ padding: "10px 12px", fontFamily: "monospace", color: "#10b981", fontWeight: 700 }}>{r.kode_akun}</td>
+                            <td style={{ padding: "10px 12px", fontWeight: 600 }}>{r.nama_akun}</td>
+                            <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700 }}>Rp{Math.abs(Number(r.saldo || 0)).toLocaleString("id-ID")}</td>
+                          </tr>
+                        ))}
+                        {/* Laba Berjalan Line */}
+                        <tr style={{ borderBottom: "1px solid #f1f5f9", background: "#f0fdf4" }}>
+                          <td style={{ padding: "10px 12px", fontFamily: "monospace", color: "#15803d", fontWeight: 700 }}>3-2001</td>
+                          <td style={{ padding: "10px 12px", fontWeight: 700, color: "#15803d" }}>Laba Bersih Berjalan (P&L)</td>
+                          <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 800, color: "#15803d" }}>Rp{labaBerjalan.toLocaleString("id-ID")}</td>
+                        </tr>
+                      </tbody>
+                      <tfoot>
+                        <tr style={{ background: "#fdf4ff", fontWeight: 900 }}>
+                          <td colSpan={2} style={{ padding: "12px", color: "#86198f" }}>TOTAL PASSIVA (LIABILITAS + EKUITAS)</td>
+                          <td style={{ padding: "12px", textAlign: "right", color: "#86198f" }}>Rp{totalPassiva.toLocaleString("id-ID")}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              </>
+            );
+          })()}
+          </>
+          )}
         </div>
       )}
 

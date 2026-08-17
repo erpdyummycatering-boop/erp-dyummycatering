@@ -82,18 +82,28 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { purchase_date, nota_ref, keterangan, total_amount, coa_id, kas_bank_id } = body;
 
-  if (!purchase_date || !keterangan || !total_amount || !kas_bank_id) {
+  if (!purchase_date || !keterangan || !total_amount) {
     return NextResponse.json(
-      { error: "Tanggal, Keterangan, Total Nominal, dan Kas/Bank wajib diisi." },
+      { error: "Tanggal, Keterangan, dan Total Nominal wajib diisi." },
       { status: 400 }
     );
   }
+
+  const isHutang = kas_bank_id === "hutang" || kas_bank_id === "0" || !kas_bank_id;
 
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
 
     const amount = Number(total_amount);
+
+    // Auto-generate nota_ref if left empty
+    let finalNotaRef = nota_ref && nota_ref.trim() ? nota_ref.trim() : "";
+    if (!finalNotaRef) {
+      const dateClean = String(purchase_date).replace(/-/g, "");
+      const randomSeq = String(Math.floor(100 + Math.random() * 900));
+      finalNotaRef = `NOTA-SS-${dateClean}-${randomSeq}`;
+    }
 
     // 1. Resolve HPP CoA (default to 5-1001 HPP Bahan Baku SS if not provided)
     let selectedCoaId = coa_id;
@@ -105,50 +115,69 @@ export async function POST(req: NextRequest) {
     // 2. Insert Purchases
     const insRes = await client.query(
       `INSERT INTO purchases (lini, ref_type, finance_id, purchase_date, nota_ref, keterangan, total_amount, coa_id, kas_bank_id, status)
-       VALUES ('siap_saji', 'pembelian_nota', $1, $2, $3, $4, $5, $6, $7, 'Final')
+       VALUES ('siap_saji', 'pembelian_nota', $1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [userId, purchase_date, nota_ref || null, keterangan.trim(), amount, selectedCoaId, Number(kas_bank_id)]
+      [
+        userId,
+        purchase_date,
+        finalNotaRef,
+        keterangan.trim(),
+        amount,
+        selectedCoaId,
+        isHutang ? null : Number(kas_bank_id),
+        isHutang ? "Hutang" : "Final",
+      ]
     );
     const purchaseId = insRes.rows[0].id;
 
-    // 3. Resolve Credit Account from kas_bank
-    const kbRes = await client.query("SELECT * FROM kas_bank WHERE id = $1", [kas_bank_id]);
-    if (kbRes.rows.length > 0) {
-      const bankName = kbRes.rows[0].nama_bank || kbRes.rows[0].nama_rekening;
-      let kreditKode = "1-1002";
-      if (bankName.toUpperCase().includes("MANDIRI")) kreditKode = "1-1003";
-      else if (bankName.toUpperCase().includes("KAS")) kreditKode = "1-1001";
+    // 3. Resolve Credit Account (If Hutang -> 2-1001 Utang Usaha SS, else Kas/Bank)
+    let coaKreditId: number | null = null;
 
-      const coaKreditRes = await client.query("SELECT id FROM coa WHERE kode_akun = $1 AND lini = 'siap_saji' LIMIT 1", [kreditKode]);
+    if (isHutang) {
+      const coaUtangRes = await client.query("SELECT id FROM coa WHERE kode_akun = '2-1001' AND lini = 'siap_saji' LIMIT 1");
+      if (coaUtangRes.rows.length > 0) coaKreditId = coaUtangRes.rows[0].id;
+    } else {
+      const kbRes = await client.query("SELECT * FROM kas_bank WHERE id = $1", [kas_bank_id]);
+      if (kbRes.rows.length > 0) {
+        const bankName = kbRes.rows[0].nama_bank || kbRes.rows[0].nama_rekening;
+        let kreditKode = "1-1002";
+        if (bankName.toUpperCase().includes("MANDIRI")) kreditKode = "1-1003";
+        else if (bankName.toUpperCase().includes("KAS")) kreditKode = "1-1001";
 
-      if (coaKreditRes.rows.length > 0 && selectedCoaId) {
-        await client.query(
-          `INSERT INTO journals (lini, journal_date, ref_type, ref_id, ref_no, akun_debit, akun_kredit, nominal, keterangan)
-           VALUES ('siap_saji', $1, 'pembelian', $2, $3, $4, $5, $6, $7)`,
-          [
-            purchase_date,
-            purchaseId,
-            nota_ref || `NOTA-${purchaseId}`,
-            selectedCoaId,
-            coaKreditRes.rows[0].id,
-            amount,
-            `Pembelian HPP: ${keterangan.trim()}`,
-          ]
-        );
+        const coaKreditRes = await client.query("SELECT id FROM coa WHERE kode_akun = $1 AND lini = 'siap_saji' LIMIT 1", [kreditKode]);
+        if (coaKreditRes.rows.length > 0) coaKreditId = coaKreditRes.rows[0].id;
       }
     }
 
-    // 4. Record Kas Mutasi & Subtract Kas Balance
-    await client.query(
-      `INSERT INTO kas_mutasi (kas_bank_id, lini, mutasi_date, jenis, nominal, ref_type, ref_id, keterangan)
-       VALUES ($1, 'siap_saji', $2, 'Keluar', $3, 'pembelian', $4, $5)`,
-      [kas_bank_id, purchase_date, amount, purchaseId, `Nota HPP ${nota_ref || purchaseId}: ${keterangan.trim()}`]
-    );
+    if (coaKreditId && selectedCoaId) {
+      await client.query(
+        `INSERT INTO journals (lini, journal_date, ref_type, ref_id, ref_no, akun_debit, akun_kredit, nominal, keterangan)
+         VALUES ('siap_saji', $1, 'pembelian', $2, $3, $4, $5, $6, $7)`,
+        [
+          purchase_date,
+          purchaseId,
+          finalNotaRef,
+          selectedCoaId,
+          coaKreditId,
+          amount,
+          isHutang ? `Pembelian HPP (Hutang Usaha / Tempo): ${keterangan.trim()}` : `Pembelian HPP: ${keterangan.trim()}`,
+        ]
+      );
+    }
 
-    await client.query(
-      "UPDATE kas_bank SET saldo_kini = saldo_kini - $1, updated_at = NOW() WHERE id = $2",
-      [amount, kas_bank_id]
-    );
+    // 4. Record Kas Mutasi & Subtract Kas Balance ONLY if not Hutang
+    if (!isHutang) {
+      await client.query(
+        `INSERT INTO kas_mutasi (kas_bank_id, lini, mutasi_date, jenis, nominal, ref_type, ref_id, keterangan)
+         VALUES ($1, 'siap_saji', $2, 'Keluar', $3, 'pembelian', $4, $5)`,
+        [kas_bank_id, purchase_date, amount, purchaseId, `Nota HPP ${finalNotaRef}: ${keterangan.trim()}`]
+      );
+
+      await client.query(
+        "UPDATE kas_bank SET saldo_kini = saldo_kini - $1, updated_at = NOW() WHERE id = $2",
+        [amount, kas_bank_id]
+      );
+    }
 
     await client.query("COMMIT");
     return NextResponse.json(insRes.rows[0], { status: 201 });

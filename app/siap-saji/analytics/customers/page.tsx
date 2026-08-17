@@ -164,39 +164,43 @@ export default function SiapSajiCustomerAnalyticsPage() {
             </h3>
           </div>
 
-          <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 14 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 13 }}>
             <thead>
-              <tr style={{ borderBottom: "1px solid #e5e7eb", color: "#6b7280", fontWeight: 700, fontSize: 12, textTransform: "uppercase" }}>
-                <th style={{ padding: "12px 16px" }}>Kelompok Segmen</th>
-                <th style={{ padding: "12px 16px", textAlign: "center" }}>Jumlah</th>
-                <th style={{ padding: "12px 16px", textAlign: "center" }}>%</th>
-                <th style={{ padding: "12px 16px" }}>Keterangan & Strategi Marketing</th>
+              <tr style={{ borderBottom: "1px solid #e5e7eb", color: "#6b7280", fontWeight: 700, fontSize: 11, textTransform: "uppercase", background: "#f8fafc" }}>
+                <th style={{ padding: "12px 14px", width: 150 }}>Segmen</th>
+                <th style={{ padding: "12px 14px", textAlign: "center", width: 60 }}>Jumlah</th>
+                <th style={{ padding: "12px 14px", textAlign: "center", width: 50 }}>%</th>
+                <th style={{ padding: "12px 14px", width: 220 }}>Definisi Perilaku Customer</th>
+                <th style={{ padding: "12px 14px" }}>Treatment CRM</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={4} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                  <td colSpan={5} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
                     Memuat data segmen...
                   </td>
                 </tr>
               ) : (
                 (data?.distribution || []).map((row: any, idx: number) => (
                   <tr key={idx} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                    <td style={{ padding: "14px 16px", fontWeight: 700 }}>
+                    <td style={{ padding: "12px 14px", fontWeight: 700 }}>
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 8, color: row.color }}>
                         <span style={{ width: 10, height: 10, borderRadius: "50%", background: row.color }} />
                         {row.segmen}
                       </span>
                     </td>
-                    <td style={{ padding: "14px 16px", textAlign: "center", fontWeight: 800, color: "#111827" }}>
+                    <td style={{ padding: "12px 14px", textAlign: "center", fontWeight: 800, color: "#111827" }}>
                       {row.jumlah}
                     </td>
-                    <td style={{ padding: "14px 16px", textAlign: "center", fontWeight: 700, color: "#5005A6" }}>
+                    <td style={{ padding: "12px 14px", textAlign: "center", fontWeight: 700, color: "#5005A6" }}>
                       {row.percentage}%
                     </td>
-                    <td style={{ padding: "14px 16px", fontSize: 13, color: "#4b5563" }}>
-                      {row.keterangan}
+                    <td style={{ padding: "12px 14px", color: "#374151", fontWeight: 500 }}>
+                      {row.definition}
+                    </td>
+                    <td style={{ padding: "12px 14px", color: "#1f2937", lineHeight: 1.4 }}>
+                      {row.treatment}
                     </td>
                   </tr>
                 ))

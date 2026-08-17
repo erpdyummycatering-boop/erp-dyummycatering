@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Users, Plus, Search, Filter, Phone, MapPin, Edit3, Trash2, Eye, Award, ShoppingBag, X } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/ui/Pagination";
@@ -31,6 +32,7 @@ interface Customer {
 }
 
 export default function SiapSajiCustomersPage() {
+  const router = useRouter();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [meta, setMeta] = useState({ total: 0, page: 1, limit: 10, totalPages: 1 });
   const [areas, setAreas] = useState<Area[]>([]);
@@ -56,9 +58,6 @@ export default function SiapSajiCustomersPage() {
   const [patokan, setPatokan] = useState("");
   const [areaId, setAreaId] = useState<number | "">("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Customer Detail Drawer
-  const [selectedCustDetail, setSelectedCustDetail] = useState<{ customer: Customer; orders: any[] } | null>(null);
 
   const fetchCustomers = async (page = meta.page, lim = meta.limit) => {
     setLoading(true);
@@ -160,16 +159,8 @@ export default function SiapSajiCustomersPage() {
     }
   };
 
-  const handleViewDetail = async (custId: number) => {
-    try {
-      const res = await fetch(`/api/siap-saji/customers/${custId}`);
-      if (res.ok) {
-        const json = await res.json();
-        setSelectedCustDetail(json);
-      }
-    } catch (e) {
-      console.error(e);
-    }
+  const handleViewDetail = (custId: number) => {
+    router.push(`/siap-saji/customers/${custId}`);
   };
 
   // RFM Badge Color helper
@@ -378,7 +369,13 @@ export default function SiapSajiCustomersPage() {
                   <tr key={c.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
                     <td style={{ padding: "10px 10px", color: "#6b7280" }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
                     <td style={{ padding: "10px 10px", whiteSpace: "nowrap" }}>
-                      <p style={{ fontWeight: 700, color: "#111827", margin: 0 }}>{c.name}</p>
+                      <p
+                        onClick={() => handleViewDetail(c.id)}
+                        style={{ fontWeight: 800, color: "#5005A6", margin: 0, cursor: "pointer" }}
+                        title="Klik untuk lihat detail brief pelanggan"
+                      >
+                        {c.name}
+                      </p>
                       <a
                         href={getWhatsAppUrl(c.phone)}
                         target="_blank"
@@ -680,112 +677,6 @@ export default function SiapSajiCustomersPage() {
         </div>
       )}
 
-      {/* ── DRAWER: DETAIL CUSTOMER & ORDERS ────────────────────────── */}
-      {selectedCustDetail && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.5)",
-            zIndex: 110,
-            display: "flex",
-            justifyContent: "flex-end",
-          }}
-        >
-          <div style={{ background: "white", width: 440, height: "100%", padding: 24, overflowY: "auto" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <h3 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>Profil Pelanggan</h3>
-              <button onClick={() => setSelectedCustDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}>
-                <X size={20} />
-              </button>
-            </div>
-
-            {/* Profile Summary */}
-            <div style={{ background: "#fdf4ff", borderRadius: 12, padding: 16, border: "1px solid #f5d0fe", marginBottom: 20 }}>
-              <h4 style={{ fontSize: 16, fontWeight: 800, color: "#111827", margin: 0 }}>
-                {selectedCustDetail.customer.name}
-              </h4>
-              <a
-                href={getWhatsAppUrl(selectedCustDetail.customer.phone)}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  fontSize: 13,
-                  color: "#25D366",
-                  fontWeight: 700,
-                  margin: "4px 0 0",
-                  textDecoration: "none",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 4,
-                }}
-                title="Chat WhatsApp (Buka Tab Baru)"
-              >
-                💬 {selectedCustDetail.customer.phone}
-              </a>
-              <p style={{ fontSize: 13, color: "#374151", marginTop: 8 }}>
-                <strong>Kecamatan:</strong> {selectedCustDetail.customer.area_kecamatan || "-"} ({selectedCustDetail.customer.area_kota || "-"})
-              </p>
-              <p style={{ fontSize: 13, color: "#374151", marginTop: 4 }}>
-                <strong>Alamat:</strong> {selectedCustDetail.customer.address || "-"}
-              </p>
-              {selectedCustDetail.customer.patokan && (
-                <p style={{ fontSize: 13, color: "#b10fbd", marginTop: 4, fontWeight: 600 }}>
-                  📍 Patokan: {selectedCustDetail.customer.patokan}
-                </p>
-              )}
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 14, paddingTop: 12, borderTop: "1px dashed #e5e7eb" }}>
-                <div>
-                  <span style={{ fontSize: 11, color: "#6b7280" }}>Total Omset</span>
-                  <p style={{ fontSize: 14, fontWeight: 800, color: "#5005A6", margin: "2px 0 0" }}>
-                    Rp {Number(selectedCustDetail.customer.total_omset || 0).toLocaleString("id-ID")}
-                  </p>
-                </div>
-                <div>
-                  <span style={{ fontSize: 11, color: "#6b7280" }}>Poin Loyalty</span>
-                  <p style={{ fontSize: 14, fontWeight: 800, color: "#15803d", margin: "2px 0 0" }}>
-                    ⭐ {Number(selectedCustDetail.customer.loyalty_points || 0).toLocaleString("id-ID")} Poin
-                  </p>
-                </div>
-                <div>
-                  <span style={{ fontSize: 11, color: "#6b7280" }}>Segmen RFM</span>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: "#b10fbd", margin: "2px 0 0" }}>
-                    {selectedCustDetail.customer.segmen || "Potential Loyalist"}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Order History */}
-            <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
-              Riwayat Transaksi Siap Saji ({selectedCustDetail.orders?.length || 0})
-            </h4>
-
-            {selectedCustDetail.orders?.length === 0 ? (
-              <p style={{ fontSize: 13, color: "#9ca3af" }}>Belum ada riwayat transaksi.</p>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {selectedCustDetail.orders.map((o: any) => (
-                  <div key={o.id} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 12, background: "#fafafa" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontWeight: 700, color: "#5005A6", fontSize: 13 }}>{o.no_struk}</span>
-                      <span style={{ fontSize: 12, color: "#6b7280" }}>{formatDate(o.delivery_date)}</span>
-                    </div>
-                    <p style={{ fontSize: 14, fontWeight: 800, color: "#111827", margin: "6px 0 0" }}>
-                      Rp {Number(o.grand_total).toLocaleString("id-ID")}
-                    </p>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#6b7280", marginTop: 4 }}>
-                      <span>Channel: {o.channel_name || "Gojek"}</span>
-                      <span>Bank: {o.payment_bank}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
