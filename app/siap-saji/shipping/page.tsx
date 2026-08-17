@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { MapPin, Search, Filter, Edit3, CheckCircle, RefreshCw, X, AlertCircle } from "lucide-react";
+import { MapPin, Search, Filter, Edit3, CheckCircle, RefreshCw, X, AlertCircle, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/ui/Pagination";
 
@@ -150,6 +150,20 @@ export default function SiapSajiShippingPage() {
     }
   };
 
+  const handleDeleteOverride = async (row: any) => {
+    if (!confirm(`Apakah Anda yakin ingin menghapus override tarif ongkir untuk ${row.kecamatan} (${row.channel_name})? Tarif akan kembali ke default zona.`)) return;
+    try {
+      const res = await fetch(`/api/siap-saji/shipping?area_id=${row.area_id}&channel_id=${row.channel_id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Gagal menghapus override tarif");
+      toast.success("Tarif ongkir dikembalikan ke default zona.");
+      fetchMatrix();
+    } catch (err: any) {
+      toast.error(err.message || "Gagal menghapus tarif");
+    }
+  };
+
   return (
     <div style={{ maxWidth: 1280, margin: "0 auto", paddingBottom: 40 }}>
       {/* ── HEADER & ZONES SUMMARY ────────────────────────────────── */}
@@ -225,8 +239,7 @@ export default function SiapSajiShippingPage() {
           display: "flex",
           alignItems: "center",
           gap: 10,
-          overflowX: "auto",
-          whiteSpace: "nowrap",
+          flexWrap: "wrap",
         }}
       >
         <div style={{ flex: "1 1 240px", minWidth: 180, position: "relative" }}>
@@ -273,18 +286,18 @@ export default function SiapSajiShippingPage() {
 
       {/* ── SHIPPING MATRIX TABLE ────────────────────────────────── */}
       <div style={{ background: "white", borderRadius: 12, border: "1px solid #e5e7eb", overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 14, whiteSpace: "nowrap" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 13 }}>
           <thead>
-            <tr style={{ background: "#fafafa", borderBottom: "1px solid #e5e7eb", color: "#6b7280", fontWeight: 700, fontSize: 12, textTransform: "uppercase" }}>
-              <th style={{ padding: "12px 16px", width: 50 }}>No.</th>
-              <th style={{ padding: "12px 16px" }}>Kecamatan</th>
-              <th style={{ padding: "12px 16px" }}>Kota</th>
-              <th style={{ padding: "12px 16px" }}>Zona Default</th>
-              <th style={{ padding: "12px 16px" }}>Channel Penjualan</th>
-              <th style={{ padding: "12px 16px" }}>Tarif Efektif</th>
-              <th style={{ padding: "12px 16px" }}>Sumber Tarif</th>
-              <th style={{ padding: "12px 16px" }}>Catatan</th>
-              <th style={{ padding: "12px 16px", textAlign: "right" }}>Aksi</th>
+            <tr style={{ background: "#fafafa", borderBottom: "1px solid #e5e7eb", color: "#6b7280", fontWeight: 700, fontSize: 11, textTransform: "uppercase" }}>
+              <th style={{ padding: "10px 10px", width: 40 }}>No.</th>
+              <th style={{ padding: "10px 10px", width: 130 }}>Kecamatan</th>
+              <th style={{ padding: "10px 10px", width: 130 }}>Kota</th>
+              <th style={{ padding: "10px 10px", width: 150 }}>Zona Default</th>
+              <th style={{ padding: "10px 10px", width: 140 }}>Channel Penjualan</th>
+              <th style={{ padding: "10px 10px", width: 110 }}>Tarif Efektif</th>
+              <th style={{ padding: "10px 10px", width: 130 }}>Sumber Tarif</th>
+              <th style={{ padding: "10px 10px", width: 180 }}>Catatan</th>
+              <th style={{ padding: "10px 10px", width: 110, textAlign: "right" }}>Aksi</th>
             </tr>
           </thead>
           <tbody>
@@ -303,50 +316,78 @@ export default function SiapSajiShippingPage() {
             ) : (
               matrix.slice((page - 1) * limit, page * limit).map((row, idx) => (
                 <tr key={idx} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                  <td style={{ padding: "12px 16px", color: "#6b7280" }}>{(page - 1) * limit + idx + 1}</td>
-                  <td style={{ padding: "12px 16px", fontWeight: 700, color: "#111827" }}>{row.kecamatan}</td>
-                  <td style={{ padding: "12px 16px", color: "#4b5563" }}>{row.kota}</td>
-                  <td style={{ padding: "12px 16px" }}>
-                    <span style={{ fontSize: 12, background: "#f3f4f6", padding: "2px 8px", borderRadius: 4, color: "#4b5563" }}>
+                  <td style={{ padding: "10px 10px", color: "#6b7280" }}>{(page - 1) * limit + idx + 1}</td>
+                  <td style={{ padding: "10px 10px", fontWeight: 700, color: "#111827", whiteSpace: "nowrap" }}>{row.kecamatan}</td>
+                  <td style={{ padding: "10px 10px", color: "#4b5563", whiteSpace: "nowrap" }}>{row.kota}</td>
+                  <td style={{ padding: "10px 10px" }}>
+                    <span style={{ fontSize: 11, background: "#f3f4f6", padding: "2px 8px", borderRadius: 4, color: "#4b5563", whiteSpace: "nowrap" }}>
                       {row.zone_label} (Rp{Number(row.fee_default).toLocaleString("id-ID")})
                     </span>
                   </td>
-                  <td style={{ padding: "12px 16px", fontWeight: 600, color: "#378ADD" }}>{row.channel_name}</td>
-                  <td style={{ padding: "12px 16px", fontWeight: 800, color: "#5005A6", fontSize: 15 }}>
+                  <td style={{ padding: "10px 10px", fontWeight: 600, color: "#378ADD", whiteSpace: "nowrap" }}>{row.channel_name}</td>
+                  <td style={{ padding: "10px 10px", fontWeight: 800, color: "#5005A6", fontSize: 14, whiteSpace: "nowrap" }}>
                     Rp {Number(row.fee_efektif).toLocaleString("id-ID")}
                   </td>
-                  <td style={{ padding: "12px 16px" }}>
+                  <td style={{ padding: "10px 10px" }}>
                     {row.sumber_fee === "spesifik" ? (
-                      <span style={{ background: "#fdf4ff", color: "#b10fbd", border: "1px solid #f5d0fe", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
+                      <span style={{ background: "#fdf4ff", color: "#b10fbd", border: "1px solid #f5d0fe", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
                         ✎ Override Spesifik
                       </span>
                     ) : (
-                      <span style={{ background: "#f3f4f6", color: "#6b7280", padding: "2px 8px", borderRadius: 6, fontSize: 11 }}>
+                      <span style={{ background: "#f3f4f6", color: "#6b7280", padding: "2px 8px", borderRadius: 6, fontSize: 11, whiteSpace: "nowrap" }}>
                         Default Zona
                       </span>
                     )}
                   </td>
-                  <td style={{ padding: "12px 16px", color: "#6b7280", fontSize: 12 }}>{row.notes || "-"}</td>
-                  <td style={{ padding: "12px 16px", textAlign: "right" }}>
-                    <button
-                      onClick={() => {
-                        setEditingRow(row);
-                        setNewFee(Number(row.fee_efektif));
-                        setNotes(row.notes || "");
-                      }}
-                      style={{
-                        padding: "6px 12px",
-                        background: "#5005A6",
-                        color: "white",
-                        border: "none",
-                        borderRadius: 6,
-                        fontSize: 12,
-                        fontWeight: 600,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Ubah Tarif
-                    </button>
+                  <td style={{ padding: "10px 10px", color: "#6b7280", fontSize: 12, wordBreak: "break-word" }}>{row.notes || "-"}</td>
+                  <td style={{ padding: "10px 10px", textAlign: "right" }}>
+                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 4 }}>
+                      <button
+                        onClick={() => {
+                          setEditingRow(row);
+                          setNewFee(Number(row.fee_efektif));
+                          setNotes(row.notes || "");
+                        }}
+                        style={{
+                          padding: "5px 8px",
+                          background: "#5005A6",
+                          color: "white",
+                          border: "none",
+                          borderRadius: 6,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 3,
+                        }}
+                        title="Ubah tarif ongkir"
+                      >
+                        <Edit3 size={12} /> Ubah
+                      </button>
+
+                      {row.sumber_fee === "spesifik" && (
+                        <button
+                          onClick={() => handleDeleteOverride(row)}
+                          style={{
+                            padding: "5px 8px",
+                            background: "#fee2e2",
+                            color: "#dc2626",
+                            border: "1px solid #fca5a5",
+                            borderRadius: 6,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 3,
+                          }}
+                          title="Hapus override (kembalikan ke default zona)"
+                        >
+                          <Trash2 size={12} /> Hapus
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))

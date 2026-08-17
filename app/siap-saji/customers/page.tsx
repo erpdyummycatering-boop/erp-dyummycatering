@@ -224,6 +224,27 @@ export default function SiapSajiCustomersPage() {
     }
   };
 
+  const handleDeleteCustomer = async (c: Customer) => {
+    if (
+      !confirm(
+        `PERHATIAN HAPUS PELANGGAN:\n\nApakah Anda yakin ingin menghapus pelanggan "${c.name}"?\n\nMenghapus pelanggan ini akan menghapus SELURUH riwayat transaksi (orders), order items, jurnal akuntansi, dan mutasi kas terkait secara permanent!`
+      )
+    ) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/siap-saji/customers/${c.id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Gagal menghapus pelanggan");
+      toast.success(data.message || "Pelanggan berhasil dihapus.");
+      fetchCustomers();
+    } catch (err: any) {
+      toast.error(err.message || "Gagal menghapus pelanggan");
+    }
+  };
+
   return (
     <div style={{ maxWidth: 1280, margin: "0 auto", paddingBottom: 40 }}>
       {/* Header */}
@@ -415,15 +436,24 @@ export default function SiapSajiCustomersPage() {
                       <div style={{ display: "flex", justifyContent: "flex-end", gap: 4 }}>
                         <button
                           onClick={() => handleViewDetail(c.id)}
+                          title="Lihat Detail Transaksi"
                           style={{ padding: "5px 8px", background: "#f3f4f6", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 12, cursor: "pointer" }}
                         >
                           <Eye size={14} />
                         </button>
                         <button
                           onClick={() => handleOpenEdit(c)}
+                          title="Edit Data Pelanggan"
                           style={{ padding: "5px 8px", background: "#5005A6", color: "white", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer" }}
                         >
                           <Edit3 size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCustomer(c)}
+                          title="Hapus Pelanggan & Cascade Transaksi"
+                          style={{ padding: "5px 8px", background: "#fee2e2", color: "#dc2626", border: "1px solid #fca5a5", borderRadius: 6, fontSize: 12, cursor: "pointer" }}
+                        >
+                          <Trash2 size={14} />
                         </button>
                       </div>
                     </td>

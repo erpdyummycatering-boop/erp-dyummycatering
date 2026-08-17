@@ -117,8 +117,41 @@ export default function SiapSajiOrdersPage() {
   const [productFilter, setProductFilter] = useState<number | "">("");
   const [filterProductSearchQuery, setFilterProductSearchQuery] = useState("");
   const [isFilterProductDropdownOpen, setIsFilterProductDropdownOpen] = useState(false);
+  const [timeShortcut, setTimeShortcut] = useState<string>("today");
   const [dateFrom, setDateFrom] = useState(getTodayStr());
   const [dateTo, setDateTo] = useState(getTodayStr());
+
+  const handleTimeShortcutChange = (val: string) => {
+    setTimeShortcut(val);
+    if (val === "today") {
+      const today = getTodayStr();
+      setDateFrom(today);
+      setDateTo(today);
+    } else if (val === "week") {
+      const now = new Date();
+      const day = now.getDay();
+      const diffToMonday = now.getDate() - day + (day === 0 ? -6 : 1);
+      const monday = new Date(now.setDate(diffToMonday));
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      setDateFrom(monday.toISOString().split("T")[0]);
+      setDateTo(sunday.toISOString().split("T")[0]);
+    } else if (val === "month") {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, "0");
+      const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
+      setDateFrom(`${y}-${m}-01`);
+      setDateTo(`${y}-${m}-${String(lastDay).padStart(2, "0")}`);
+    } else if (val === "year") {
+      const y = new Date().getFullYear();
+      setDateFrom(`${y}-01-01`);
+      setDateTo(`${y}-12-31`);
+    } else if (val === "all") {
+      setDateFrom("");
+      setDateTo("");
+    }
+  };
 
   // Modals
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -1008,17 +1041,36 @@ export default function SiapSajiOrdersPage() {
         </select>
 
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+          <select
+            value={timeShortcut}
+            onChange={(e) => handleTimeShortcutChange(e.target.value)}
+            style={{ width: 140, padding: "7px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, outline: "none", background: "white" }}
+          >
+            <option value="today">📅 Hari Ini</option>
+            <option value="week">📅 Pekan Ini</option>
+            <option value="month">📅 Bulan Ini</option>
+            <option value="year">📅 Tahun Ini</option>
+            <option value="all">📅 Semua Waktu</option>
+            <option value="custom">📅 Custom Tanggal</option>
+          </select>
+
           <input
             type="date"
             value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
+            onChange={(e) => {
+              setDateFrom(e.target.value);
+              setTimeShortcut("custom");
+            }}
             style={{ width: 130, padding: "7px 8px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, outline: "none" }}
           />
           <span style={{ color: "#9ca3af", fontSize: 12 }}>s/d</span>
           <input
             type="date"
             value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
+            onChange={(e) => {
+              setDateTo(e.target.value);
+              setTimeShortcut("custom");
+            }}
             style={{ width: 130, padding: "7px 8px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, outline: "none" }}
           />
         </div>
@@ -1050,15 +1102,17 @@ export default function SiapSajiOrdersPage() {
           <ClipboardList size={15} /> 🍳 Rekap Dapur A4
         </button>
 
-        {(search || statusFilter || channelFilter || productFilter || dateFrom || dateTo) && (
+        {(search || statusFilter || channelFilter || productFilter || timeShortcut !== "today" || dateFrom || dateTo) && (
           <button
             onClick={() => {
               setSearch("");
               setStatusFilter("");
               setChannelFilter("");
               setProductFilter("");
-              setDateFrom(getTodayStr());
-              setDateTo(getTodayStr());
+              setTimeShortcut("today");
+              const today = getTodayStr();
+              setDateFrom(today);
+              setDateTo(today);
             }}
             style={{
               padding: "7px 12px",

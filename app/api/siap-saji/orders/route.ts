@@ -115,10 +115,11 @@ export async function GET(req: NextRequest) {
         SELECT 
           COALESCE(SUM(CASE WHEN o.status_order <> 'Dibatalkan' THEN o.grand_total ELSE 0 END), 0) AS total_penjualan,
           COUNT(CASE WHEN o.status_order <> 'Dibatalkan' THEN 1 END) AS total_orders,
-          COUNT(CASE WHEN o.status_order <> 'Dibatalkan' AND o.delivery_date = $1 THEN 1 END) AS orders_today
+          COUNT(CASE WHEN o.status_order <> 'Dibatalkan' AND o.delivery_date = '${todayStr}' THEN 1 END) AS orders_today
         FROM orders o
-        WHERE o.lini = 'siap_saji'
-      `, [todayStr]),
+        JOIN customers c ON o.customer_id = c.id
+        ${whereSql}
+      `, vals),
     ]);
 
     const total = Number(countRes.rows[0].count);

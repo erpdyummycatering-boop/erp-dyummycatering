@@ -236,6 +236,17 @@ export async function GET(req: NextRequest) {
         const subWidth = fontBold.widthOfTextAtSize(subtotalText, 13.5);
         pageObj.drawText(subtotalText, { x: width - margin - subWidth, y, size: 13.5, font: fontBold });
         y -= 17;
+
+        if (it.notes || it.note) {
+          const noteText = String(it.notes || it.note).trim();
+          if (noteText) {
+            const nLines = wrapText(`* ${noteText}`, 29);
+            nLines.forEach((line) => {
+              pageObj.drawText(line, { x: margin + 8, y, size: 11, font: fontRegular, color: rgb(0.85, 0.15, 0.15) });
+              y -= 14;
+            });
+          }
+        }
       });
 
       // Shipping Fee

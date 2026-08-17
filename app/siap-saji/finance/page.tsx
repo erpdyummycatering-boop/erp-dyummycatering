@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect, Fragment } from "react";
-import { CreditCard, DollarSign, Plus, FileText, PieChart, BookOpen, ArrowUpRight, ArrowDownLeft, X, CheckCircle, RefreshCw, Search } from "lucide-react";
+import { CreditCard, DollarSign, Plus, FileText, PieChart, BookOpen, ArrowUpRight, ArrowDownLeft, X, CheckCircle, RefreshCw, Search, Edit3, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/ui/Pagination";
 import { formatDate } from "@/lib/utils";
 
 export default function SiapSajiFinancePage() {
-  const [activeTab, setActiveTab] = useState<"pl" | "purchases" | "expenses" | "kas_bank" | "journals">("pl");
+  const [activeTab, setActiveTab] = useState<"pl" | "purchases" | "expenses" | "kas_bank" | "journals" | "coa">("pl");
 
   const [loading, setLoading] = useState(true);
 
@@ -64,6 +64,20 @@ export default function SiapSajiFinancePage() {
   const [jouTypeFilter, setJouTypeFilter] = useState("");
   const [jouDateFrom, setJouDateFrom] = useState("");
   const [jouDateTo, setJouDateTo] = useState("");
+
+  // Tab 6: COA Data & Filters
+  const [coaListAll, setCoaListAll] = useState<any[]>([]);
+  const [coaPage, setCoaPage] = useState(1);
+  const [coaLimit, setCoaLimit] = useState(10);
+  const [coaSearch, setCoaSearch] = useState("");
+  const [coaKelompokFilter, setCoaKelompokFilter] = useState("");
+  const [isCoaModalOpen, setIsCoaModalOpen] = useState(false);
+  const [editingCoa, setEditingCoa] = useState<any | null>(null);
+  const [coaFormCode, setCoaFormCode] = useState("");
+  const [coaFormName, setCoaFormName] = useState("");
+  const [coaFormKelompok, setCoaFormKelompok] = useState("Aset");
+  const [coaFormSubKelompok, setCoaFormSubKelompok] = useState("Aset Lancar");
+  const [coaFormActive, setCoaFormActive] = useState(true);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -145,11 +159,89 @@ export default function SiapSajiFinancePage() {
         }).toString();
         const res = await fetch(`/api/siap-saji/finance/reports?${q}`);
         if (res.ok) setJournals(await res.json());
+      } else if (activeTab === "coa") {
+        const q = new URLSearchParams({
+          search: coaSearch,
+          kelompok: coaKelompokFilter,
+        }).toString();
+        const res = await fetch(`/api/siap-saji/finance/coa?${q}`);
+        if (res.ok) {
+          const json = await res.json();
+          setCoaListAll(json.data || []);
+        }
       }
     } catch (err: any) {
       toast.error(err.message || "Gagal memuat data keuangan");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleOpenAddCoa = () => {
+    setEditingCoa(null);
+    setCoaFormCode("");
+    setCoaFormName("");
+    setCoaFormKelompok("Aset");
+    setCoaFormSubKelompok("Aset Lancar");
+    setCoaFormActive(true);
+    setIsCoaModalOpen(true);
+  };
+
+  const handleOpenEditCoa = (c: any) => {
+    setEditingCoa(c);
+    setCoaFormCode(c.kode_akun);
+    setCoaFormName(c.nama_akun);
+    setCoaFormKelompok(c.kelompok || "Aset");
+    setCoaFormSubKelompok(c.sub_kelompok || "Aset Lancar");
+    setCoaFormActive(c.is_active !== false);
+    setIsCoaModalOpen(true);
+  };
+
+  const handleSaveCoa = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!coaFormCode || !coaFormName || !coaFormKelompok) {
+      return toast.error("Kode Akun, Nama Akun, dan Kelompok wajib diisi.");
+    }
+    setIsSubmitting(true);
+    try {
+      const method = editingCoa ? "PUT" : "POST";
+      const payload = {
+        id: editingCoa?.id,
+        kode_akun: coaFormCode,
+        nama_akun: coaFormName,
+        kelompok: coaFormKelompok,
+        sub_kelompok: coaFormSubKelompok,
+        is_active: coaFormActive,
+      };
+      const res = await fetch("/api/siap-saji/finance/coa", {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Gagal menyimpan Akun COA");
+      toast.success(editingCoa ? "Akun COA berhasil diperbarui!" : "Akun COA baru berhasil ditambahkan!");
+      setIsCoaModalOpen(false);
+      fetchTabData();
+      fetchKasBankMaster();
+    } catch (err: any) {
+      toast.error(err.message || "Gagal menyimpan COA");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteCoa = async (id: number, code: string) => {
+    if (!confirm(`Apakah Anda yakin ingin menghapus akun COA ${code}?`)) return;
+    try {
+      const res = await fetch(`/api/siap-saji/finance/coa?id=${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Gagal menghapus Akun COA");
+      toast.success("Akun COA berhasil dihapus.");
+      fetchTabData();
+      fetchKasBankMaster();
+    } catch (err: any) {
+      toast.error(err.message || "Gagal menghapus COA");
     }
   };
 
@@ -165,6 +257,7 @@ export default function SiapSajiFinancePage() {
     expPage, expLimit, expSearch, expDateFrom, expDateTo,
     mutSearch, mutJenisFilter, mutDateFrom, mutDateTo,
     jouPage, jouLimit, jouSearch, jouTypeFilter, jouDateFrom, jouDateTo,
+    coaSearch, coaKelompokFilter,
   ]);
 
   // Submit HPP Purchase
@@ -316,109 +409,162 @@ export default function SiapSajiFinancePage() {
               <Plus size={18} /> Catat Biaya Operasional
             </button>
           )}
+
+          {activeTab === "coa" && (
+            <button
+              onClick={handleOpenAddCoa}
+              style={{
+                background: "linear-gradient(135deg, #5005A6 0%, #B10FBD 100%)",
+                color: "white",
+                border: "none",
+                borderRadius: 10,
+                padding: "10px 18px",
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <Plus size={18} /> Tambah Akun COA
+            </button>
+          )}
         </div>
       </div>
 
       {/* Tabs */}
-      <div style={{ display: "flex", gap: 12, borderBottom: "2px solid #e5e7eb", marginBottom: 20 }}>
+      <div style={{ display: "flex", gap: 6, borderBottom: "2px solid #e5e7eb", marginBottom: 20, overflowX: "auto", flexWrap: "nowrap" }}>
         <button
           onClick={() => setActiveTab("pl")}
           style={{
-            padding: "12px 20px",
+            padding: "10px 14px",
             background: "none",
             border: "none",
             borderBottom: activeTab === "pl" ? "3px solid #5005A6" : "3px solid transparent",
             color: activeTab === "pl" ? "#5005A6" : "#6b7280",
-            fontSize: 15,
+            fontSize: 13,
             fontWeight: activeTab === "pl" ? 700 : 500,
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
-            gap: 8,
+            gap: 6,
             marginBottom: -2,
+            whiteSpace: "nowrap",
+            flexShrink: 0,
           }}
         >
-          <PieChart size={18} /> Laporan P&L (Laba Rugi)
+          <PieChart size={15} /> Laporan P&L (Laba Rugi)
         </button>
 
         <button
           onClick={() => setActiveTab("purchases")}
           style={{
-            padding: "12px 20px",
+            padding: "10px 14px",
             background: "none",
             border: "none",
             borderBottom: activeTab === "purchases" ? "3px solid #5005A6" : "3px solid transparent",
             color: activeTab === "purchases" ? "#5005A6" : "#6b7280",
-            fontSize: 15,
+            fontSize: 13,
             fontWeight: activeTab === "purchases" ? 700 : 500,
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
-            gap: 8,
+            gap: 6,
             marginBottom: -2,
+            whiteSpace: "nowrap",
+            flexShrink: 0,
           }}
         >
-          <FileText size={18} /> Pembelian HPP (Nota Belanja)
+          <FileText size={15} /> Pembelian HPP
         </button>
 
         <button
           onClick={() => setActiveTab("expenses")}
           style={{
-            padding: "12px 20px",
+            padding: "10px 14px",
             background: "none",
             border: "none",
             borderBottom: activeTab === "expenses" ? "3px solid #5005A6" : "3px solid transparent",
             color: activeTab === "expenses" ? "#5005A6" : "#6b7280",
-            fontSize: 15,
+            fontSize: 13,
             fontWeight: activeTab === "expenses" ? 700 : 500,
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
-            gap: 8,
+            gap: 6,
             marginBottom: -2,
+            whiteSpace: "nowrap",
+            flexShrink: 0,
           }}
         >
-          <DollarSign size={18} /> Biaya Operasional
+          <DollarSign size={15} /> Biaya Operasional
         </button>
 
         <button
           onClick={() => setActiveTab("kas_bank")}
           style={{
-            padding: "12px 20px",
+            padding: "10px 14px",
             background: "none",
             border: "none",
             borderBottom: activeTab === "kas_bank" ? "3px solid #5005A6" : "3px solid transparent",
             color: activeTab === "kas_bank" ? "#5005A6" : "#6b7280",
-            fontSize: 15,
+            fontSize: 13,
             fontWeight: activeTab === "kas_bank" ? 700 : 500,
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
-            gap: 8,
+            gap: 6,
             marginBottom: -2,
+            whiteSpace: "nowrap",
+            flexShrink: 0,
           }}
         >
-          <CreditCard size={18} /> Kas & Rekening Bank
+          <CreditCard size={15} /> Kas & Rekening Bank
         </button>
 
         <button
           onClick={() => setActiveTab("journals")}
           style={{
-            padding: "12px 20px",
+            padding: "10px 14px",
             background: "none",
             border: "none",
             borderBottom: activeTab === "journals" ? "3px solid #5005A6" : "3px solid transparent",
             color: activeTab === "journals" ? "#5005A6" : "#6b7280",
-            fontSize: 15,
+            fontSize: 13,
             fontWeight: activeTab === "journals" ? 700 : 500,
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
-            gap: 8,
+            gap: 6,
             marginBottom: -2,
+            whiteSpace: "nowrap",
+            flexShrink: 0,
           }}
         >
-          <BookOpen size={18} /> Buku Jurnal General Ledger
+          <BookOpen size={15} /> Buku Jurnal
+        </button>
+
+        <button
+          onClick={() => setActiveTab("coa")}
+          style={{
+            padding: "10px 14px",
+            background: "none",
+            border: "none",
+            borderBottom: activeTab === "coa" ? "3px solid #5005A6" : "3px solid transparent",
+            color: activeTab === "coa" ? "#5005A6" : "#6b7280",
+            fontSize: 13,
+            fontWeight: activeTab === "coa" ? 700 : 500,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            marginBottom: -2,
+            whiteSpace: "nowrap",
+            flexShrink: 0,
+          }}
+        >
+          <CreditCard size={15} /> Master Chart of Accounts (COA)
         </button>
       </div>
 
@@ -1264,6 +1410,323 @@ export default function SiapSajiFinancePage() {
                 </button>
                 <button type="submit" disabled={isSubmitting} style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "#5005A6", color: "white", fontWeight: 700 }}>
                   {isSubmitting ? "Simpan..." : "Simpan Biaya"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB 6: MASTER CHART OF ACCOUNTS (COA) ───────────────────── */}
+      {activeTab === "coa" && (
+        <div>
+          {/* Toolbar */}
+          <div
+            style={{
+              background: "white",
+              borderRadius: 12,
+              padding: "12px 16px",
+              border: "1px solid #e5e7eb",
+              marginBottom: 20,
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              flexWrap: "wrap",
+            }}
+          >
+            <div style={{ flex: "1 1 240px", minWidth: 180, position: "relative" }}>
+              <Search size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
+              <input
+                type="text"
+                placeholder="Cari Kode Akun, Nama Akun..."
+                value={coaSearch}
+                onChange={(e) => setCoaSearch(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "7px 12px 7px 34px",
+                  borderRadius: 8,
+                  border: "1px solid #d1d5db",
+                  fontSize: 13,
+                  outline: "none",
+                }}
+              />
+            </div>
+
+            <select
+              value={coaKelompokFilter}
+              onChange={(e) => setCoaKelompokFilter(e.target.value)}
+              style={{ width: 160, padding: "7px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, outline: "none", background: "white" }}
+            >
+              <option value="">Semua Kelompok</option>
+              <option value="Aset">🔵 Aset</option>
+              <option value="Liabilitas">🔴 Liabilitas</option>
+              <option value="Ekuitas">🟢 Ekuitas</option>
+              <option value="Pendapatan">🟣 Pendapatan</option>
+              <option value="Beban">🟠 Beban & COGS</option>
+            </select>
+          </div>
+
+          {/* COA Table */}
+          <div style={{ background: "white", borderRadius: 12, border: "1px solid #e5e7eb", overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: "#fafafa", borderBottom: "1px solid #e5e7eb", color: "#6b7280", fontWeight: 700, fontSize: 11, textTransform: "uppercase" }}>
+                  <th style={{ padding: "12px 14px", width: 50 }}>No.</th>
+                  <th style={{ padding: "12px 14px", width: 120 }}>Kode Akun</th>
+                  <th style={{ padding: "12px 14px" }}>Nama Akun</th>
+                  <th style={{ padding: "12px 14px", width: 140 }}>Kelompok</th>
+                  <th style={{ padding: "12px 14px", width: 180 }}>Sub Kelompok</th>
+                  <th style={{ padding: "12px 14px", width: 100 }}>Status</th>
+                  <th style={{ padding: "12px 14px", width: 110, textAlign: "right" }}>Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                      Memuat daftar Chart of Accounts...
+                    </td>
+                  </tr>
+                ) : coaListAll.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                      Tidak ada akun COA ditemukan.
+                    </td>
+                  </tr>
+                ) : (
+                  coaListAll
+                    .slice((coaPage - 1) * coaLimit, coaPage * coaLimit)
+                    .map((c, idx) => (
+                      <tr key={c.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                        <td style={{ padding: "12px 14px", color: "#6b7280" }}>
+                          {(coaPage - 1) * coaLimit + idx + 1}
+                        </td>
+                        <td style={{ padding: "12px 14px", fontWeight: 800, color: "#5005A6", fontFamily: "monospace", fontSize: 13 }}>
+                          {c.kode_akun}
+                        </td>
+                        <td style={{ padding: "12px 14px", fontWeight: 700, color: "#111827" }}>
+                          {c.nama_akun}
+                        </td>
+                        <td style={{ padding: "12px 14px" }}>
+                          <span
+                            style={{
+                              padding: "2px 8px",
+                              borderRadius: 6,
+                              fontSize: 11,
+                              fontWeight: 700,
+                              background:
+                                c.kelompok === "Aset"
+                                  ? "#eff6ff"
+                                  : c.kelompok === "Liabilitas"
+                                  ? "#fef2f2"
+                                  : c.kelompok === "Ekuitas"
+                                  ? "#f0fdf4"
+                                  : c.kelompok === "Pendapatan"
+                                  ? "#fdf4ff"
+                                  : "#fff7ed",
+                              color:
+                                c.kelompok === "Aset"
+                                  ? "#1d4ed8"
+                                  : c.kelompok === "Liabilitas"
+                                  ? "#b91c1c"
+                                  : c.kelompok === "Ekuitas"
+                                  ? "#15803d"
+                                  : c.kelompok === "Pendapatan"
+                                  ? "#b10fbd"
+                                  : "#c2410c",
+                            }}
+                          >
+                            {c.kelompok}
+                          </span>
+                        </td>
+                        <td style={{ padding: "12px 14px", color: "#4b5563", fontSize: 12 }}>
+                          {c.sub_kelompok}
+                        </td>
+                        <td style={{ padding: "12px 14px" }}>
+                          {c.is_active !== false ? (
+                            <span style={{ color: "#16a34a", background: "#dcfce7", padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 700 }}>
+                              Aktif
+                            </span>
+                          ) : (
+                            <span style={{ color: "#6b7280", background: "#f3f4f6", padding: "2px 8px", borderRadius: 4, fontSize: 11 }}>
+                              Non-Aktif
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: "12px 14px", textAlign: "right" }}>
+                          <div style={{ display: "flex", justifyContent: "flex-end", gap: 4 }}>
+                            <button
+                              onClick={() => handleOpenEditCoa(c)}
+                              title="Edit Akun COA"
+                              style={{ padding: "5px 8px", background: "#5005A6", color: "white", border: "none", borderRadius: 6, fontSize: 11, cursor: "pointer" }}
+                            >
+                              <Edit3 size={13} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteCoa(c.id, c.kode_akun)}
+                              title="Hapus Akun COA"
+                              style={{ padding: "5px 8px", background: "#fee2e2", color: "#dc2626", border: "1px solid #fca5a5", borderRadius: 6, fontSize: 11, cursor: "pointer" }}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                )}
+              </tbody>
+            </table>
+
+            {/* COA Table Pagination */}
+            {coaListAll.length > 0 && (
+              <Pagination
+                page={coaPage}
+                totalPages={Math.ceil(coaListAll.length / coaLimit)}
+                total={coaListAll.length}
+                limit={coaLimit}
+                onChange={(p: number) => setCoaPage(p)}
+                onLimitChange={(l: number) => {
+                  setCoaLimit(l);
+                  setCoaPage(1);
+                }}
+              />
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL COA (TAMBAH / EDIT) ─────────────────────────────────── */}
+      {isCoaModalOpen && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: "white", borderRadius: 16, width: "100%", maxWidth: 480, padding: 24, boxShadow: "0 20px 25px -5px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 800, color: "#111827", margin: 0 }}>
+                {editingCoa ? "Edit Akun COA" : "Tambah Akun COA Baru"}
+              </h3>
+              <button onClick={() => setIsCoaModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer" }}>
+                <X size={20} color="#6b7280" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCoa}>
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                  Kode Akun * (Contoh: 1-1005, 5-1002, 6-1005)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Kode Akun"
+                  value={coaFormCode}
+                  onChange={(e) => setCoaFormCode(e.target.value)}
+                  required
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, fontFamily: "monospace" }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                  Nama Akun *
+                </label>
+                <input
+                  type="text"
+                  placeholder="Nama Akun COA"
+                  value={coaFormName}
+                  onChange={(e) => setCoaFormName(e.target.value)}
+                  required
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                    Kelompok *
+                  </label>
+                  <select
+                    value={coaFormKelompok}
+                    onChange={(e) => {
+                      const k = e.target.value;
+                      setCoaFormKelompok(k);
+                      if (k === "Aset") setCoaFormSubKelompok("Aset Lancar");
+                      else if (k === "Liabilitas") setCoaFormSubKelompok("Liabilitas Lancar");
+                      else if (k === "Ekuitas") setCoaFormSubKelompok("Modal");
+                      else if (k === "Pendapatan") setCoaFormSubKelompok("Penjualan");
+                      else if (k === "Beban") setCoaFormSubKelompok("Beban Operasional");
+                    }}
+                    required
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                  >
+                    <option value="Aset">Aset</option>
+                    <option value="Liabilitas">Liabilitas</option>
+                    <option value="Ekuitas">Ekuitas</option>
+                    <option value="Pendapatan">Pendapatan</option>
+                    <option value="Beban">Beban</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                    Sub Kelompok *
+                  </label>
+                  <select
+                    value={coaFormSubKelompok}
+                    onChange={(e) => setCoaFormSubKelompok(e.target.value)}
+                    required
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                  >
+                    {coaFormKelompok === "Aset" && (
+                      <>
+                        <option value="Aset Lancar">Aset Lancar</option>
+                        <option value="Aset Tetap">Aset Tetap</option>
+                      </>
+                    )}
+                    {coaFormKelompok === "Liabilitas" && (
+                      <>
+                        <option value="Liabilitas Lancar">Liabilitas Lancar</option>
+                        <option value="Liabilitas Jangka Panjang">Liabilitas Jangka Panjang</option>
+                      </>
+                    )}
+                    {coaFormKelompok === "Ekuitas" && (
+                      <>
+                        <option value="Modal">Modal</option>
+                        <option value="Laba Ditahan">Laba Ditahan</option>
+                      </>
+                    )}
+                    {coaFormKelompok === "Pendapatan" && (
+                      <>
+                        <option value="Penjualan">Penjualan</option>
+                        <option value="Pendapatan Lain">Pendapatan Lain</option>
+                      </>
+                    )}
+                    {coaFormKelompok === "Beban" && (
+                      <>
+                        <option value="Beban Pokok Penjualan">Beban Pokok Penjualan (HPP)</option>
+                        <option value="Beban Operasional">Beban Operasional</option>
+                        <option value="Beban Non-Operasional">Beban Non-Operasional</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#374151" }}>
+                  <input
+                    type="checkbox"
+                    checked={coaFormActive}
+                    onChange={(e) => setCoaFormActive(e.target.checked)}
+                    style={{ width: 16, height: 16, accentColor: "#5005A6" }}
+                  />
+                  Status Akun Aktif
+                </label>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                <button type="button" onClick={() => setIsCoaModalOpen(false)} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "white" }}>
+                  Batal
+                </button>
+                <button type="submit" disabled={isSubmitting} style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "#5005A6", color: "white", fontWeight: 700 }}>
+                  {isSubmitting ? "Simpan..." : "Simpan Akun COA"}
                 </button>
               </div>
             </form>

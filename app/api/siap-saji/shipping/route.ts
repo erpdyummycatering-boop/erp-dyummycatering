@@ -92,3 +92,27 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   return POST(req);
 }
+
+export async function DELETE(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const area_id = searchParams.get("area_id");
+  const channel_id = searchParams.get("channel_id");
+
+  if (!area_id || !channel_id) {
+    return NextResponse.json({ error: "area_id dan channel_id wajib diisi." }, { status: 400 });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query(
+      "DELETE FROM area_channel_shipping WHERE area_id = $1 AND channel_id = $2",
+      [Number(area_id), Number(channel_id)]
+    );
+    return NextResponse.json({ message: "Tarif ongkir spesifik berhasil dihapus." });
+  } catch (error: any) {
+    console.error("Gagal menghapus tarif shipping:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  } finally {
+    client.release();
+  }
+}
