@@ -77,9 +77,9 @@ export async function GET(
       ? new Date(order.created_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
       : "";
 
-    // 72mm Printable Thermal Head Width (204 pt) - Prevents driver scaling down!
+    // 72mm Printable Thermal Head Width (204 pt)
     const width = 204;
-    const margin = 1; // Ultra-narrow 1pt margin to maximize full thermal paper width
+    const margin = 1;
 
     // Helper for measuring single order height accurately with 1.3-1.5x line spacing
     const measureOrderHeight = () => {
@@ -126,7 +126,8 @@ export async function GET(
       return h;
     };
 
-    const height = Math.ceil(measureOrderHeight() + 20); // 10pt top + 10pt bottom
+    // 50pt total vertical margin budget (top padding 18pt + cap height offset 18pt + bottom padding 14pt)
+    const height = Math.ceil(measureOrderHeight() + 50);
 
     const pdfDoc = await PDFDocument.create();
     const page = pdfDoc.addPage([width, height]);
@@ -135,13 +136,14 @@ export async function GET(
     const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const fontOblique = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
 
-    let y = height - 10;
+    // Initial baseline offset at (height - 36) so top cap height of 22pt title font is at (height - 18)
+    let y = height - 36;
 
     const drawCenterText = (text: string, font: any, size: number) => {
       const textWidth = font.widthOfTextAtSize(text, size);
       const x = (width - textWidth) / 2;
       page.drawText(text, { x, y, size, font, color: rgb(0.02, 0.02, 0.02) });
-      y -= size + 5;
+      y -= size + 4;
     };
 
     const drawSolidLine = () => {
@@ -154,7 +156,7 @@ export async function GET(
       y -= 15;
     };
 
-    // Header
+    // Header (Title font size 22pt starts at y = height - 36, cap height top = height - 18pt)
     drawCenterText("DYummy Catering", fontBold, 22);
     drawCenterText("Jl Sindangsari 4 No 48", fontRegular, 13);
     drawCenterText("Kota Bandung Jawa Barat Indonesia", fontRegular, 13);

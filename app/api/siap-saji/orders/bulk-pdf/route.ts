@@ -82,9 +82,9 @@ export async function GET(req: NextRequest) {
     const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const fontOblique = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
 
-    // 72mm Printable Thermal Head Width (204 pt) - Prevents driver scaling down!
+    // 72mm Printable Thermal Head Width (204 pt)
     const width = 204;
-    const margin = 1; // Ultra-narrow 1pt margin to maximize full thermal paper width
+    const margin = 1;
 
     // Helper for measuring single order height accurately matching exact y deductions 1:1
     const measureOrderHeight = (order: any, isLast: boolean = false) => {
@@ -163,7 +163,7 @@ export async function GET(req: NextRequest) {
 
       let y = startY;
 
-      // Header
+      // Header (Title 22pt starts at startY which is offset by 36pt from page top)
       drawCenterTextOnPage(pageObj, "DYummy Catering", fontBold, 22, y);
       y -= 26;
       drawCenterTextOnPage(pageObj, "Jl Sindangsari 4 No 48", fontRegular, 13, y);
@@ -313,11 +313,11 @@ export async function GET(req: NextRequest) {
         totalContentHeight += measureOrderHeight(order, isLast);
       });
 
-      // Top margin 10pt + Bottom margin 10pt
-      const totalRollHeight = Math.ceil(totalContentHeight + 20);
+      // 50pt total vertical margin budget
+      const totalRollHeight = Math.ceil(totalContentHeight + 50);
 
       const page = pdfDoc.addPage([width, totalRollHeight]);
-      let y = totalRollHeight - 10;
+      let y = totalRollHeight - 36; // Initial baseline offset to avoid top cut-off
 
       orderRes.rows.forEach((order, idx) => {
         const isLast = idx === orderRes.rows.length - 1;
@@ -326,9 +326,9 @@ export async function GET(req: NextRequest) {
     } else {
       // ── DYNAMIC EXACT HEIGHT PER RECEIPT PAGE MODE (Zero Wasted Blank Paper) ──
       for (const order of orderRes.rows) {
-        const height = Math.ceil(measureOrderHeight(order, true) + 20);
+        const height = Math.ceil(measureOrderHeight(order, true) + 50);
         const page = pdfDoc.addPage([width, height]);
-        renderSingleOrder(page, order, height - 10, true);
+        renderSingleOrder(page, order, height - 36, true);
       }
     }
 

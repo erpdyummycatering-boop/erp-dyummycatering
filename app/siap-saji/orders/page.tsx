@@ -151,6 +151,8 @@ export default function SiapSajiOrdersPage() {
   const [orderNotes, setOrderNotes] = useState("");
   const [cartItems, setCartItems] = useState<OrderItemInput[]>([]);
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+  const [productSearchQuery, setProductSearchQuery] = useState("");
+  const [isProductDropdownOpen, setIsProductDropdownOpen] = useState(false);
 
   // Fetch Orders
   const fetchOrders = async (page = meta.page, lim = meta.limit) => {
@@ -1154,45 +1156,180 @@ export default function SiapSajiOrdersPage() {
 
               {/* Product Selection */}
               <div style={{ marginBottom: 20 }}>
-                <h3 style={{ fontSize: 15, fontWeight: 700, color: "#111827", marginBottom: 12 }}>
-                  Pilih Produk & Qty
-                </h3>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <h3 style={{ fontSize: 15, fontWeight: 700, color: "#111827", margin: 0 }}>
+                    Pilih Produk & Qty
+                  </h3>
+                  <span style={{ fontSize: 12, color: "#6b7280" }}>
+                    Total {masterProducts.length} Produk Tersedia
+                  </span>
+                </div>
 
-                {/* Product Catalog Grid */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10, maxHeight: 220, overflowY: "auto", border: "1px solid #e5e7eb", borderRadius: 10, padding: 10, marginBottom: 16 }}>
-                  {masterProducts.map((p) => {
-                    let displayPrice = p.price;
-                    if (selectedChannelId && p.channel_prices) {
-                      const ov = p.channel_prices.find((cp) => cp.channel_id === Number(selectedChannelId));
-                      if (ov && ov.harga_override !== null) displayPrice = ov.harga_override;
-                    }
-                    return (
-                      <div
-                        key={p.id}
-                        onClick={() => handleAddProductToCart(p)}
-                        style={{
-                          border: p.is_half_portion ? "1px dashed #b10fbd" : "1px solid #e5e7eb",
-                          borderRadius: 8,
-                          padding: "10px 12px",
-                          background: p.is_half_portion ? "#fdf4ff" : "white",
-                          cursor: "pointer",
-                          transition: "all 0.12s",
+                {/* 🔍 Autocomplete Product Search Input */}
+                <div style={{ position: "relative", marginBottom: 12 }}>
+                  <div style={{ position: "relative" }}>
+                    <Search size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#5005A6" }} />
+                    <input
+                      type="text"
+                      placeholder="🔍 Cari & Tambah Produk (Ketik Nama / SKU Produk)..."
+                      value={productSearchQuery}
+                      onChange={(e) => {
+                        setProductSearchQuery(e.target.value);
+                        setIsProductDropdownOpen(true);
+                      }}
+                      onFocus={() => setIsProductDropdownOpen(true)}
+                      style={{
+                        width: "100%",
+                        padding: "10px 36px 10px 36px",
+                        borderRadius: 10,
+                        border: "2px solid #5005A6",
+                        fontSize: 14,
+                        fontWeight: 600,
+                        outline: "none",
+                        boxShadow: "0 2px 8px rgba(80, 5, 166, 0.12)",
+                        background: "#fdf8ff",
+                      }}
+                    />
+                    {productSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProductSearchQuery("");
+                          setIsProductDropdownOpen(false);
                         }}
+                        style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#9ca3af" }}
                       >
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                          <p style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: 0 }}>{p.name}</p>
-                          {p.is_half_portion && (
-                            <span style={{ fontSize: 10, fontWeight: 800, background: "#b10fbd", color: "white", padding: "1px 4px", borderRadius: 4 }}>
-                              ½ Porsi
-                            </span>
-                          )}
+                        <X size={16} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Autocomplete Dropdown List */}
+                  {isProductDropdownOpen && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "100%",
+                        left: 0,
+                        right: 0,
+                        zIndex: 60,
+                        background: "white",
+                        borderRadius: 10,
+                        border: "1px solid #d1d5db",
+                        boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.2)",
+                        maxHeight: 240,
+                        overflowY: "auto",
+                        marginTop: 4,
+                      }}
+                    >
+                      {(() => {
+                        const filtered = masterProducts.filter((p) => {
+                          if (!productSearchQuery.trim()) return true;
+                          const q = productSearchQuery.toLowerCase().trim();
+                          return p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q);
+                        });
+
+                        if (filtered.length === 0) {
+                          return (
+                            <div style={{ padding: "12px 16px", fontSize: 13, color: "#9ca3af", textAlign: "center" }}>
+                              Tidak ada produk ditemukan untuk &quot;{productSearchQuery}&quot;
+                            </div>
+                          );
+                        }
+
+                        return filtered.map((p) => {
+                          let displayPrice = p.price;
+                          if (selectedChannelId && p.channel_prices) {
+                            const ov = p.channel_prices.find((cp) => cp.channel_id === Number(selectedChannelId));
+                            if (ov && ov.harga_override !== null) displayPrice = ov.harga_override;
+                          }
+                          return (
+                            <div
+                              key={p.id}
+                              onClick={() => {
+                                handleAddProductToCart(p);
+                                setProductSearchQuery("");
+                                setIsProductDropdownOpen(false);
+                              }}
+                              style={{
+                                padding: "10px 14px",
+                                borderBottom: "1px solid #f3f4f6",
+                                cursor: "pointer",
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                transition: "background 0.1s",
+                                background: p.is_half_portion ? "#fdf4ff" : "white",
+                              }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = "#f3e8ff")}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = p.is_half_portion ? "#fdf4ff" : "white")}
+                            >
+                              <div>
+                                <p style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: 0, display: "flex", alignItems: "center", gap: 6 }}>
+                                  {p.name}
+                                  {p.is_half_portion && (
+                                    <span style={{ fontSize: 10, fontWeight: 800, background: "#b10fbd", color: "white", padding: "1px 5px", borderRadius: 4 }}>
+                                      ½ Porsi
+                                    </span>
+                                  )}
+                                </p>
+                                <p style={{ fontSize: 11, color: "#6b7280", margin: "2px 0 0" }}>SKU: {p.sku}</p>
+                              </div>
+                              <div style={{ textAlign: "right" }}>
+                                <p style={{ fontSize: 13, fontWeight: 800, color: "#5005A6", margin: 0 }}>
+                                  Rp {displayPrice.toLocaleString("id-ID")}
+                                </p>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: "#16a34a" }}>+ Tambah</span>
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                  )}
+                </div>
+
+                {/* Product Catalog Grid (Filtered live by search query) */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10, maxHeight: 180, overflowY: "auto", border: "1px solid #e5e7eb", borderRadius: 10, padding: 10, marginBottom: 16 }}>
+                  {masterProducts
+                    .filter((p) => {
+                      if (!productSearchQuery.trim()) return true;
+                      const q = productSearchQuery.toLowerCase().trim();
+                      return p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q);
+                    })
+                    .map((p) => {
+                      let displayPrice = p.price;
+                      if (selectedChannelId && p.channel_prices) {
+                        const ov = p.channel_prices.find((cp) => cp.channel_id === Number(selectedChannelId));
+                        if (ov && ov.harga_override !== null) displayPrice = ov.harga_override;
+                      }
+                      return (
+                        <div
+                          key={p.id}
+                          onClick={() => handleAddProductToCart(p)}
+                          style={{
+                            border: p.is_half_portion ? "1px dashed #b10fbd" : "1px solid #e5e7eb",
+                            borderRadius: 8,
+                            padding: "10px 12px",
+                            background: p.is_half_portion ? "#fdf4ff" : "white",
+                            cursor: "pointer",
+                            transition: "all 0.12s",
+                          }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                            <p style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: 0 }}>{p.name}</p>
+                            {p.is_half_portion && (
+                              <span style={{ fontSize: 10, fontWeight: 800, background: "#b10fbd", color: "white", padding: "1px 4px", borderRadius: 4 }}>
+                                ½ Porsi
+                              </span>
+                            )}
+                          </div>
+                          <p style={{ fontSize: 12, fontWeight: 600, color: "#5005A6", marginTop: 4 }}>
+                            Rp {displayPrice.toLocaleString("id-ID")}
+                          </p>
                         </div>
-                        <p style={{ fontSize: 12, fontWeight: 600, color: "#5005A6", marginTop: 4 }}>
-                          Rp {displayPrice.toLocaleString("id-ID")}
-                        </p>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
                 </div>
 
                 {/* Cart Selected Items Table */}
