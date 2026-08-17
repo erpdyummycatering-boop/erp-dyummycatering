@@ -71,6 +71,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Tidak ada data order ditemukan untuk rekap dapur" }, { status: 404 });
     }
 
+    // Separate Full Portion items vs Half Portion (1/2) items
+    const fullPortionRows = rowsData.filter((r) => !r.is_half_portion && !String(r.product_name || "").includes("1/2"));
+    const halfPortionRows = rowsData.filter((r) => r.is_half_portion || String(r.product_name || "").includes("1/2"));
+
     // Standard A4 dimensions: 595.28 pt x 841.89 pt
     const width = 595.28;
     const pageHeight = 841.89;
@@ -94,7 +98,6 @@ export async function GET(req: NextRequest) {
       return Math.max(22, maxLines * 14 + 6);
     };
 
-    // Calculate pages required or multi-page support
     let currentPage = pdfDoc.addPage([width, pageHeight]);
     let y = pageHeight - margin;
 
@@ -150,8 +153,7 @@ export async function GET(req: NextRequest) {
 
     drawHeader(currentPage);
 
-    // Draw Data Rows
-    rowsData.forEach((row, idx) => {
+    const renderRowItem = (row: any, idx: number) => {
       const rh = getRowHeight(row);
 
       // Check if page overflow
@@ -214,7 +216,44 @@ export async function GET(req: NextRequest) {
       }
 
       y -= rh;
+    };
+
+    // 1. Render Full Portion Rows
+    fullPortionRows.forEach((row, idx) => {
+      renderRowItem(row, idx);
     });
+
+    // 2. Render 1 Blank Row Separator if there are Half Portion items
+    if (halfPortionRows.length > 0) {
+      const blankRowHeight = 22;
+
+      if (y - blankRowHeight < margin + 20) {
+        currentPage = pdfDoc.addPage([width, pageHeight]);
+        y = pageHeight - margin;
+        drawHeader(currentPage);
+      }
+
+      const rowY = y;
+      currentPage.drawRectangle({
+        x: margin,
+        y: rowY - blankRowHeight,
+        width: contentWidth,
+        height: blankRowHeight,
+        color: rgb(1, 1, 1),
+        borderColor: rgb(0.4, 0.4, 0.4),
+        borderWidth: 0.6,
+      });
+
+      currentPage.drawLine({ start: { x: margin + col1Width, y: rowY }, end: { x: margin + col1Width, y: rowY - blankRowHeight }, thickness: 0.6, color: rgb(0.4, 0.4, 0.4) });
+      currentPage.drawLine({ start: { x: margin + col1Width + col2Width, y: rowY }, end: { x: margin + col1Width + col2Width, y: rowY - blankRowHeight }, thickness: 0.6, color: rgb(0.4, 0.4, 0.4) });
+
+      y -= blankRowHeight;
+
+      // 3. Render Half Portion (1/2) Rows
+      halfPortionRows.forEach((row, idx) => {
+        renderRowItem(row, idx);
+      });
+    }
 
     const pdfBytes = await pdfDoc.save();
 

@@ -99,12 +99,21 @@ export default function SiapSajiOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState({ total_penjualan: 0, total_orders: 0, orders_today: 0 });
 
+  // Helper today YYYY-MM-DD
+  const getTodayStr = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
   // Filters
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [channelFilter, setChannelFilter] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [dateFrom, setDateFrom] = useState(getTodayStr());
+  const [dateTo, setDateTo] = useState(getTodayStr());
 
   // Modals
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -633,8 +642,8 @@ export default function SiapSajiOrdersPage() {
               setSearch("");
               setStatusFilter("");
               setChannelFilter("");
-              setDateFrom("");
-              setDateTo("");
+              setDateFrom(getTodayStr());
+              setDateTo(getTodayStr());
             }}
             style={{
               padding: "7px 12px",
