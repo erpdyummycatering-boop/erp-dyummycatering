@@ -1,3 +1,4 @@
+// Route: /api/siap-saji/orders/[id] - Updated with payment_bank and payment_account fix
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
@@ -115,13 +116,34 @@ export async function PUT(
     }
     const existingOrder = existingOrderRes.rows[0];
 
-    // 2. Update Customer Details
-    await client.query(
-      `UPDATE customers
-       SET name = $1, phone = $2, address = $3, patokan = $4, area_id = $5
-       WHERE id = $6`,
-      [customer_name, customer_phone, customer_address || "-", customer_patokan || "", area_id || null, existingOrder.customer_id]
+    // 2. Resolve Customer (Update or Link Existing Customer by Phone)
+    let finalCustomerId = existingOrder.customer_id;
+    const cleanPhone = String(customer_phone).trim().replace(/[^0-9]/g, "");
+
+    const phoneCheckRes = await client.query(
+      "SELECT id FROM customers WHERE phone = $1 AND id <> $2 LIMIT 1",
+      [cleanPhone, existingOrder.customer_id]
     );
+
+    if (phoneCheckRes.rows.length > 0) {
+      finalCustomerId = phoneCheckRes.rows[0].id;
+      await client.query(
+        `UPDATE customers
+         SET name = COALESCE(NULLIF($1, ''), name),
+             address = COALESCE(NULLIF($2, ''), address),
+             patokan = COALESCE(NULLIF($3, ''), patokan),
+             area_id = COALESCE($4, area_id)
+         WHERE id = $5`,
+        [customer_name, customer_address, customer_patokan, area_id || null, finalCustomerId]
+      );
+    } else {
+      await client.query(
+        `UPDATE customers
+         SET name = $1, phone = $2, address = $3, patokan = $4, area_id = $5
+         WHERE id = $6`,
+        [customer_name, cleanPhone, customer_address || "-", customer_patokan || "", area_id || null, finalCustomerId]
+      );
+    }
 
     // 3. Calculate Item Subtotals & Order Totals
     let itemsTotal = 0;
@@ -158,20 +180,20 @@ export async function PUT(
     // 4. Update Order Record
     await client.query(
       `UPDATE orders
-       SET channel_id = $1,
-           delivery_date = $2::date,
-           shipping_fee = $3,
-           discount = $4,
+       SET customer_id = $1,
+           channel_id = $2,
+           delivery_date = $3::date,
+           shipping_fee = $4,
            grand_total = $5,
            payment_bank = $6,
            payment_account = $7,
            updated_at = NOW()
        WHERE id = $8`,
       [
+        finalCustomerId,
         channel_id || existingOrder.channel_id,
         delivery_date || existingOrder.delivery_date,
         shipFee,
-        discVal,
         grandTotal,
         paymentBankName,
         paymentAccountNo,

@@ -114,6 +114,9 @@ export default function SiapSajiOrdersPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [channelFilter, setChannelFilter] = useState("");
+  const [productFilter, setProductFilter] = useState<number | "">("");
+  const [filterProductSearchQuery, setFilterProductSearchQuery] = useState("");
+  const [isFilterProductDropdownOpen, setIsFilterProductDropdownOpen] = useState(false);
   const [dateFrom, setDateFrom] = useState(getTodayStr());
   const [dateTo, setDateTo] = useState(getTodayStr());
 
@@ -156,6 +159,8 @@ export default function SiapSajiOrdersPage() {
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [productSearchQuery, setProductSearchQuery] = useState("");
   const [isProductDropdownOpen, setIsProductDropdownOpen] = useState(false);
+  const [areaSearchQuery, setAreaSearchQuery] = useState("");
+  const [isAreaDropdownOpen, setIsAreaDropdownOpen] = useState(false);
 
   // Edit Order State
   const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
@@ -266,6 +271,7 @@ export default function SiapSajiOrdersPage() {
       if (search) q.append("search", search);
       if (statusFilter) q.append("status_order", statusFilter);
       if (channelFilter) q.append("channel_id", channelFilter);
+      if (productFilter) q.append("product_id", String(productFilter));
       if (dateFrom) q.append("date_from", dateFrom);
       if (dateTo) q.append("date_to", dateTo);
 
@@ -318,7 +324,7 @@ export default function SiapSajiOrdersPage() {
 
   useEffect(() => {
     fetchOrders();
-  }, [search, statusFilter, channelFilter, dateFrom, dateTo]);
+  }, [search, statusFilter, channelFilter, productFilter, dateFrom, dateTo]);
 
   // Recalculate Shipping Fee when Area or Channel changes in Form
   useEffect(() => {
@@ -802,9 +808,10 @@ export default function SiapSajiOrdersPage() {
           marginBottom: 20,
           display: "flex",
           alignItems: "center",
-          gap: 8,
-          overflowX: "auto",
-          whiteSpace: "nowrap",
+          gap: 10,
+          flexWrap: "wrap",
+          position: "relative",
+          zIndex: 20,
         }}
       >
         <div style={{ flex: "1 1 200px", minWidth: 160, maxWidth: 280, position: "relative" }}>
@@ -837,6 +844,158 @@ export default function SiapSajiOrdersPage() {
             </option>
           ))}
         </select>
+
+        {/* Searchable Select2 Autocomplete Combobox for Menu Filter */}
+        <div style={{ position: "relative", width: 210, flexShrink: 0 }}>
+          <div
+            onClick={() => setIsFilterProductDropdownOpen((prev) => !prev)}
+            style={{
+              width: "100%",
+              padding: "7px 10px",
+              borderRadius: 8,
+              border: "1px solid #d1d5db",
+              background: "white",
+              fontSize: 13,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              boxShadow: isFilterProductDropdownOpen ? "0 0 0 2px rgba(80, 5, 166, 0.2)" : "none",
+            }}
+          >
+            {(() => {
+              const selP = masterProducts.find((p) => p.id === Number(productFilter));
+              return (
+                <span style={{ color: selP ? "#5005A6" : "#6b7280", fontWeight: selP ? 700 : 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {selP ? `🍲 ${selP.name}` : "Semua Menu / Produk"}
+                </span>
+              );
+            })()}
+            <ChevronDown size={16} color="#6b7280" />
+          </div>
+
+          {/* Floating Dropdown */}
+          {isFilterProductDropdownOpen && (
+            <>
+              <div
+                onClick={() => setIsFilterProductDropdownOpen(false)}
+                style={{ position: "fixed", inset: 0, zIndex: 90, background: "transparent" }}
+              />
+              <div
+                style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  width: 280,
+                  zIndex: 100,
+                  marginTop: 4,
+                  background: "white",
+                  borderRadius: 10,
+                  border: "1px solid #d1d5db",
+                  boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.25)",
+                  padding: 8,
+                }}
+              >
+              <div style={{ position: "relative", marginBottom: 6 }}>
+                <Search size={14} style={{ position: "absolute", left: 10, top: 9, color: "#9ca3af" }} />
+                <input
+                  type="text"
+                  placeholder="Ketik nama menu / SKU..."
+                  value={filterProductSearchQuery}
+                  onChange={(e) => setFilterProductSearchQuery(e.target.value)}
+                  autoFocus
+                  style={{
+                    width: "100%",
+                    padding: "6px 10px 6px 30px",
+                    borderRadius: 6,
+                    border: "1px solid #e5e7eb",
+                    fontSize: 12,
+                    outline: "none",
+                  }}
+                />
+              </div>
+
+              <div style={{ maxHeight: 220, overflowY: "auto" }}>
+                {/* Option for All Products */}
+                <div
+                  onClick={() => {
+                    setProductFilter("");
+                    setIsFilterProductDropdownOpen(false);
+                    setFilterProductSearchQuery("");
+                  }}
+                  style={{
+                    padding: "7px 10px",
+                    borderRadius: 6,
+                    fontSize: 12,
+                    cursor: "pointer",
+                    background: productFilter === "" ? "#f3e8ff" : "transparent",
+                    color: productFilter === "" ? "#5005A6" : "#4b5563",
+                    fontWeight: productFilter === "" ? 700 : 500,
+                    marginBottom: 2,
+                  }}
+                >
+                  ✨ Semua Menu / Produk
+                </div>
+
+                {(() => {
+                  const filtered = masterProducts.filter((p) => {
+                    const q = filterProductSearchQuery.toLowerCase().trim();
+                    if (!q) return true;
+                    return (
+                      p.name.toLowerCase().includes(q) ||
+                      (p.sku && p.sku.toLowerCase().includes(q))
+                    );
+                  });
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div style={{ padding: "10px", textAlign: "center", fontSize: 12, color: "#9ca3af" }}>
+                        Tidak ada menu yang cocok
+                      </div>
+                    );
+                  }
+
+                  return filtered.map((p) => {
+                    const isSelected = p.id === Number(productFilter);
+                    return (
+                      <div
+                        key={p.id}
+                        onClick={() => {
+                          setProductFilter(p.id);
+                          setIsFilterProductDropdownOpen(false);
+                          setFilterProductSearchQuery("");
+                        }}
+                        style={{
+                          padding: "7px 10px",
+                          borderRadius: 6,
+                          fontSize: 12,
+                          cursor: "pointer",
+                          background: isSelected ? "#f3e8ff" : "transparent",
+                          color: isSelected ? "#5005A6" : "#374151",
+                          fontWeight: isSelected ? 700 : 500,
+                          marginBottom: 2,
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                        }}
+                      >
+                        <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {p.name}
+                        </span>
+                        {p.sku && (
+                          <span style={{ fontSize: 10, color: isSelected ? "#7e22ce" : "#9ca3af", marginLeft: 6, flexShrink: 0 }}>
+                            {p.sku}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+          </>
+        )}
+        </div>
 
         <select
           value={statusFilter}
@@ -891,12 +1050,13 @@ export default function SiapSajiOrdersPage() {
           <ClipboardList size={15} /> 🍳 Rekap Dapur A4
         </button>
 
-        {(search || statusFilter || channelFilter || dateFrom || dateTo) && (
+        {(search || statusFilter || channelFilter || productFilter || dateFrom || dateTo) && (
           <button
             onClick={() => {
               setSearch("");
               setStatusFilter("");
               setChannelFilter("");
+              setProductFilter("");
               setDateFrom(getTodayStr());
               setDateTo(getTodayStr());
             }}
@@ -1373,23 +1533,140 @@ export default function SiapSajiOrdersPage() {
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 12 }}>
-                  <div>
+                  <div style={{ position: "relative" }}>
                     <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>
                       Kecamatan (Lookup Ongkir) *
                     </label>
-                    <select
-                      value={selectedAreaId}
-                      onChange={(e) => setSelectedAreaId(Number(e.target.value))}
-                      required
-                      style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+
+                    {/* Combobox Trigger Box */}
+                    <div
+                      onClick={() => setIsAreaDropdownOpen((prev) => !prev)}
+                      style={{
+                        width: "100%",
+                        padding: "8px 12px",
+                        borderRadius: 8,
+                        border: "1px solid #d1d5db",
+                        background: "white",
+                        fontSize: 13,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        boxShadow: isAreaDropdownOpen ? "0 0 0 2px rgba(80, 5, 166, 0.2)" : "none",
+                      }}
                     >
-                      <option value="">-- Pilih Kecamatan --</option>
-                      {masterAreas.map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.kecamatan} ({a.kota}) — [{a.shipping_zone}]
-                        </option>
-                      ))}
-                    </select>
+                      {(() => {
+                        const selArea = masterAreas.find((a) => a.id === Number(selectedAreaId));
+                        return (
+                          <span style={{ color: selArea ? "#111827" : "#9ca3af", fontWeight: selArea ? 600 : 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {selArea
+                              ? `${selArea.kecamatan} (${selArea.kota}) — [${selArea.shipping_zone}]`
+                              : "-- Cari & Pilih Kecamatan --"}
+                          </span>
+                        );
+                      })()}
+                      <ChevronDown size={16} color="#6b7280" />
+                    </div>
+
+                    {/* Select2 Autocomplete Floating Dropdown */}
+                    {isAreaDropdownOpen && (
+                      <>
+                        <div
+                          onClick={() => setIsAreaDropdownOpen(false)}
+                          style={{ position: "fixed", inset: 0, zIndex: 90, background: "transparent" }}
+                        />
+                        <div
+                          style={{
+                            position: "absolute",
+                            top: "100%",
+                            left: 0,
+                            right: 0,
+                            zIndex: 100,
+                            marginTop: 4,
+                            background: "white",
+                            borderRadius: 10,
+                            border: "1px solid #d1d5db",
+                            boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.25)",
+                            padding: 8,
+                          }}
+                        >
+                          <div style={{ position: "relative", marginBottom: 6 }}>
+                            <Search size={14} style={{ position: "absolute", left: 10, top: 9, color: "#9ca3af" }} />
+                            <input
+                              type="text"
+                              placeholder="Ketik nama kecamatan / kota..."
+                              value={areaSearchQuery}
+                              onChange={(e) => setAreaSearchQuery(e.target.value)}
+                              autoFocus
+                              style={{
+                                width: "100%",
+                                padding: "6px 10px 6px 30px",
+                                borderRadius: 6,
+                                border: "1px solid #e5e7eb",
+                                fontSize: 12,
+                                outline: "none",
+                              }}
+                            />
+                          </div>
+
+                          <div style={{ maxHeight: 210, overflowY: "auto" }}>
+                            {(() => {
+                              const filtered = masterAreas.filter((a) => {
+                                const q = areaSearchQuery.toLowerCase().trim();
+                                if (!q) return true;
+                                return (
+                                  a.kecamatan.toLowerCase().includes(q) ||
+                                  a.kota.toLowerCase().includes(q) ||
+                                  a.shipping_zone.toLowerCase().includes(q)
+                                );
+                              });
+
+                              if (filtered.length === 0) {
+                                return (
+                                  <div style={{ padding: "10px", textAlign: "center", fontSize: 12, color: "#9ca3af" }}>
+                                    Tidak ada kecamatan yang cocok
+                                  </div>
+                                );
+                              }
+
+                              return filtered.map((a) => {
+                                const isSelected = a.id === Number(selectedAreaId);
+                                return (
+                                  <div
+                                    key={a.id}
+                                    onClick={() => {
+                                      setSelectedAreaId(a.id);
+                                      setIsAreaDropdownOpen(false);
+                                      setAreaSearchQuery("");
+                                    }}
+                                    style={{
+                                      padding: "8px 10px",
+                                      borderRadius: 6,
+                                      fontSize: 12,
+                                      cursor: "pointer",
+                                      background: isSelected ? "#f3e8ff" : "transparent",
+                                      color: isSelected ? "#5005A6" : "#374151",
+                                      fontWeight: isSelected ? 700 : 500,
+                                      marginBottom: 2,
+                                      display: "flex",
+                                      justifyContent: "space-between",
+                                      alignItems: "center",
+                                    }}
+                                  >
+                                    <span>
+                                      <strong>{a.kecamatan}</strong> ({a.kota})
+                                    </span>
+                                    <span style={{ fontSize: 10, color: isSelected ? "#7e22ce" : "#6b7280", background: isSelected ? "#e9d5ff" : "#f3f4f6", padding: "2px 6px", borderRadius: 4 }}>
+                                      {a.shipping_zone}
+                                    </span>
+                                  </div>
+                                );
+                              });
+                            })()}
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   <div>

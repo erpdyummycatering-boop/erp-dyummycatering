@@ -12,9 +12,16 @@ export async function GET(req: NextRequest) {
   const status_order = p.get("status_order") || "";
   const status_payment = p.get("status_payment") || "";
   const channel_id = p.get("channel_id") || "";
+  const product_id = p.get("product_id") || "";
   const date_from = p.get("date_from") || "";
   const date_to = p.get("date_to") || "";
+  const sort_by = p.get("sort_by") || "order_date";
   const sort_dir = (p.get("sort_dir") || "desc").toLowerCase() === "asc" ? "ASC" : "DESC";
+
+  let orderColumn = "o.order_date";
+  if (sort_by === "delivery_date") orderColumn = "o.delivery_date";
+  if (sort_by === "no_struk") orderColumn = "o.no_struk";
+  if (sort_by === "grand_total") orderColumn = "o.grand_total";
 
   const wheres: string[] = ["o.lini = 'siap_saji'"];
   const vals: any[] = [];
@@ -38,6 +45,11 @@ export async function GET(req: NextRequest) {
   if (channel_id) {
     wheres.push(`o.channel_id = $${idx}`);
     vals.push(Number(channel_id));
+    idx++;
+  }
+  if (product_id) {
+    wheres.push(`EXISTS (SELECT 1 FROM order_items oi WHERE oi.order_id = o.id AND oi.product_id = $${idx})`);
+    vals.push(Number(product_id));
     idx++;
   }
   if (date_from) {
@@ -95,7 +107,7 @@ export async function GET(req: NextRequest) {
         LEFT JOIN areas a ON c.area_id = a.id
         LEFT JOIN users u ON o.pic_id = u.id
         ${whereSql}
-        ORDER BY o.delivery_date ${sort_dir}, o.id ${sort_dir}
+        ORDER BY ${orderColumn} ${sort_dir}, o.id ${sort_dir}
         LIMIT $${idx} OFFSET $${idx + 1}`,
         [...vals, limit, offset]
       ),

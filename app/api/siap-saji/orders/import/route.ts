@@ -201,11 +201,11 @@ export async function POST(req: NextRequest) {
       const orderInsRes = await client.query(
         `INSERT INTO orders (
           no_struk, order_date, delivery_date, customer_id, channel_id,
-          shipping_fee, discount, grand_total, payment_bank, payment_account,
+          shipping_fee, grand_total, payment_bank, payment_account,
           lini, status_order, status_payment
         ) VALUES (
           $1, CURRENT_DATE, $2::date, $3, $4,
-          $5, $6, $7, $8, $9,
+          $5, $6, $7, $8,
           'siap_saji', 'Aktif', 'Lunas'
         ) RETURNING id`,
         [
@@ -214,7 +214,6 @@ export async function POST(req: NextRequest) {
           customerId,
           group.channelId,
           finalShippingFee,
-          group.discount,
           grandTotal,
           paymentBankName,
           paymentAccountNo,

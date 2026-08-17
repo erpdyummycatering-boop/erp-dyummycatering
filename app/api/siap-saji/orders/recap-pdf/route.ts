@@ -77,25 +77,35 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Tidak ada data order ditemukan untuk rekap dapur" }, { status: 404 });
     }
 
-    // Process & format notes list per product
+    // Process & format notes list per product with aggregated quantities
     const rowsData = rawRows.map((r: any) => {
-      const notesLines: string[] = [];
+      const notesMap = new Map<string, number>();
+
       if (r.notes_list && Array.isArray(r.notes_list)) {
         r.notes_list.forEach((itemNote: any) => {
           if (!itemNote.notes) return;
           const str = String(itemNote.notes).trim();
           if (!str) return;
+          const qty = Number(itemNote.quantity || 1);
 
-          // Split multi-line notes or comma-separated notes if any
+          // Split multi-line notes
           const splitNotes = str.split("\n").map((s) => s.trim()).filter(Boolean);
           splitNotes.forEach((sn) => {
-            const formatted = sn.startsWith("*") ? sn : `*${sn}`;
-            if (!notesLines.includes(formatted)) {
-              notesLines.push(formatted);
-            }
+            const cleanNote = sn.replace(/^\*+\s*/, "");
+            notesMap.set(cleanNote, (notesMap.get(cleanNote) || 0) + qty);
           });
         });
       }
+
+      const notesLines: string[] = [];
+      notesMap.forEach((qtySum, noteText) => {
+        const hasQtyPrefix = /^\d+\s*(porsi|pcs|item|x|bks|pack|piring)\b/i.test(noteText);
+        if (hasQtyPrefix) {
+          notesLines.push(`*${noteText}`);
+        } else {
+          notesLines.push(`*${qtySum} porsi ${noteText}`);
+        }
+      });
 
       return {
         ...r,
