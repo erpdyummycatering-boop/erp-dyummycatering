@@ -297,7 +297,7 @@ export async function GET(req: NextRequest) {
       // Cutter divider line between receipts (if not last)
       if (!isLastInRoll) {
         y -= 14;
-        drawCenterTextOnPage(pageObj, "- - - - - POTONG DI SINI / CUT HERE - - - - -", fontRegular, 9, y);
+        drawCenterTextOnPage(pageObj, "- - - - - - - - - - - - - - - - - - - -", fontRegular, 9, y);
         y -= 14;
         y -= 15;
       }
