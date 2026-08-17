@@ -112,6 +112,13 @@ export default function SiapSajiOrdersPage() {
   const [cancelReason, setCancelReason] = useState("");
   const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
 
+  // Bulk Print Selection State
+  const [selectedOrderIds, setSelectedOrderIds] = useState<number[]>([]);
+  const [bulkStrukOrders, setBulkStrukOrders] = useState<Order[]>([]);
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [isLoadingBulk, setIsLoadingBulk] = useState(false);
+  const [bulkPaperSize, setBulkPaperSize] = useState<"80mm" | "A4">("80mm");
+
   // Master Data state for Form Order
   const [masterChannels, setMasterChannels] = useState<Channel[]>([]);
   const [masterAreas, setMasterAreas] = useState<Area[]>([]);
@@ -400,6 +407,64 @@ export default function SiapSajiOrdersPage() {
     toast.success("Teks Struk berhasil disalin ke clipboard!");
   };
 
+  // Open Bulk Print Modal & Fetch details for selected orders
+  const handleOpenBulkPrint = async () => {
+    if (selectedOrderIds.length === 0) return;
+    setIsLoadingBulk(true);
+    try {
+      const details = await Promise.all(
+        selectedOrderIds.map(async (id) => {
+          const res = await fetch(`/api/siap-saji/orders/${id}`);
+          if (res.ok) return await res.json();
+          const found = orders.find((o) => o.id === id);
+          return found || null;
+        })
+      );
+      const valid = details.filter((d): d is Order => Boolean(d));
+      setBulkStrukOrders(valid);
+      setIsBulkModalOpen(true);
+    } catch (err: any) {
+      toast.error("Gagal memuat detail transaksi untuk cetak masal");
+    } finally {
+      setIsLoadingBulk(false);
+    }
+  };
+
+  // Copy All WA Text for Bulk Selected Orders
+  const copyAllWA = () => {
+    if (bulkStrukOrders.length === 0) return;
+    const text = bulkStrukOrders
+      .map((order, idx) => {
+        return [
+          `*==============================*`,
+          `*STRUK PESANAN #${idx + 1} DARI ${bulkStrukOrders.length}*`,
+          `*DYUMMY CATERING — STRUK PENJUALAN*`,
+          `No. Struk: ${order.no_struk}`,
+          `Tanggal: ${formatDate(order.delivery_date)}`,
+          `Customer: ${order.customer_name}`,
+          `No. HP: ${order.customer_phone}`,
+          `Alamat: ${order.customer_address}`,
+          order.customer_patokan ? `Patokan: ${order.customer_patokan}` : null,
+          `Kecamatan: ${order.area_kecamatan || "-"} (${order.area_kota || "-"})`,
+          `---------------------------------`,
+          ...(order.items || []).map(
+            (it: any) => `${it.product_name} x${it.quantity} @ Rp${Number(it.price).toLocaleString("id-ID")}`
+          ),
+          `---------------------------------`,
+          `Biaya Kirim: Rp${Number(order.shipping_fee).toLocaleString("id-ID")}`,
+          `*TOTAL: Rp${Number(order.grand_total).toLocaleString("id-ID")}*`,
+          `Rekening: ${order.payment_bank} (${order.payment_account})`,
+          `Status: ${order.status_order}`,
+        ]
+          .filter(Boolean)
+          .join("\n");
+      })
+      .join("\n\n\n");
+
+    navigator.clipboard.writeText(text);
+    toast.success(`Teks Struk untuk ${bulkStrukOrders.length} pesanan berhasil disalin!`);
+  };
+
   return (
     <div style={{ maxWidth: 1280, margin: "0 auto", paddingBottom: 40 }}>
       {/* ── HEADER & STATS ────────────────────────────────────────── */}
@@ -560,11 +625,108 @@ export default function SiapSajiOrdersPage() {
         )}
       </div>
 
+      {/* ── BULK ACTION BAR ────────────────────────────────────── */}
+      {selectedOrderIds.length > 0 && (
+        <div
+          style={{
+            background: "linear-gradient(135deg, #f0fdf4 0%, #eff6ff 100%)",
+            border: "1.5px solid #378ADD",
+            borderRadius: 12,
+            padding: "12px 18px",
+            marginBottom: 16,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            boxShadow: "0 4px 12px rgba(55, 138, 221, 0.15)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: "#1e293b" }}>
+              ✓ <span style={{ color: "#5005A6" }}>{selectedOrderIds.length}</span> pesanan terpilih
+            </span>
+            <button
+              onClick={() => setSelectedOrderIds([])}
+              style={{
+                fontSize: 13,
+                color: "#64748b",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                fontWeight: 600,
+                textDecoration: "underline",
+              }}
+            >
+              Batal Pilih
+            </button>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button
+              onClick={() => {
+                const url = `/api/siap-saji/orders/bulk-pdf?ids=${selectedOrderIds.join(",")}`;
+                window.open(url, "_blank");
+              }}
+              style={{
+                background: "linear-gradient(135deg, #5005A6 0%, #B10FBD 100%)",
+                color: "white",
+                border: "none",
+                borderRadius: 10,
+                padding: "10px 18px",
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                boxShadow: "0 4px 12px rgba(80, 5, 166, 0.3)",
+              }}
+            >
+              <FileText size={16} />
+              Cetak Masal PDF Native ({selectedOrderIds.length} Halaman)
+            </button>
+            <button
+              onClick={handleOpenBulkPrint}
+              disabled={isLoadingBulk}
+              style={{
+                background: "#white",
+                color: "#374151",
+                border: "1px solid #d1d5db",
+                borderRadius: 10,
+                padding: "10px 14px",
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <Printer size={15} />
+              {isLoadingBulk ? "Memuat..." : "Preview Web Modal"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── TRANSACTIONS TABLE ────────────────────────────────── */}
       <div style={{ background: "white", borderRadius: 12, border: "1px solid #e5e7eb", overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 14, whiteSpace: "nowrap" }}>
           <thead>
             <tr style={{ background: "#fafafa", borderBottom: "1px solid #e5e7eb", color: "#6b7280", fontWeight: 700, fontSize: 12, textTransform: "uppercase" }}>
+              <th style={{ padding: "12px 10px", width: 40, textAlign: "center" }}>
+                <input
+                  type="checkbox"
+                  checked={orders.length > 0 && orders.every((o) => selectedOrderIds.includes(o.id))}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedOrderIds(orders.map((o) => o.id));
+                    } else {
+                      setSelectedOrderIds([]);
+                    }
+                  }}
+                  title="Pilih Semua Halaman Ini"
+                  style={{ cursor: "pointer", width: 16, height: 16, accentColor: "#5005A6" }}
+                />
+              </th>
               <th style={{ padding: "12px 16px", width: 50 }}>No.</th>
               <th style={{ padding: "12px 16px" }}>No. Struk</th>
               <th style={{ padding: "12px 16px" }}>Tanggal</th>
@@ -580,19 +742,33 @@ export default function SiapSajiOrdersPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={10} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                <td colSpan={11} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
                   Memuat data penjualan...
                 </td>
               </tr>
             ) : orders.length === 0 ? (
               <tr>
-                <td colSpan={10} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                <td colSpan={11} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
                   Tidak ada transaksi Siap Saji ditemukan.
                 </td>
               </tr>
             ) : (
               orders.map((o, idx) => (
                 <tr key={o.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                  <td style={{ padding: "14px 10px", textAlign: "center" }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedOrderIds.includes(o.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedOrderIds([...selectedOrderIds, o.id]);
+                        } else {
+                          setSelectedOrderIds(selectedOrderIds.filter((id) => id !== o.id));
+                        }
+                      }}
+                      style={{ cursor: "pointer", width: 16, height: 16, accentColor: "#5005A6" }}
+                    />
+                  </td>
                   <td style={{ padding: "14px 16px", color: "#6b7280" }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
                   <td style={{ padding: "14px 16px", fontWeight: 700, color: "#5005A6" }}>{o.no_struk || "-"}</td>
                   <td style={{ padding: "14px 16px", color: "#374151" }}>{formatDate(o.delivery_date)}</td>
@@ -1310,6 +1486,293 @@ export default function SiapSajiOrdersPage() {
               >
                 {isSubmittingCancel ? "Proses..." : "Konfirmasi Pembatalan"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: CETAK MASAL STRUK (BULK PRINT MULTI-PAGE) ────── */}
+      {isBulkModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.65)",
+            zIndex: 130,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          {/* Modal Header & Controls Bar */}
+          <div
+            style={{
+              background: "white",
+              borderRadius: "16px 16px 0 0",
+              maxWidth: 760,
+              width: "100%",
+              padding: "16px 24px",
+              borderBottom: "1px solid #e5e7eb",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 12,
+              flexWrap: "wrap",
+              boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)",
+            }}
+          >
+            <div>
+              <h2 style={{ fontSize: 18, fontWeight: 800, color: "#111827", margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                <Printer size={20} color="#5005A6" /> Cetak Masal Struk ({bulkStrukOrders.length} Pesanan / {bulkStrukOrders.length} Halaman)
+              </h2>
+              <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>
+                1 tampilan dokumen langsung terbuat {bulkStrukOrders.length} halaman (1 pesanan per halaman saat diprint).
+              </p>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#f3f4f6", padding: "6px 10px", borderRadius: 8 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "#4b5563" }}>Ukuran:</span>
+                <select
+                  value={bulkPaperSize}
+                  onChange={(e) => setBulkPaperSize(e.target.value as "80mm" | "A4")}
+                  style={{ border: "none", background: "transparent", fontSize: 12, fontWeight: 700, outline: "none", cursor: "pointer" }}
+                >
+                  <option value="80mm">POS Thermal 80mm</option>
+                  <option value="A4">A4 Portrait (Surat Jalan)</option>
+                </select>
+              </div>
+
+              <button
+                onClick={copyAllWA}
+                style={{
+                  padding: "8px 14px",
+                  background: "#f3f4f6",
+                  color: "#374151",
+                  border: "1px solid #d1d5db",
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <Copy size={15} /> Salin Semua WA
+              </button>
+
+              <button
+                onClick={() => {
+                  const url = `/api/siap-saji/orders/bulk-pdf?ids=${selectedOrderIds.join(",")}`;
+                  window.open(url, "_blank");
+                }}
+                style={{
+                  padding: "8px 14px",
+                  background: "#b10fbd",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <FileText size={15} /> Live PDF Preview (Native)
+              </button>
+
+              <button
+                onClick={() => window.print()}
+                style={{
+                  padding: "8px 18px",
+                  background: "linear-gradient(135deg, #5005A6 0%, #B10FBD 100%)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  boxShadow: "0 4px 12px rgba(80, 5, 166, 0.25)",
+                }}
+              >
+                <Printer size={15} /> Cetak Web ({bulkStrukOrders.length} Halaman)
+              </button>
+
+              <button
+                onClick={() => setIsBulkModalOpen(false)}
+                style={{ background: "#e5e7eb", border: "none", borderRadius: 8, padding: "8px 12px", cursor: "pointer", color: "#4b5563" }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+
+          {/* Scrollable Multi-Page Container */}
+          <div
+            style={{
+              background: "#e2e8f0",
+              maxWidth: 760,
+              width: "100%",
+              height: "75vh",
+              overflowY: "auto",
+              padding: 24,
+              borderRadius: "0 0 16px 16px",
+            }}
+          >
+            {/* CSS Print Rules for Multi-Page Page Break */}
+            <style>{`
+              @media print {
+                @page {
+                  size: ${bulkPaperSize === "80mm" ? "80mm auto" : "A4 portrait"};
+                  margin: ${bulkPaperSize === "80mm" ? "0" : "10mm"};
+                }
+                body * {
+                  visibility: hidden !important;
+                }
+                #bulk-struk-print-area, #bulk-struk-print-area * {
+                  visibility: visible !important;
+                }
+                #bulk-struk-print-area {
+                  position: absolute !important;
+                  left: 0 !important;
+                  top: 0 !important;
+                  width: ${bulkPaperSize === "80mm" ? "80mm !important" : "100% !important"};
+                  max-width: ${bulkPaperSize === "80mm" ? "80mm !important" : "100% !important"};
+                  margin: 0 !important;
+                  padding: 0 !important;
+                  background: white !important;
+                }
+                .bulk-struk-page {
+                  page-break-after: always !important;
+                  break-after: page !important;
+                  margin: 0 !important;
+                  padding: ${bulkPaperSize === "80mm" ? "8px" : "16px"} !important;
+                  border: none !important;
+                  box-shadow: none !important;
+                  background: white !important;
+                }
+                .screen-page-header {
+                  display: none !important;
+                }
+              }
+            `}</style>
+
+            <div id="bulk-struk-print-area" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+              {bulkStrukOrders.map((order, index) => (
+                <div key={order.id} className="bulk-struk-page">
+                  {/* Screen Page Number Divider Header */}
+                  <div
+                    className="screen-page-header"
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      background: "#3b047a",
+                      color: "white",
+                      padding: "6px 14px",
+                      borderRadius: "8px 8px 0 0",
+                      fontSize: 12,
+                      fontWeight: 700,
+                    }}
+                  >
+                    <span>📄 HALAMAN {index + 1} DARI {bulkStrukOrders.length}</span>
+                    <span>No Struk: {order.no_struk}</span>
+                  </div>
+
+                  {/* Individual Struk Card Content */}
+                  <div
+                    style={{
+                      fontFamily: "'Courier New', Courier, monospace",
+                      fontSize: 13,
+                      color: "#111827",
+                      background: "white",
+                      padding: 18,
+                      border: "1px dashed #9ca3af",
+                      borderRadius: "0 0 8px 8px",
+                      lineHeight: 1.4,
+                      boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+                    }}
+                  >
+                    <div style={{ textAlign: "center", marginBottom: 12 }}>
+                      <p style={{ fontWeight: 800, fontSize: 16, margin: 0 }}>DYummy Catering</p>
+                      <p style={{ fontSize: 11, color: "#4b5563", margin: "2px 0 0" }}>
+                        Jl Sindangsari 4 No 48 Kota Bandung Jawa Barat
+                      </p>
+                    </div>
+
+                    <div style={{ borderBottom: "1px dashed #9ca3af", paddingBottom: 8, marginBottom: 8, fontSize: 12 }}>
+                      <p style={{ margin: 0 }}>
+                        <strong>{order.no_struk}</strong> - {formatDate(order.delivery_date)}
+                      </p>
+                    </div>
+
+                    <div style={{ borderBottom: "1px dashed #9ca3af", paddingBottom: 8, marginBottom: 8 }}>
+                      <p style={{ fontWeight: 700, margin: 0 }}>{order.customer_name}</p>
+                      <p style={{ margin: "2px 0 0" }}>{order.customer_address}</p>
+                      {order.customer_patokan && (
+                        <p style={{ margin: "2px 0 0", color: "#4b5563" }}>
+                          -Patokan : {order.customer_patokan}
+                        </p>
+                      )}
+                      <p style={{ fontSize: 11, color: "#6b7280", margin: "2px 0 0" }}>
+                        Kec. {order.area_kecamatan || "-"} ({order.area_kota || "-"})
+                      </p>
+                    </div>
+
+                    <table style={{ width: "100%", fontSize: 12, marginBottom: 8 }}>
+                      <thead>
+                        <tr style={{ borderBottom: "1px dashed #9ca3af", textTransform: "uppercase" }}>
+                          <th style={{ textAlign: "left", paddingBottom: 4 }}>Nama Barang</th>
+                          <th style={{ textAlign: "right", paddingBottom: 4 }}>Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(order.items || []).map((it: any, i: number) => (
+                          <tr key={i}>
+                            <td style={{ paddingTop: 4 }}>
+                              {it.product_name}
+                              <br />
+                              <span style={{ fontSize: 11, color: "#6b7280" }}>
+                                {it.quantity} x {Number(it.price).toLocaleString("id-ID")}
+                              </span>
+                            </td>
+                            <td style={{ textAlign: "right", verticalAlign: "top", paddingTop: 4 }}>
+                              {Number(it.subtotal).toLocaleString("id-ID")}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+
+                    <div style={{ borderTop: "1px dashed #9ca3af", paddingTop: 8, fontSize: 12 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span>Biaya Kirim</span>
+                        <span>{Number(order.shipping_fee).toLocaleString("id-ID")}</span>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 800, fontSize: 14, marginTop: 4 }}>
+                        <span>Total</span>
+                        <span>Rp {Number(order.grand_total).toLocaleString("id-ID")}</span>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#4b5563", marginTop: 4 }}>
+                        <span>Pembayaran</span>
+                        <span>{order.payment_bank} ({order.payment_account})</span>
+                      </div>
+                    </div>
+
+                    <div style={{ borderTop: "1px dashed #9ca3af", marginTop: 12, paddingTop: 6, textAlign: "center", fontSize: 11, color: "#6b7280" }}>
+                      Wanti Nova, {new Date(order.created_at || Date.now()).toLocaleDateString("id-ID")}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>

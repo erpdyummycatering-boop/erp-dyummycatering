@@ -27,6 +27,7 @@ interface Customer {
   last_order_date: string;
   channel_favorit: string;
   status: string;
+  loyalty_points?: number;
 }
 
 export default function SiapSajiCustomersPage() {
@@ -34,6 +35,13 @@ export default function SiapSajiCustomersPage() {
   const [meta, setMeta] = useState({ total: 0, page: 1, limit: 10, totalPages: 1 });
   const [areas, setAreas] = useState<Area[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Dynamic Loyalty Settings State
+  const [loyaltySettings, setLoyaltySettings] = useState({ min_order: 100000, point_percentage: 2.0 });
+  const [isLoyaltyModalOpen, setIsLoyaltyModalOpen] = useState(false);
+  const [minOrderInput, setMinOrderInput] = useState<number>(100000);
+  const [pointPercentageInput, setPointPercentageInput] = useState<number>(2.0);
+  const [isSavingLoyalty, setIsSavingLoyalty] = useState(false);
 
   // Filters
   const [search, setSearch] = useState("");
@@ -65,6 +73,9 @@ export default function SiapSajiCustomersPage() {
       if (!res.ok) throw new Error("Gagal memuat data pelanggan");
       const json = await res.json();
       setCustomers(json.data || []);
+      if (json.loyalty_settings) {
+        setLoyaltySettings(json.loyalty_settings);
+      }
       setMeta({
         total: json.total || 0,
         page: json.page || page,
@@ -179,6 +190,40 @@ export default function SiapSajiCustomersPage() {
     }
   };
 
+  const handleOpenLoyaltyModal = () => {
+    setMinOrderInput(loyaltySettings.min_order);
+    setPointPercentageInput(loyaltySettings.point_percentage);
+    setIsLoyaltyModalOpen(true);
+  };
+
+  const handleSaveLoyaltySettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingLoyalty(true);
+    try {
+      const res = await fetch("/api/siap-saji/loyalty-settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          min_order: minOrderInput,
+          point_percentage: pointPercentageInput,
+        }),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json();
+        throw new Error(errJson.error || "Gagal memperbarui pengaturan poin loyalty");
+      }
+
+      toast.success("Pengaturan Poin Loyalty berhasil diperbarui!");
+      setIsLoyaltyModalOpen(false);
+      fetchCustomers();
+    } catch (err: any) {
+      toast.error(err.message || "Gagal memperbarui pengaturan");
+    } finally {
+      setIsSavingLoyalty(false);
+    }
+  };
+
   return (
     <div style={{ maxWidth: 1280, margin: "0 auto", paddingBottom: 40 }}>
       {/* Header */}
@@ -188,29 +233,51 @@ export default function SiapSajiCustomersPage() {
             Master Pelanggan Siap Saji
           </h1>
           <p style={{ fontSize: 14, color: "#6b7280", marginTop: 4 }}>
-            Kelola kontak customer retail, landmark patokan lokasi, dan segmen RFM analytics
+            Kelola kontak customer retail, landmark patokan lokasi, dan poin loyalty pelanggan
           </p>
         </div>
 
-        <button
-          onClick={handleOpenAdd}
-          style={{
-            background: "linear-gradient(135deg, #5005A6 0%, #B10FBD 100%)",
-            color: "white",
-            border: "none",
-            borderRadius: 10,
-            padding: "10px 18px",
-            fontSize: 14,
-            fontWeight: 700,
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            boxShadow: "0 4px 12px rgba(177, 15, 189, 0.25)",
-          }}
-        >
-          <Plus size={18} /> Tambah Pelanggan
-        </button>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button
+            onClick={handleOpenLoyaltyModal}
+            style={{
+              background: "#fdf4ff",
+              color: "#b10fbd",
+              border: "1px solid #f5d0fe",
+              borderRadius: 10,
+              padding: "10px 16px",
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              boxShadow: "0 2px 6px rgba(177, 15, 189, 0.1)",
+            }}
+          >
+            <Award size={18} /> Pengaturan Poin ({loyaltySettings.point_percentage}% / Min Rp {loyaltySettings.min_order.toLocaleString("id-ID")})
+          </button>
+
+          <button
+            onClick={handleOpenAdd}
+            style={{
+              background: "linear-gradient(135deg, #5005A6 0%, #B10FBD 100%)",
+              color: "white",
+              border: "none",
+              borderRadius: 10,
+              padding: "10px 18px",
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              boxShadow: "0 4px 12px rgba(177, 15, 189, 0.25)",
+            }}
+          >
+            <Plus size={18} /> Tambah Pelanggan
+          </button>
+        </div>
       </div>
 
       {/* Filter Toolbar */}
@@ -265,6 +332,7 @@ export default function SiapSajiCustomersPage() {
               <th style={{ padding: "12px 16px" }}>Patokan / Landmark</th>
               <th style={{ padding: "12px 16px", textAlign: "center" }}>Order</th>
               <th style={{ padding: "12px 16px" }}>Total Omset</th>
+              <th style={{ padding: "12px 16px" }}>Poin Loyalty</th>
               <th style={{ padding: "12px 16px" }}>Segmen RFM</th>
               <th style={{ padding: "12px 16px", textAlign: "right" }}>Aksi</th>
             </tr>
@@ -272,13 +340,13 @@ export default function SiapSajiCustomersPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={8} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                <td colSpan={9} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
                   Memuat data pelanggan...
                 </td>
               </tr>
             ) : customers.length === 0 ? (
               <tr>
-                <td colSpan={8} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                <td colSpan={9} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
                   Tidak ada pelanggan Siap Saji ditemukan.
                 </td>
               </tr>
@@ -306,6 +374,9 @@ export default function SiapSajiCustomersPage() {
                     </td>
                     <td style={{ padding: "14px 16px", fontWeight: 700, color: "#5005A6" }}>
                       Rp {Number(c.total_omset || 0).toLocaleString("id-ID")}
+                    </td>
+                    <td style={{ padding: "14px 16px", fontWeight: 800, color: "#15803d" }}>
+                      ⭐ {Number(c.loyalty_points || 0).toLocaleString("id-ID")} Poin
                     </td>
                     <td style={{ padding: "14px 16px" }}>
                       <span
@@ -475,6 +546,92 @@ export default function SiapSajiCustomersPage() {
         </div>
       )}
 
+      {/* ── MODAL: PENGATURAN POIN LOYALTY DINAMIS ──────────── */}
+      {isLoyaltyModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 120,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <div style={{ background: "white", borderRadius: 16, maxWidth: 440, width: "100%", padding: 24, boxShadow: "0 20px 25px -5px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, borderBottom: "1px solid #e5e7eb", paddingBottom: 12 }}>
+              <div>
+                <h3 style={{ fontSize: 18, fontWeight: 800, color: "#111827", margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                  <Award size={20} color="#b10fbd" /> Pengaturan Poin Loyalty
+                </h3>
+                <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>
+                  Pengaturan ini dinamis & berlaku otomatis untuk perhitungan poin seluruh pelanggan
+                </p>
+              </div>
+              <button onClick={() => setIsLoyaltyModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af" }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveLoyaltySettings}>
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 6 }}>
+                  Minimal Nominal Order (Rp) *
+                </label>
+                <input
+                  type="number"
+                  placeholder="Contoh: 100000"
+                  value={minOrderInput}
+                  onChange={(e) => setMinOrderInput(Number(e.target.value))}
+                  required
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, outline: "none" }}
+                />
+                <p style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
+                  Order dengan nilai di bawah angka ini tidak mendapatkan poin loyalty.
+                </p>
+              </div>
+
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 6 }}>
+                  Persentase Poin per Transaksi (%) *
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  placeholder="Contoh: 2.0"
+                  value={pointPercentageInput}
+                  onChange={(e) => setPointPercentageInput(Number(e.target.value))}
+                  required
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, outline: "none" }}
+                />
+                <p style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
+                  Contoh: 2% dari transaksi Rp 1.000.000 = <strong>20.000 Poin</strong>.
+                </p>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setIsLoyaltyModalOpen(false)}
+                  style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "white", fontSize: 14, cursor: "pointer" }}
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingLoyalty}
+                  style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: "linear-gradient(135deg, #5005A6 0%, #B10FBD 100%)", color: "white", fontSize: 14, fontWeight: 700, cursor: "pointer" }}
+                >
+                  {isSavingLoyalty ? "Simpan..." : "Simpan Pengaturan"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* ── DRAWER: DETAIL CUSTOMER & ORDERS ────────────────────────── */}
       {selectedCustDetail && (
         <div
@@ -513,16 +670,22 @@ export default function SiapSajiCustomersPage() {
                 </p>
               )}
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 14, paddingTop: 12, borderTop: "1px dashed #e5e7eb" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 14, paddingTop: 12, borderTop: "1px dashed #e5e7eb" }}>
                 <div>
                   <span style={{ fontSize: 11, color: "#6b7280" }}>Total Omset</span>
-                  <p style={{ fontSize: 15, fontWeight: 800, color: "#5005A6", margin: "2px 0 0" }}>
+                  <p style={{ fontSize: 14, fontWeight: 800, color: "#5005A6", margin: "2px 0 0" }}>
                     Rp {Number(selectedCustDetail.customer.total_omset || 0).toLocaleString("id-ID")}
                   </p>
                 </div>
                 <div>
+                  <span style={{ fontSize: 11, color: "#6b7280" }}>Poin Loyalty</span>
+                  <p style={{ fontSize: 14, fontWeight: 800, color: "#15803d", margin: "2px 0 0" }}>
+                    ⭐ {Number(selectedCustDetail.customer.loyalty_points || 0).toLocaleString("id-ID")} Poin
+                  </p>
+                </div>
+                <div>
                   <span style={{ fontSize: 11, color: "#6b7280" }}>Segmen RFM</span>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: "#b10fbd", margin: "2px 0 0" }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: "#b10fbd", margin: "2px 0 0" }}>
                     {selectedCustDetail.customer.segmen || "Potential Loyalist"}
                   </p>
                 </div>

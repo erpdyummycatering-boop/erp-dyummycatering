@@ -29,6 +29,23 @@ export async function GET(req: NextRequest) {
 
   const client = await pool.connect();
   try {
+    // Ensure loyalty_settings table exists
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS loyalty_settings (
+        id INT PRIMARY KEY DEFAULT 1,
+        min_order NUMERIC(12,2) DEFAULT 100000,
+        point_percentage NUMERIC(5,2) DEFAULT 2.0,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      INSERT INTO loyalty_settings (id, min_order, point_percentage)
+      VALUES (1, 100000, 2.0)
+      ON CONFLICT (id) DO NOTHING;
+    `);
+
+    const settingsRes = await client.query("SELECT min_order, point_percentage FROM loyalty_settings WHERE id = 1");
+    const minOrder = Number(settingsRes.rows[0]?.min_order ?? 100000);
+    const pointPercentage = Number(settingsRes.rows[0]?.point_percentage ?? 2.0);
+
     const [countRes, dataRes] = await Promise.all([
       client.query(
         `SELECT COUNT(*) FROM customers c 
@@ -45,14 +62,24 @@ export async function GET(req: NextRequest) {
           r.r_score, r.f_score, r.m_score, r.rfm_total, r.segmen, r.channel_favorit,
           COALESCE(r.monetary, (SELECT COALESCE(SUM(grand_total), 0) FROM orders WHERE customer_id = c.id AND status_order <> 'Dibatalkan')) AS total_omset,
           COALESCE(r.frequency, (SELECT COUNT(*) FROM orders WHERE customer_id = c.id AND status_order <> 'Dibatalkan')) AS total_orders,
-          r.last_order_date
+          r.last_order_date,
+          (
+            SELECT COALESCE(SUM(
+              CASE 
+                WHEN o.grand_total >= $${idx + 2} THEN ROUND(o.grand_total * ($${idx + 3} / 100.0))
+                ELSE 0 
+              END
+            ), 0)::numeric
+            FROM orders o 
+            WHERE o.customer_id = c.id AND o.status_order <> 'Dibatalkan' AND o.lini = 'siap_saji'
+          ) AS loyalty_points
         FROM customers c
         LEFT JOIN areas a ON c.area_id = a.id
         LEFT JOIN rfm_scores r ON r.customer_id = c.id
         ${whereSql}
         ORDER BY c.id DESC
         LIMIT $${idx} OFFSET $${idx + 1}`,
-        [...vals, limit, offset]
+        [...vals, limit, offset, minOrder, pointPercentage]
       ),
     ]);
 
@@ -63,6 +90,10 @@ export async function GET(req: NextRequest) {
       page,
       limit,
       totalPages: Math.ceil(total / limit),
+      loyalty_settings: {
+        min_order: minOrder,
+        point_percentage: pointPercentage,
+      },
     });
   } catch (error: any) {
     console.error("Gagal mengambil data customer Siap Saji:", error);
