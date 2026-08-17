@@ -22,6 +22,7 @@ export async function GET(
         c.phone AS customer_phone,
         c.address AS customer_address,
         c.patokan AS customer_patokan,
+        c.area_id,
         a.kecamatan AS area_kecamatan,
         a.kota AS area_kota,
         ch.name AS channel_name,
@@ -63,6 +64,128 @@ export async function GET(
     return NextResponse.json(orderRes.rows[0]);
   } catch (error: any) {
     console.error("Gagal mengambil detail order:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  } finally {
+    client.release();
+  }
+}
+
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const orderId = Number(id);
+  if (isNaN(orderId)) {
+    return NextResponse.json({ error: "ID order tidak valid" }, { status: 400 });
+  }
+
+  const client = await pool.connect();
+  try {
+    const body = await req.json();
+    const {
+      channel_id,
+      kas_bank_id,
+      delivery_date,
+      customer_name,
+      customer_phone,
+      customer_address,
+      customer_patokan,
+      area_id,
+      shipping_fee,
+      discount,
+      items,
+    } = body;
+
+    if (!customer_name || !customer_phone) {
+      return NextResponse.json({ error: "Nama dan No WhatsApp pelanggan wajib diisi." }, { status: 400 });
+    }
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return NextResponse.json({ error: "Order wajib memiliki minimal 1 item produk." }, { status: 400 });
+    }
+
+    await client.query("BEGIN");
+
+    // 1. Verify Order Exists
+    const existingOrderRes = await client.query("SELECT * FROM orders WHERE id = $1 AND lini = 'siap_saji' FOR UPDATE", [orderId]);
+    if (existingOrderRes.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "Order tidak ditemukan." }, { status: 404 });
+    }
+    const existingOrder = existingOrderRes.rows[0];
+
+    // 2. Update Customer Details
+    await client.query(
+      `UPDATE customers
+       SET name = $1, phone = $2, address = $3, patokan = $4, area_id = $5
+       WHERE id = $6`,
+      [customer_name, customer_phone, customer_address || "-", customer_patokan || "", area_id || null, existingOrder.customer_id]
+    );
+
+    // 3. Calculate Item Subtotals & Order Totals
+    let itemsTotal = 0;
+    const processedItems = items.map((it: any) => {
+      const pId = Number(it.product_id);
+      const qty = Math.max(1, Number(it.quantity || 1));
+      const price = Number(it.price || 0);
+      const subtotal = qty * price;
+      itemsTotal += subtotal;
+      return {
+        product_id: pId,
+        price,
+        quantity: qty,
+        subtotal,
+        notes: it.notes ? String(it.notes).trim() : "",
+      };
+    });
+
+    const shipFee = Number(shipping_fee || 0);
+    const discVal = Number(discount || 0);
+    const grandTotal = Math.max(0, itemsTotal + shipFee - discVal);
+
+    // 4. Update Order Record
+    await client.query(
+      `UPDATE orders
+       SET channel_id = $1,
+           kas_bank_id = $2,
+           delivery_date = $3::date,
+           shipping_fee = $4,
+           discount = $5,
+           grand_total = $6,
+           updated_at = NOW()
+       WHERE id = $7`,
+      [
+        channel_id || existingOrder.channel_id,
+        kas_bank_id || existingOrder.kas_bank_id,
+        delivery_date || existingOrder.delivery_date,
+        shipFee,
+        discVal,
+        grandTotal,
+        orderId,
+      ]
+    );
+
+    // 5. Replace Order Items
+    await client.query("DELETE FROM order_items WHERE order_id = $1", [orderId]);
+    for (const item of processedItems) {
+      await client.query(
+        `INSERT INTO order_items (order_id, product_id, price, quantity, subtotal, notes)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [orderId, item.product_id, item.price, item.quantity, item.subtotal, item.notes]
+      );
+    }
+
+    await client.query("COMMIT");
+
+    return NextResponse.json({
+      message: "Order berhasil diperbarui.",
+      order_id: orderId,
+      grand_total: grandTotal,
+    });
+  } catch (error: any) {
+    await client.query("ROLLBACK");
+    console.error("Gagal memperbarui order:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   } finally {
     client.release();
@@ -128,7 +251,6 @@ export async function PATCH(
         const jRes = await client.query("SELECT * FROM journals WHERE id = $1", [order.journal_id]);
         if (jRes.rows.length > 0) {
           const origJ = jRes.rows[0];
-          // Reverse: Debit original kredit (Pendapatan), Kredit original debit (Bank/Kas)
           await client.query(
             `INSERT INTO journals (lini, journal_date, ref_type, ref_id, ref_no, akun_debit, akun_kredit, nominal, keterangan)
              VALUES ('siap_saji', CURRENT_DATE, 'koreksi', $1, $2, $3, $4, $5, $6)`,
@@ -180,6 +302,5 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // Soft cancel by calling PATCH cancellation logic
   return PATCH(req, { params });
 }

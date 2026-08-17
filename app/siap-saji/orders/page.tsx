@@ -22,6 +22,7 @@ import {
   RefreshCw,
   FileText,
   ClipboardList,
+  Edit2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/ui/Pagination";
@@ -146,6 +147,7 @@ export default function SiapSajiOrdersPage() {
   const [orderDate, setOrderDate] = useState(new Date().toISOString().split("T")[0]);
   const [deliveryDate, setDeliveryDate] = useState(new Date().toISOString().split("T")[0]);
   const [shippingFee, setShippingFee] = useState<number>(0);
+  const [discount, setDiscount] = useState<number>(0);
   const [isShippingAuto, setIsShippingAuto] = useState(true);
   const [selectedBankId, setSelectedBankId] = useState<number | "">("");
   const [orderNotes, setOrderNotes] = useState("");
@@ -153,6 +155,15 @@ export default function SiapSajiOrdersPage() {
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [productSearchQuery, setProductSearchQuery] = useState("");
   const [isProductDropdownOpen, setIsProductDropdownOpen] = useState(false);
+
+  // Edit Order State
+  const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
+
+  // Import Excel State
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [isUploadingImport, setIsUploadingImport] = useState(false);
+  const [importResult, setImportResult] = useState<any | null>(null);
 
   // Fetch Orders
   const fetchOrders = async (page = meta.page, lim = meta.limit) => {
@@ -284,7 +295,72 @@ export default function SiapSajiOrdersPage() {
   const cartSubtotal = cartItems.reduce((acc, it) => acc + (it.price * it.quantity - it.discount), 0);
   const cartGrandTotal = cartSubtotal + Number(shippingFee || 0);
 
-  // Submit New Order
+  // Helper handlers for Create, Edit, & Import Order
+  const handleOpenCreateOrder = () => {
+    resetForm();
+    setIsFormOpen(true);
+  };
+
+  const handleOpenEditOrder = async (orderId: number) => {
+    try {
+      toast.loading("Memuat detail pesanan untuk diedit...", { id: "load-edit-order" });
+      const res = await fetch(`/api/siap-saji/orders/${orderId}`);
+      if (!res.ok) throw new Error("Gagal memuat detail pesanan");
+      const data = await res.json();
+      toast.dismiss("load-edit-order");
+
+      setEditingOrderId(data.id);
+      setCustomerName(data.customer_name || "");
+      setCustomerPhone(data.customer_phone || "");
+      setCustomerAddress(data.customer_address || "");
+      setCustomerPatokan(data.customer_patokan || "");
+      setSelectedAreaId(data.area_id || (masterAreas.length > 0 ? masterAreas[0].id : ""));
+      setSelectedChannelId(data.channel_id || (masterChannels.length > 0 ? masterChannels[0].id : ""));
+      setSelectedBankId(data.kas_bank_id || (masterKasBank.length > 0 ? masterKasBank[0].id : ""));
+      setDeliveryDate(data.delivery_date ? data.delivery_date.split("T")[0] : getTodayStr());
+      setShippingFee(Number(data.shipping_fee || 0));
+      setDiscount(Number(data.discount || 0));
+
+      if (data.items && Array.isArray(data.items)) {
+        setCartItems(
+          data.items.map((it: any) => ({
+            product_id: it.product_id,
+            sku: it.sku || "",
+            name: it.product_name || "Produk",
+            price: Number(it.price || 0),
+            quantity: Number(it.quantity || 1),
+            discount: Number(it.discount || 0),
+            notes: it.notes || "",
+            is_half_portion: !!it.is_half_portion,
+          }))
+        );
+      } else {
+        setCartItems([]);
+      }
+
+      setProductSearchQuery("");
+      setIsFormOpen(true);
+    } catch (err: any) {
+      toast.dismiss("load-edit-order");
+      toast.error(err.message || "Gagal memuat detail pesanan");
+    }
+  };
+
+  const resetForm = () => {
+    setEditingOrderId(null);
+    setCustomerName("");
+    setCustomerPhone("");
+    setSelectedAreaId(masterAreas.length > 0 ? masterAreas[0].id : "");
+    setCustomerAddress("");
+    setCustomerPatokan("");
+    setShippingFee(0);
+    setDiscount(0);
+    setOrderNotes("");
+    setCartItems([]);
+    setProductSearchQuery("");
+  };
+
+  // Submit Order Form (Create POST / Edit PUT)
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedChannelId) return toast.error("Pilih channel penjualan");
@@ -295,51 +371,90 @@ export default function SiapSajiOrdersPage() {
 
     setIsSubmittingOrder(true);
     try {
-      const payload = {
-        channel_id: Number(selectedChannelId),
-        customer_id: "new",
-        customer_name: customerName,
-        customer_phone: customerPhone,
-        area_id: Number(selectedAreaId),
-        address: customerAddress,
-        patokan: customerPatokan,
-        order_date: orderDate,
-        delivery_date: deliveryDate,
-        shipping_fee: shippingFee,
-        payment_bank_id: selectedBankId ? Number(selectedBankId) : null,
-        order_notes: orderNotes,
-        items: cartItems.map((it) => ({
-          product_id: it.product_id,
-          price: it.price,
-          quantity: it.quantity,
-          discount: it.discount,
-          notes: it.notes,
-        })),
-      };
+      if (editingOrderId) {
+        // EDIT MODE (PUT)
+        const payload = {
+          channel_id: Number(selectedChannelId),
+          kas_bank_id: selectedBankId ? Number(selectedBankId) : null,
+          delivery_date: deliveryDate,
+          customer_name: customerName,
+          customer_phone: customerPhone,
+          customer_address: customerAddress,
+          customer_patokan: customerPatokan,
+          area_id: Number(selectedAreaId),
+          shipping_fee: shippingFee,
+          discount: discount,
+          items: cartItems.map((it) => ({
+            product_id: it.product_id,
+            price: it.price,
+            quantity: it.quantity,
+            discount: it.discount,
+            notes: it.notes,
+          })),
+        };
 
-      const res = await fetch("/api/siap-saji/orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+        const res = await fetch(`/api/siap-saji/orders/${editingOrderId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
 
-      if (!res.ok) {
-        const errJson = await res.json();
-        throw new Error(errJson.error || "Gagal membuat order");
-      }
+        if (!res.ok) {
+          const errJson = await res.json();
+          throw new Error(errJson.error || "Gagal memperbarui order");
+        }
 
-      const createdOrder = await res.json();
-      toast.success(`Penjualan Siap Saji berhasil disimpan! No Struk: ${createdOrder.no_struk}`);
+        toast.success("Pesanan berhasil diperbarui!");
+        setIsFormOpen(false);
+        resetForm();
+        fetchOrders();
+      } else {
+        // CREATE MODE (POST)
+        const payload = {
+          channel_id: Number(selectedChannelId),
+          customer_id: "new",
+          customer_name: customerName,
+          customer_phone: customerPhone,
+          area_id: Number(selectedAreaId),
+          address: customerAddress,
+          patokan: customerPatokan,
+          order_date: orderDate,
+          delivery_date: deliveryDate,
+          shipping_fee: shippingFee,
+          payment_bank_id: selectedBankId ? Number(selectedBankId) : null,
+          order_notes: orderNotes,
+          items: cartItems.map((it) => ({
+            product_id: it.product_id,
+            price: it.price,
+            quantity: it.quantity,
+            discount: it.discount,
+            notes: it.notes,
+          })),
+        };
 
-      setIsFormOpen(false);
-      resetForm();
-      fetchOrders();
+        const res = await fetch("/api/siap-saji/orders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
 
-      // Fetch detail & open Struk modal immediately
-      const detailRes = await fetch(`/api/siap-saji/orders/${createdOrder.id}`);
-      if (detailRes.ok) {
-        const detailData = await detailRes.json();
-        setSelectedStruk(detailData);
+        if (!res.ok) {
+          const errJson = await res.json();
+          throw new Error(errJson.error || "Gagal membuat order");
+        }
+
+        const createdOrder = await res.json();
+        toast.success(`Penjualan Siap Saji berhasil disimpan! No Struk: ${createdOrder.no_struk}`);
+
+        setIsFormOpen(false);
+        resetForm();
+        fetchOrders();
+
+        const detailRes = await fetch(`/api/siap-saji/orders/${createdOrder.id}`);
+        if (detailRes.ok) {
+          const detailData = await detailRes.json();
+          setSelectedStruk(detailData);
+        }
       }
     } catch (err: any) {
       toast.error(err.message || "Gagal menyimpan order");
@@ -348,16 +463,36 @@ export default function SiapSajiOrdersPage() {
     }
   };
 
-  const resetForm = () => {
-    setCustomerName("");
-    setCustomerPhone("");
-    setSelectedAreaId(masterAreas.length > 0 ? masterAreas[0].id : "");
-    setCustomerAddress("");
-    setCustomerPatokan("");
-    setCartItems([]);
-    setOrderNotes("");
-    setShippingFee(0);
-    setIsShippingAuto(true);
+  // Process Excel Import Submit
+  const handleProcessImport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!importFile) {
+      toast.error("Silakan pilih file Excel (.xlsx) terlebih dahulu.");
+      return;
+    }
+    setIsUploadingImport(true);
+    setImportResult(null);
+
+    try {
+      const fd = new FormData();
+      fd.append("file", importFile);
+
+      const res = await fetch("/api/siap-saji/orders/import", {
+        method: "POST",
+        body: fd,
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Gagal mengimpor excel");
+
+      setImportResult(json.summary);
+      toast.success(json.message || "Berhasil mengimpor data!");
+      fetchOrders(1);
+    } catch (err: any) {
+      toast.error(err.message || "Gagal mengimpor file");
+    } finally {
+      setIsUploadingImport(false);
+    }
   };
 
   // Handle Cancel Order
@@ -489,32 +624,59 @@ export default function SiapSajiOrdersPage() {
             Kelola transaksi harian retail Siap Saji & cetak struk pengiriman
           </p>
         </div>
-        <button
-          onClick={() => {
-            resetForm();
-            setIsFormOpen(true);
-          }}
-          style={{
-            background: "linear-gradient(135deg, #5005A6 0%, #B10FBD 100%)",
-            color: "white",
-            border: "none",
-            borderRadius: 10,
-            padding: "10px 18px",
-            fontSize: 14,
-            fontWeight: 700,
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            boxShadow: "0 4px 12px rgba(177, 15, 189, 0.25)",
-            transition: "transform 0.15s ease",
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-1px)")}
-          onMouseLeave={(e) => (e.currentTarget.style.transform = "none")}
-        >
-          <Plus size={18} />
-          Buat Penjualan
-        </button>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button
+            onClick={() => {
+              setImportFile(null);
+              setImportResult(null);
+              setIsImportModalOpen(true);
+            }}
+            style={{
+              background: "white",
+              color: "#5005A6",
+              border: "2px solid #5005A6",
+              borderRadius: 10,
+              padding: "10px 16px",
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              boxShadow: "0 2px 8px rgba(80, 5, 166, 0.12)",
+              transition: "transform 0.15s ease",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-1px)")}
+            onMouseLeave={(e) => (e.currentTarget.style.transform = "none")}
+          >
+            <FileText size={18} />
+            📥 Import Excel Order
+          </button>
+
+          <button
+            onClick={handleOpenCreateOrder}
+            style={{
+              background: "linear-gradient(135deg, #5005A6 0%, #B10FBD 100%)",
+              color: "white",
+              border: "none",
+              borderRadius: 10,
+              padding: "10px 18px",
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              boxShadow: "0 4px 12px rgba(177, 15, 189, 0.25)",
+              transition: "transform 0.15s ease",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-1px)")}
+            onMouseLeave={(e) => (e.currentTarget.style.transform = "none")}
+          >
+            <Plus size={18} />
+            Buat Penjualan
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -903,6 +1065,28 @@ export default function SiapSajiOrdersPage() {
                   </td>
                   <td style={{ padding: "14px 16px", textAlign: "right" }}>
                     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                      {o.status_order !== "Dibatalkan" && (
+                        <button
+                          onClick={() => handleOpenEditOrder(o.id)}
+                          style={{
+                            padding: "6px 10px",
+                            background: "#eff6ff",
+                            border: "1px solid #bfdbfe",
+                            borderRadius: 6,
+                            fontSize: 12,
+                            fontWeight: 600,
+                            color: "#1d4ed8",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                          title="Edit Rincian Order"
+                        >
+                          <Edit2 size={14} /> Edit
+                        </button>
+                      )}
+
                       <button
                         onClick={async () => {
                           const res = await fetch(`/api/siap-saji/orders/${o.id}`);
@@ -992,7 +1176,7 @@ export default function SiapSajiOrdersPage() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #e5e7eb", paddingBottom: 16, marginBottom: 20 }}>
               <div>
                 <h2 style={{ fontSize: 20, fontWeight: 800, color: "#111827", margin: 0 }}>
-                  Buat Penjualan Siap Saji
+                  {editingOrderId ? `Edit Penjualan Siap Saji (#${editingOrderId})` : "Buat Penjualan Siap Saji"}
                 </h2>
                 <p style={{ fontSize: 13, color: "#6b7280", margin: "2px 0 0" }}>
                   Struk otomatis ter-generate dan jurnal penjualan tercatat
@@ -2018,6 +2202,149 @@ export default function SiapSajiOrdersPage() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: IMPORT EXCEL ORDER ───────────────────────────── */}
+      {isImportModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 100,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              background: "white",
+              borderRadius: 16,
+              maxWidth: 620,
+              width: "100%",
+              padding: 24,
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #e5e7eb", paddingBottom: 16, marginBottom: 20 }}>
+              <div>
+                <h2 style={{ fontSize: 18, fontWeight: 800, color: "#111827", margin: 0 }}>
+                  📥 Import Transaksi Order via Excel (.xlsx)
+                </h2>
+                <p style={{ fontSize: 13, color: "#6b7280", margin: "4px 0 0" }}>
+                  Otomatis identifikasi retensi pelanggan lama (No HP) & pengelompokan porsi multi-item
+                </p>
+              </div>
+              <button onClick={() => setIsImportModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af" }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Download Template Banner */}
+            <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 12, padding: 16, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <p style={{ fontSize: 13, fontWeight: 700, color: "#166534", margin: 0 }}>
+                  Belum Memiliki File Template?
+                </p>
+                <p style={{ fontSize: 12, color: "#15803d", margin: "2px 0 0" }}>
+                  Unduh file template lengkap dengan sheet master produk, channel, area, & kas bank
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => window.open("/api/siap-saji/orders/import/template", "_blank")}
+                style={{
+                  background: "#16a34a",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "8px 14px",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <FileText size={15} /> Unduh Template (.xlsx)
+              </button>
+            </div>
+
+            <form onSubmit={handleProcessImport}>
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 8 }}>
+                  Pilih File Excel (.xlsx / .xls) *
+                </label>
+                <input
+                  type="file"
+                  accept=".xlsx, .xls"
+                  onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                  required
+                  style={{
+                    width: "100%",
+                    padding: "12px",
+                    borderRadius: 10,
+                    border: "2px dashed #d1d5db",
+                    fontSize: 13,
+                    cursor: "pointer",
+                    background: "#f9fafb",
+                  }}
+                />
+                {importFile && (
+                  <p style={{ fontSize: 12, color: "#5005A6", fontWeight: 700, marginTop: 6 }}>
+                    File Terpilih: {importFile.name} ({(importFile.size / 1024).toFixed(1)} KB)
+                  </p>
+                )}
+              </div>
+
+              {importResult && (
+                <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 10, padding: 14, marginBottom: 20 }}>
+                  <p style={{ fontSize: 13, fontWeight: 800, color: "#1d4ed8", margin: "0 0 6px" }}>
+                    🎉 Ringkasan Hasil Import Excel:
+                  </p>
+                  <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: "#1e40af", lineHeight: 1.6 }}>
+                    <li>Total Baris Terbaca: <strong>{importResult.total_rows}</strong></li>
+                    <li>Order/Transaksi Dibuat: <strong>{importResult.created_orders} Pesanan</strong></li>
+                    <li>Total Item Produk Terpasang: <strong>{importResult.inserted_items} Item</strong></li>
+                    <li>Customer Lama (Retensi No HP): <strong>{importResult.retained_customers} Pelanggan</strong></li>
+                    <li>Customer Baru Terdaftar: <strong>{importResult.new_customers} Pelanggan</strong></li>
+                  </ul>
+                </div>
+              )}
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setIsImportModalOpen(false)}
+                  style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "white", color: "#374151", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+                >
+                  Tutup
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUploadingImport || !importFile}
+                  style={{
+                    padding: "9px 20px",
+                    borderRadius: 8,
+                    border: "none",
+                    background: "linear-gradient(135deg, #5005A6 0%, #B10FBD 100%)",
+                    color: "white",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: isUploadingImport || !importFile ? "not-allowed" : "pointer",
+                    opacity: isUploadingImport || !importFile ? 0.6 : 1,
+                  }}
+                >
+                  {isUploadingImport ? "Memproses Import..." : "Proses Upload & Import"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
