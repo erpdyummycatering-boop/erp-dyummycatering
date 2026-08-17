@@ -66,6 +66,7 @@ export default function CustomersPage() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [casteFilter, setCasteFilter] = useState("");
+  const [liniFilter, setLiniFilter] = useState("");
   const [picFilter, setPicFilter] = useState("");
   const [fDateFrom, setFDateFrom] = useState("");
   const [fDateTo, setFDateTo] = useState("");
@@ -123,11 +124,12 @@ export default function CustomersPage() {
     if (search) p.set("search", search);
     if (typeFilter) p.set("type", typeFilter);
     if (casteFilter) p.set("caste", casteFilter);
+    if (liniFilter) p.set("lini", liniFilter);
     if (picFilter) p.set("pic_id", picFilter);
     if (fDateFrom) p.set("date_from", fDateFrom);
     if (fDateTo) p.set("date_to", fDateTo);
     return p.toString();
-  }, [search, typeFilter, casteFilter, picFilter, fDateFrom, fDateTo, meta.limit]);
+  }, [search, typeFilter, casteFilter, liniFilter, picFilter, fDateFrom, fDateTo, meta.limit]);
 
   const fetchCustomers = useCallback((page = 1, lim = meta.limit, signal?: AbortSignal) => {
     setLoading(true);
@@ -215,13 +217,12 @@ export default function CustomersPage() {
     }
   };
 
-
-
   const handleExport = async () => {
     const p = new URLSearchParams({ page: "1", limit: "1000" });
     if (search) p.set("search", search);
     if (typeFilter) p.set("type", typeFilter);
     if (casteFilter) p.set("caste", casteFilter);
+    if (liniFilter) p.set("lini", liniFilter);
     if (picFilter) p.set("pic_id", picFilter);
     if (fDateFrom) p.set("date_from", fDateFrom);
     if (fDateTo) p.set("date_to", fDateTo);
@@ -250,18 +251,24 @@ export default function CustomersPage() {
 
       <div className="erp-card" style={{ marginBottom: 12, padding: "12px 16px" }}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <input value={searchInput} onChange={e => setSearchInput(e.target.value)} placeholder="🔍 Cari nama, telepon, email..." style={{ width: 250 }} />
+          <input value={searchInput} onChange={e => setSearchInput(e.target.value)} placeholder="🔍 Cari nama, telepon, email..." style={{ width: 220 }} />
+          <SearchableSelect 
+            value={liniFilter} onChange={setLiniFilter} 
+            options={[{ value: "", label: "Semua Lini" }, { value: "catering", label: "Catering" }, { value: "siap_saji", label: "Siap Saji" }]} 
+            placeholder="Semua Lini"
+            style={{ width: 140 }} 
+          />
           <SearchableSelect 
             value={typeFilter} onChange={setTypeFilter} 
             options={[{ value: "", label: "Semua Tipe" }, ...["Perorangan", "Corporate", "Instansi"].map(t => ({ value: t, label: t }))]} 
-            style={{ width: 160 }} 
+            style={{ width: 150 }} 
           />
           <SearchableSelect
             value={casteFilter}
             onChange={setCasteFilter}
             options={[{ value: "", label: "Semua Kasta" }, { value: "Customer", label: "Customer (Pernah Order)" }, { value: "Lead", label: "Lead (Belum Order)" }]}
             placeholder="Semua Kasta"
-            style={{ minWidth: 160, width: 220 }}
+            style={{ minWidth: 150, width: 200 }}
           />
           {activeRole !== "cs_sales" && csUsers.length > 0 && (
             <SearchableSelect
@@ -272,13 +279,13 @@ export default function CustomersPage() {
                 ...csUsers.map((u) => ({ value: String(u.id), label: u.name }))
               ]}
               placeholder="Semua CS"
-              style={{ minWidth: 160, width: 200 }}
+              style={{ minWidth: 140, width: 180 }}
             />
           )}
-          <input type="date" value={fDateFrom} onChange={e => setFDateFrom(e.target.value)} style={{ width: 140 }} title="Tanggal dari" />
-          <input type="date" value={fDateTo} onChange={e => setFDateTo(e.target.value)} style={{ width: 140 }} title="Tanggal sampai" />
+          <input type="date" value={fDateFrom} onChange={e => setFDateFrom(e.target.value)} style={{ width: 130 }} title="Tanggal dari" />
+          <input type="date" value={fDateTo} onChange={e => setFDateTo(e.target.value)} style={{ width: 130 }} title="Tanggal sampai" />
           <button 
-            onClick={() => { setSearchInput(""); setSearch(""); setTypeFilter(""); setCasteFilter(""); setPicFilter(""); setFDateFrom(""); setFDateTo(""); setMeta(m => ({ ...m, page: 1 })); }}
+            onClick={() => { setSearchInput(""); setSearch(""); setTypeFilter(""); setCasteFilter(""); setLiniFilter(""); setPicFilter(""); setFDateFrom(""); setFDateTo(""); setMeta(m => ({ ...m, page: 1 })); }}
             style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #e2e8f0", backgroundColor: "white", fontSize: 15, fontWeight: 600, color: "#64748b", cursor: "pointer", whiteSpace: "nowrap" }}
           >Reset</button>
         </div>
@@ -293,14 +300,14 @@ export default function CustomersPage() {
               <table>
                 <thead>
                   <tr>
-                    <th>No.</th><th>Tanggal</th><th>Nama</th><th>WhatsApp</th><th>Status Prospek</th><th>Total Order</th>
+                    <th>No.</th><th>Tanggal</th><th>Lini</th><th>Nama</th><th>WhatsApp</th><th>Status Prospek</th><th>Total Order</th>
                     {activeRole !== "cs_sales" && <th>Dibuat Oleh</th>}
                     <th>Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.length === 0 ? (
-                    <tr><td colSpan={activeRole !== "cs_sales" ? 8 : 7} style={{ textAlign: "center", padding: "24px", color: "#6b7280" }}>Tidak ada data</td></tr>
+                    <tr><td colSpan={activeRole !== "cs_sales" ? 9 : 8} style={{ textAlign: "center", padding: "24px", color: "#6b7280" }}>Tidak ada data</td></tr>
                   ) : rows.map((c: any, idx: number) => (
                     <tr 
                       key={c.id}
@@ -313,6 +320,11 @@ export default function CustomersPage() {
                     >
                       <td style={{ fontSize: 14, color: "#6b7280" }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
                       <td style={{ fontSize: 14 }}>{c.created_at ? String(c.created_at).slice(0, 10) : "-"}</td>
+                      <td>
+                        <Badge color={c.lini === "siap_saji" ? "yellow" : "purple"}>
+                          {c.lini === "siap_saji" ? "Siap Saji" : "Catering"}
+                        </Badge>
+                      </td>
                       <td>
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                           <div style={{

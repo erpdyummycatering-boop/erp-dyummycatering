@@ -78,9 +78,19 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const { id } = await params;
   const client = await pool.connect();
   try {
+    await client.query("BEGIN");
+    await client.query("DELETE FROM leads WHERE customer_id = $1", [id]);
+    await client.query("DELETE FROM rfm_scores WHERE customer_id = $1", [id]);
+    await client.query(
+      "DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE customer_id = $1)",
+      [id]
+    );
+    await client.query("DELETE FROM orders WHERE customer_id = $1", [id]);
     await client.query("DELETE FROM customers WHERE id = $1", [id]);
+    await client.query("COMMIT");
     return NextResponse.json({ success: true });
   } catch (err: any) {
+    await client.query("ROLLBACK");
     console.error("Gagal menghapus customer:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   } finally {

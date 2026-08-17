@@ -16,6 +16,7 @@ export async function GET(req: NextRequest) {
   const search = p.get("search") || "";
   const type = p.get("type") || "";
   const caste = p.get("caste") || "";
+  const lini = p.get("lini") || "";
   const pic_id = p.get("pic_id") || "";
   const date_from = p.get("date_from") || "";
   const date_to = p.get("date_to") || "";
@@ -27,6 +28,7 @@ export async function GET(req: NextRequest) {
 
   if (search) { wheres.push(`(c.name ILIKE $${idx} OR c.phone ILIKE $${idx} OR c.email ILIKE $${idx})`); vals.push(`%${search}%`); idx++; }
   if (type) { wheres.push(`c.type = $${idx}`); vals.push(type); idx++; }
+  if (lini) { wheres.push(`c.lini = $${idx}`); vals.push(lini); idx++; }
   if (caste) {
     if (caste === "Customer") {
       wheres.push(`(c.status = 'Closing' OR EXISTS (SELECT 1 FROM orders WHERE customer_id = c.id))`);

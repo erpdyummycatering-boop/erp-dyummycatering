@@ -35,6 +35,11 @@ const mapDbRoleToKey = (role: string): RoleKey => {
     case "Finance": return "finance";
     case "HR": return "hr";
     case "HRD": return "hr";
+    case "CS_SS": return "cs_ss";
+    case "CS Siap Saji": return "cs_ss";
+    case "Keuangan_SS": return "keuangan_ss";
+    case "Keuangan Siap Saji": return "keuangan_ss";
+    case "Siap Saji": return "siap_saji";
     default: return "super_admin";
   }
 };

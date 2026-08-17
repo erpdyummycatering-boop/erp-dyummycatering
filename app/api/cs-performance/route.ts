@@ -113,7 +113,8 @@ export async function GET(req: NextRequest) {
 
     const totalClosing = newOrdersCount + repeatOrdersCount;
     const totalOmzet = newOrdersValue + repeatOrdersValue;
-    const closingRate = leadsCount > 0 ? Number(((newOrdersContacts / leadsCount) * 100).toFixed(1)) : 0;
+    const rawClosingRate = leadsCount > 0 ? Number(((newOrdersContacts / leadsCount) * 100).toFixed(1)) : 0;
+    const closingRate = Math.min(100, rawClosingRate);
 
     dailyStats = {
       leads: leadsCount,
@@ -241,12 +242,13 @@ export async function GET(req: NextRequest) {
         const row = weeklyChartRes.rows.find(r => Number(r.cs_id) === csIdNum && r.week_start === week_start);
         const leads = row ? Number(row.leads) : 0;
         const closing = row ? Number(row.closing) : 0;
+        const rawRate = leads > 0 ? Number(((closing / leads) * 100).toFixed(1)) : 0;
         return {
           week: `Pekan ${i + 1}`,
           dateRange: formatDateRange(week_start),
           leads,
           closing,
-          rate: leads > 0 ? Number(((closing / leads) * 100).toFixed(1)) : 0
+          rate: Math.min(100, rawRate)
         };
       });
     }
@@ -255,6 +257,7 @@ export async function GET(req: NextRequest) {
       const csIdNum = Number(cs.id);
       const leads = Number(cs.total_leads);
       const closing = Number(cs.total_closing);
+      const rawMonthRate = leads > 0 ? Number(((closing / leads) * 100).toFixed(1)) : 0;
       return {
         id: cs.id,
         name: cs.name,
@@ -264,7 +267,7 @@ export async function GET(req: NextRequest) {
         monthNewOrdersValue: Number(cs.new_orders_value || 0),
         monthRepeatOrdersValue: Number(cs.repeat_orders_value || 0),
         monthOmzet: Number(cs.total_omzet || 0),
-        monthRate: leads > 0 ? Number(((closing / leads) * 100).toFixed(1)) : 0,
+        monthRate: Math.min(100, rawMonthRate),
         weekly: weeklyData[csIdNum] || [],
       };
     });

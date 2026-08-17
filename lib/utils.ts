@@ -41,6 +41,11 @@ export const roleColor = (role: string): BadgeColor => {
     Owner: "green",
     HR: "green",
     HRD: "green",
+    CS_SS: "teal",
+    "CS Siap Saji": "teal",
+    Keuangan_SS: "yellow",
+    "Keuangan Siap Saji": "yellow",
+    "Siap Saji": "purple",
   };
   return map[role] || "gray";
 };

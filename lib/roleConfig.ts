@@ -7,7 +7,10 @@ export type RoleKey =
   | "chef"
   | "purchasing"
   | "finance"
-  | "hr";
+  | "hr"
+  | "cs_ss"
+  | "keuangan_ss"
+  | "siap_saji";
 
 export interface RoleConfig {
   key: RoleKey;
@@ -143,6 +146,66 @@ export const ROLES: RoleConfig[] = [
       "/cs-performance",
       "/customers",
       "/orders",
+    ],
+  },
+  {
+    key: "cs_ss",
+    label: "CS Siap Saji",
+    description: "Akses khusus order, dokumen, dan pelanggan Siap Saji",
+    color: "#EC008C",
+    bgColor: "#fdf2f8",
+    initials: "CS",
+    firstPage: "/siap-saji/dashboard",
+    allowedHrefs: [
+      "/siap-saji/dashboard",
+      "/siap-saji/orders",
+      "/siap-saji/documents",
+      "/siap-saji/analytics/products",
+      "/siap-saji/analytics/customers",
+      "/siap-saji/customers",
+      "/siap-saji/products",
+    ],
+  },
+  {
+    key: "keuangan_ss",
+    label: "Keuangan Siap Saji",
+    description: "Akses modul Penjualan & Laporan Keuangan Siap Saji",
+    color: "#06b6d4",
+    bgColor: "#ecfeff",
+    initials: "KS",
+    firstPage: "/siap-saji/dashboard",
+    allowedHrefs: [
+      "/siap-saji/dashboard",
+      "/siap-saji/orders",
+      "/siap-saji/documents",
+      "/siap-saji/analytics/products",
+      "/siap-saji/analytics/customers",
+      "/siap-saji/finance",
+      "/siap-saji/shipping",
+      "/siap-saji/customers",
+      "/siap-saji/products",
+      "/siap-saji/master-data",
+    ],
+  },
+  {
+    key: "siap_saji",
+    label: "Siap Saji",
+    description: "Akses penuh ke seluruh menu Penjualan Siap Saji",
+    color: "#B10FBD",
+    bgColor: "#fcf4fd",
+    initials: "SS",
+    firstPage: "/siap-saji/dashboard",
+    allowedHrefs: [
+      "/siap-saji/dashboard",
+      "/siap-saji/orders",
+      "/siap-saji/documents",
+      "/siap-saji/analytics/products",
+      "/siap-saji/analytics/customers",
+      "/siap-saji/finance",
+      "/siap-saji/shipping",
+      "/siap-saji/customers",
+      "/siap-saji/products",
+      "/siap-saji/master-data",
     ],
   },
 ];

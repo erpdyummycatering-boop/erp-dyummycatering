@@ -22,7 +22,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const { id } = await params;
   const client = await pool.connect();
   try {
-    await client.query("UPDATE users SET status='Nonaktif', updated_at=NOW() WHERE id=$1", [id]);
+    await client.query("DELETE FROM users WHERE id=$1", [id]);
     return NextResponse.json({ success: true });
   } finally {
     client.release();

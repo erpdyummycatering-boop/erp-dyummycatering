@@ -270,7 +270,7 @@ export default function CSPerformancePage() {
                   {(() => {
                     const totalLeads = csData.reduce((sum: number, c: any) => sum + c.monthLeads, 0);
                     const totalClosing = csData.reduce((sum: number, c: any) => sum + c.monthClosing, 0);
-                    return totalLeads > 0 ? ((totalClosing / totalLeads) * 100).toFixed(1) : "0";
+                    return totalLeads > 0 ? Math.min(100, (totalClosing / totalLeads) * 100).toFixed(1) : "0";
                   })()}%
                 </h4>
                 <p style={{ fontSize: 15, color: "#64748b", margin: 0, fontWeight: 500 }}>Target: ≥30%</p>
@@ -306,7 +306,7 @@ export default function CSPerformancePage() {
                   <LineChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                     <XAxis dataKey="week" tick={{ fontSize: 15, fontWeight: 600 }} />
-                    <YAxis domain={[0, 60]} tickFormatter={v => v + "%"} tick={{ fontSize: 15, fontWeight: 600 }} />
+                    <YAxis domain={[0, 100]} tickFormatter={v => v + "%"} tick={{ fontSize: 15, fontWeight: 600 }} />
                     <Tooltip formatter={(v: any) => Number(v).toFixed(1) + "%"} />
                     <Legend wrapperStyle={{ fontSize: 15, fontWeight: 600 }} />
                     {csData.map((cs: any, i: number) => {
