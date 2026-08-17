@@ -164,7 +164,7 @@ export async function GET(req: NextRequest) {
       let y = startY;
 
       // Header (Title 22pt starts at startY which is offset by 36pt from page top)
-      drawCenterTextOnPage(pageObj, "DYummy Catering", fontBold, 22, y);
+      drawCenterTextOnPage(pageObj, "D'Yummy Siap Saji", fontBold, 22, y);
       y -= 26;
       drawCenterTextOnPage(pageObj, "Jl Sindangsari 4 No 48", fontRegular, 13, y);
       y -= 16;
