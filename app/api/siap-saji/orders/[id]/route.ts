@@ -144,24 +144,37 @@ export async function PUT(
     const discVal = Number(discount || 0);
     const grandTotal = Math.max(0, itemsTotal + shipFee - discVal);
 
+    // Resolve Bank details if kas_bank_id provided
+    let paymentBankName = existingOrder.payment_bank || "BCA";
+    let paymentAccountNo = existingOrder.payment_account || "";
+    if (kas_bank_id) {
+      const kasRes = await client.query("SELECT * FROM kas_bank WHERE id = $1", [kas_bank_id]);
+      if (kasRes.rows.length > 0) {
+        paymentBankName = kasRes.rows[0].nama_bank || kasRes.rows[0].nama_rekening;
+        paymentAccountNo = kasRes.rows[0].no_rekening || "";
+      }
+    }
+
     // 4. Update Order Record
     await client.query(
       `UPDATE orders
        SET channel_id = $1,
-           kas_bank_id = $2,
-           delivery_date = $3::date,
-           shipping_fee = $4,
-           discount = $5,
-           grand_total = $6,
+           delivery_date = $2::date,
+           shipping_fee = $3,
+           discount = $4,
+           grand_total = $5,
+           payment_bank = $6,
+           payment_account = $7,
            updated_at = NOW()
-       WHERE id = $7`,
+       WHERE id = $8`,
       [
         channel_id || existingOrder.channel_id,
-        kas_bank_id || existingOrder.kas_bank_id,
         delivery_date || existingOrder.delivery_date,
         shipFee,
         discVal,
         grandTotal,
+        paymentBankName,
+        paymentAccountNo,
         orderId,
       ]
     );

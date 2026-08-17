@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
     const [productsRes, channelsRes, areasRes, bankRes] = await Promise.all([
       client.query("SELECT id, sku, name, is_half_portion, price FROM products WHERE lini = 'siap_saji' ORDER BY name ASC"),
       client.query("SELECT id, name, harga_type FROM channels ORDER BY name ASC"),
-      client.query("SELECT id, kecamatan, kota, shipping_zone, default_shipping_fee FROM areas ORDER BY kecamatan ASC"),
+      client.query("SELECT id, kecamatan, kota, shipping_zone FROM areas ORDER BY kecamatan ASC"),
       client.query("SELECT id, nama_rekening, no_rekening, nama_bank FROM kas_bank ORDER BY nama_rekening ASC"),
     ]);
 
@@ -129,7 +129,7 @@ export async function GET(req: NextRequest) {
     ];
 
     // ── SHEET 4: REF_AREA_ONGKIR ──
-    const refAreaHeaders = ["ID", "Kecamatan", "Kota", "Zone", "Default Ongkir", "FORMAT UPLOAD (Copy-Paste Kolom Ini)"];
+    const refAreaHeaders = ["ID", "Kecamatan", "Kota", "Zone", "FORMAT UPLOAD (Copy-Paste Kolom Ini)"];
     const refAreaRows = [
       refAreaHeaders,
       ...areas.map((a) => [
@@ -137,7 +137,6 @@ export async function GET(req: NextRequest) {
         a.kecamatan,
         a.kota,
         a.shipping_zone,
-        Number(a.default_shipping_fee || 0),
         `${a.id} | ${a.kecamatan} (${a.kota})`,
       ]),
     ];
@@ -173,7 +172,7 @@ export async function GET(req: NextRequest) {
     ];
     wsRefProducts["!cols"] = [{ wch: 8 }, { wch: 14 }, { wch: 30 }, { wch: 10 }, { wch: 14 }, { wch: 36 }];
     wsRefChannels["!cols"] = [{ wch: 8 }, { wch: 22 }, { wch: 14 }, { wch: 28 }];
-    wsRefAreas["!cols"] = [{ wch: 8 }, { wch: 20 }, { wch: 20 }, { wch: 12 }, { wch: 14 }, { wch: 34 }];
+    wsRefAreas["!cols"] = [{ wch: 8 }, { wch: 20 }, { wch: 20 }, { wch: 12 }, { wch: 34 }];
     wsRefBanks["!cols"] = [{ wch: 8 }, { wch: 22 }, { wch: 20 }, { wch: 14 }, { wch: 28 }];
 
     XLSX.utils.book_append_sheet(wb, wsDataOrder, "DATA_ORDER");

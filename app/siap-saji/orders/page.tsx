@@ -26,7 +26,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/ui/Pagination";
-import { formatDate } from "@/lib/utils";
+import { formatDate, getWhatsAppUrl } from "@/lib/utils";
+import * as XLSX from "xlsx";
 
 interface Product {
   id: number;
@@ -164,6 +165,96 @@ export default function SiapSajiOrdersPage() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [isUploadingImport, setIsUploadingImport] = useState(false);
   const [importResult, setImportResult] = useState<any | null>(null);
+  const [importPreviewData, setImportPreviewData] = useState<any[] | null>(null);
+  const [importPreviewSummary, setImportPreviewSummary] = useState<{
+    totalRows: number;
+    totalOrders: number;
+  } | null>(null);
+
+  const handleFileSelect = async (file: File | null) => {
+    setImportFile(file);
+    setImportResult(null);
+    setImportPreviewData(null);
+    setImportPreviewSummary(null);
+
+    if (!file) return;
+
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: "array" });
+      const sheetName =
+        workbook.SheetNames.find(
+          (s) => s.toUpperCase().includes("DATA") || s.toUpperCase().includes("ORDER")
+        ) || workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      if (!sheet) return;
+
+      const rows: any[] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+      if (rows.length < 2) return;
+
+      const rawData = rows.slice(1).filter((r) => r && r.length > 0 && (r[1] || r[2]));
+
+      const groupsMap = new Map<string, any>();
+      rawData.forEach((row) => {
+        const deliveryDateRaw = row[0] ? String(row[0]).trim() : new Date().toISOString().split("T")[0];
+        let deliveryDate = deliveryDateRaw;
+        if (typeof row[0] === "number") {
+          const parsedD = XLSX.SSF.parse_date_code(row[0]);
+          if (parsedD) {
+            const m = String(parsedD.m).padStart(2, "0");
+            const d = String(parsedD.d).padStart(2, "0");
+            deliveryDate = `${parsedD.y}-${m}-${d}`;
+          }
+        }
+
+        const name = row[1] ? String(row[1]).trim() : "Pelanggan Import";
+        const phone = row[2] ? String(row[2]).trim().replace(/[^0-9]/g, "") : "";
+        const area = row[3] ? String(row[3]).trim() : "-";
+        const shippingFee = Number(row[8] || 0);
+        const discount = Number(row[9] || 0);
+        const product = row[10] ? String(row[10]).trim() : "-";
+        const price = Number(row[11] || 0);
+        const qty = Number(row[12] || 1);
+
+        const key = `${phone}_${deliveryDate}`;
+        if (!groupsMap.has(key)) {
+          groupsMap.set(key, {
+            deliveryDate,
+            name,
+            phone,
+            area,
+            shippingFee,
+            discount,
+            items: [],
+          });
+        }
+
+        const g = groupsMap.get(key);
+        g.items.push({ product, price, qty, subtotal: price * qty });
+      });
+
+      const previewArray: any[] = [];
+      groupsMap.forEach((g) => {
+        const itemsSubtotal = g.items.reduce((acc: number, it: any) => acc + it.subtotal, 0);
+        const grandTotal = Math.max(0, itemsSubtotal + g.shippingFee - g.discount);
+        previewArray.push({
+          ...g,
+          itemsCount: g.items.length,
+          grandTotal,
+          itemsSummary: g.items.map((it: any) => `${it.product} (x${it.qty})`).join(", "),
+        });
+      });
+
+      setImportPreviewData(previewArray);
+      setImportPreviewSummary({
+        totalRows: rawData.length,
+        totalOrders: previewArray.length,
+      });
+    } catch (err: any) {
+      console.error("Preview error:", err);
+      toast.error("Gagal membaca preview file excel");
+    }
+  };
 
   // Fetch Orders
   const fetchOrders = async (page = meta.page, lim = meta.limit) => {
@@ -1023,7 +1114,24 @@ export default function SiapSajiOrdersPage() {
                   <td style={{ padding: "14px 16px", color: "#374151" }}>{formatDate(o.delivery_date)}</td>
                   <td style={{ padding: "14px 16px" }}>
                     <p style={{ fontWeight: 600, color: "#111827", margin: 0 }}>{o.customer_name}</p>
-                    <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>{o.customer_phone}</p>
+                    <a
+                      href={getWhatsAppUrl(o.customer_phone)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        fontSize: 12,
+                        color: "#25D366",
+                        fontWeight: 700,
+                        margin: "2px 0 0",
+                        textDecoration: "none",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                      }}
+                      title="Chat WhatsApp (Buka Tab Baru)"
+                    >
+                      💬 {o.customer_phone}
+                    </a>
                   </td>
                   <td style={{ padding: "14px 16px", color: "#4b5563" }}>
                     {o.area_kecamatan ? `${o.area_kecamatan}` : "-"}
@@ -2224,8 +2332,10 @@ export default function SiapSajiOrdersPage() {
             style={{
               background: "white",
               borderRadius: 16,
-              maxWidth: 620,
+              maxWidth: 760,
               width: "100%",
+              maxHeight: "90vh",
+              overflowY: "auto",
               padding: 24,
               boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)",
             }}
@@ -2284,7 +2394,7 @@ export default function SiapSajiOrdersPage() {
                 <input
                   type="file"
                   accept=".xlsx, .xls"
-                  onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                  onChange={(e) => handleFileSelect(e.target.files?.[0] || null)}
                   required
                   style={{
                     width: "100%",
@@ -2302,6 +2412,59 @@ export default function SiapSajiOrdersPage() {
                   </p>
                 )}
               </div>
+
+              {/* Real-time Data Preview Table */}
+              {importPreviewData && importPreviewSummary && (
+                <div style={{ marginBottom: 20, border: "1px solid #c084fc", borderRadius: 12, overflow: "hidden", background: "#faf5ff" }}>
+                  <div style={{ padding: "10px 14px", background: "#f3e8ff", borderBottom: "1px solid #e9d5ff", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <p style={{ fontSize: 13, fontWeight: 800, color: "#6b21a8", margin: 0, display: "flex", alignItems: "center", gap: 6 }}>
+                      👁️ PREVIEW DATA EXCEL ({importPreviewSummary.totalOrders} Transaksi Terdeteksi)
+                    </p>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "#7e22ce", background: "white", padding: "2px 8px", borderRadius: 12, border: "1px solid #d8b4fe" }}>
+                      {importPreviewSummary.totalRows} Baris Excel
+                    </span>
+                  </div>
+
+                  <div style={{ maxHeight: 220, overflowY: "auto", padding: 8 }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, textAlign: "left" }}>
+                      <thead>
+                        <tr style={{ background: "#f5f3ff", color: "#5b21b6", fontWeight: 700, borderBottom: "1px solid #ddd6fe" }}>
+                          <th style={{ padding: "8px 10px" }}>Delivery</th>
+                          <th style={{ padding: "8px 10px" }}>Customer & WA</th>
+                          <th style={{ padding: "8px 10px" }}>Item Produk</th>
+                          <th style={{ padding: "8px 10px", textAlign: "right" }}>Est. Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {importPreviewData.map((p, idx) => (
+                          <tr key={idx} style={{ borderBottom: "1px solid #f3e8ff" }}>
+                            <td style={{ padding: "8px 10px", color: "#374151", fontWeight: 600 }}>{p.deliveryDate}</td>
+                            <td style={{ padding: "8px 10px" }}>
+                              <p style={{ fontWeight: 700, color: "#111827", margin: 0 }}>{p.name}</p>
+                              {p.phone && (
+                                <a
+                                  href={getWhatsAppUrl(p.phone)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{ color: "#25D366", fontSize: 11, fontWeight: 700, textDecoration: "none" }}
+                                >
+                                  💬 {p.phone}
+                                </a>
+                              )}
+                            </td>
+                            <td style={{ padding: "8px 10px", color: "#4b5563", maxWidth: 260, wordBreak: "break-word" }}>
+                              {p.itemsSummary}
+                            </td>
+                            <td style={{ padding: "8px 10px", textAlign: "right", fontWeight: 700, color: "#6b21a8" }}>
+                              Rp {p.grandTotal.toLocaleString("id-ID")}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
 
               {importResult && (
                 <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 10, padding: 14, marginBottom: 20 }}>

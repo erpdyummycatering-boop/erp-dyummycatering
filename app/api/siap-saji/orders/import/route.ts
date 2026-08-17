@@ -61,7 +61,6 @@ export async function POST(req: NextRequest) {
       const deliveryDateRaw = row[0] ? String(row[0]).trim() : new Date().toISOString().split("T")[0];
       let deliveryDate = deliveryDateRaw;
       if (typeof row[0] === "number") {
-        // Excel serial date conversion
         const parsedD = XLSX.SSF.parse_date_code(row[0]);
         if (parsedD) {
           const m = String(parsedD.m).padStart(2, "0");
@@ -75,8 +74,8 @@ export async function POST(req: NextRequest) {
       const areaId = extractId(row[3]);
       const customerAddress = row[4] ? String(row[4]).trim() : "-";
       const customerPatokan = row[5] ? String(row[5]).trim() : "";
-      const channelId = extractId(row[6]) || 1; // Default Gojek Offline / Offline
-      const bankId = extractId(row[7]) || 1;    // Default Kas/Bank
+      const channelId = extractId(row[6]) || 1;
+      const bankId = extractId(row[7]) || 1;
       const shippingFee = Number(row[8] || 0);
       const discount = Number(row[9] || 0);
       const productId = extractId(row[10]);
@@ -103,7 +102,7 @@ export async function POST(req: NextRequest) {
           customerPatokan,
           channelId,
           bankId,
-          shippingFee,
+          shippingFee, // Shipping fee taken once per order/pengiriman
           discount,
           items: [],
         });
@@ -132,7 +131,6 @@ export async function POST(req: NextRequest) {
         customerId = custCheck.rows[0].id;
         retainedCustomersCount++;
 
-        // Update customer details if provided
         await client.query(
           `UPDATE customers 
            SET name = COALESCE(NULLIF($1, ''), name), 
@@ -153,15 +151,45 @@ export async function POST(req: NextRequest) {
         newCustomersCount++;
       }
 
-      // 2. Calculate Order Totals
+      // 2. Resolve Shipping Fee (use area_channel_shipping / get_shipping_fee if 0)
+      let finalShippingFee = group.shippingFee;
+      if (finalShippingFee === 0 && group.areaId && group.channelId) {
+        try {
+          const feeRes = await client.query(
+            "SELECT shipping_fee FROM area_channel_shipping WHERE area_id = $1 AND channel_id = $2 AND is_active = true LIMIT 1",
+            [group.areaId, group.channelId]
+          );
+          if (feeRes.rows.length > 0) {
+            finalShippingFee = Number(feeRes.rows[0].shipping_fee || 0);
+          } else {
+            const funcFeeRes = await client.query("SELECT public.get_shipping_fee($1, $2) AS fee", [group.areaId, group.channelId]);
+            finalShippingFee = Number(funcFeeRes.rows[0]?.fee || 0);
+          }
+        } catch {
+          finalShippingFee = 0;
+        }
+      }
+
+      // 3. Resolve Bank Account Details
+      let paymentBankName = "BCA";
+      let paymentAccountNo = "2832835545";
+      if (group.bankId) {
+        const kasRes = await client.query("SELECT * FROM kas_bank WHERE id = $1", [group.bankId]);
+        if (kasRes.rows.length > 0) {
+          paymentBankName = kasRes.rows[0].nama_bank || kasRes.rows[0].nama_rekening;
+          paymentAccountNo = kasRes.rows[0].no_rekening || "";
+        }
+      }
+
+      // 4. Calculate Order Totals
       let itemsTotal = 0;
       group.items.forEach((it: any) => {
         itemsTotal += it.subtotal;
       });
 
-      const grandTotal = Math.max(0, itemsTotal + group.shippingFee - group.discount);
+      const grandTotal = Math.max(0, itemsTotal + finalShippingFee - group.discount);
 
-      // 3. Generate Struk Number: SI.YYYY.MM.XXXXX
+      // 5. Generate Struk Number: SI.YYYY.MM.XXXXX
       const todayDate = new Date();
       const yr = todayDate.getFullYear();
       const mo = String(todayDate.getMonth() + 1).padStart(2, "0");
@@ -169,31 +197,34 @@ export async function POST(req: NextRequest) {
       const seq = Number(strukSeqRes.rows[0].count) + 1;
       const noStruk = `SI.${yr}.${mo}.${String(seq).padStart(5, "0")}`;
 
-      // 4. Insert Order
+      // 6. Insert Order
       const orderInsRes = await client.query(
         `INSERT INTO orders (
-          no_struk, order_date, delivery_date, customer_id, channel_id, kas_bank_id,
-          shipping_fee, discount, grand_total, lini, status_order, status_payment
+          no_struk, order_date, delivery_date, customer_id, channel_id,
+          shipping_fee, discount, grand_total, payment_bank, payment_account,
+          lini, status_order, status_payment
         ) VALUES (
-          $1, CURRENT_DATE, $2::date, $3, $4, $5,
-          $6, $7, $8, 'siap_saji', 'Aktif', 'Lunas'
+          $1, CURRENT_DATE, $2::date, $3, $4,
+          $5, $6, $7, $8, $9,
+          'siap_saji', 'Aktif', 'Lunas'
         ) RETURNING id`,
         [
           noStruk,
           group.deliveryDate,
           customerId,
           group.channelId,
-          group.bankId,
-          group.shippingFee,
+          finalShippingFee,
           group.discount,
           grandTotal,
+          paymentBankName,
+          paymentAccountNo,
         ]
       );
 
       const orderId = orderInsRes.rows[0].id;
       createdOrdersCount++;
 
-      // 5. Insert Order Items
+      // 7. Insert Order Items
       for (const item of group.items) {
         await client.query(
           `INSERT INTO order_items (order_id, product_id, price, quantity, subtotal, notes)

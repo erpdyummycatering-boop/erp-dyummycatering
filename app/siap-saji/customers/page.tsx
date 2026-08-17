@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Users, Plus, Search, Filter, Phone, MapPin, Edit3, Trash2, Eye, Award, ShoppingBag, X } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/ui/Pagination";
-import { formatDate } from "@/lib/utils";
+import { formatDate, getWhatsAppUrl } from "@/lib/utils";
 
 interface Area {
   id: number;
@@ -323,18 +323,18 @@ export default function SiapSajiCustomersPage() {
 
       {/* Customer Table */}
       <div style={{ background: "white", borderRadius: 12, border: "1px solid #e5e7eb", overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 14, whiteSpace: "nowrap" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 13 }}>
           <thead>
-            <tr style={{ background: "#fafafa", borderBottom: "1px solid #e5e7eb", color: "#6b7280", fontWeight: 700, fontSize: 12, textTransform: "uppercase" }}>
-              <th style={{ padding: "12px 16px", width: 50 }}>No.</th>
-              <th style={{ padding: "12px 16px" }}>Pelanggan</th>
-              <th style={{ padding: "12px 16px" }}>Kecamatan & Alamat</th>
-              <th style={{ padding: "12px 16px" }}>Patokan / Landmark</th>
-              <th style={{ padding: "12px 16px", textAlign: "center" }}>Order</th>
-              <th style={{ padding: "12px 16px" }}>Total Omset</th>
-              <th style={{ padding: "12px 16px" }}>Poin Loyalty</th>
-              <th style={{ padding: "12px 16px" }}>Segmen RFM</th>
-              <th style={{ padding: "12px 16px", textAlign: "right" }}>Aksi</th>
+            <tr style={{ background: "#fafafa", borderBottom: "1px solid #e5e7eb", color: "#6b7280", fontWeight: 700, fontSize: 11, textTransform: "uppercase" }}>
+              <th style={{ padding: "10px 10px", width: 40 }}>No.</th>
+              <th style={{ padding: "10px 10px", width: 140 }}>Pelanggan</th>
+              <th style={{ padding: "10px 10px", width: 220 }}>Kecamatan & Alamat</th>
+              <th style={{ padding: "10px 10px", width: 170 }}>Patokan / Landmark</th>
+              <th style={{ padding: "10px 10px", width: 60, textAlign: "center" }}>Order</th>
+              <th style={{ padding: "10px 10px", width: 110 }}>Total Omset</th>
+              <th style={{ padding: "10px 10px", width: 100 }}>Poin Loyalty</th>
+              <th style={{ padding: "10px 10px", width: 130 }}>Segmen RFM</th>
+              <th style={{ padding: "10px 10px", width: 80, textAlign: "right" }}>Aksi</th>
             </tr>
           </thead>
           <tbody>
@@ -355,55 +355,73 @@ export default function SiapSajiCustomersPage() {
                 const sStyle = getSegmenBadgeStyle(c.segmen || "Potential Loyalist");
                 return (
                   <tr key={c.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                    <td style={{ padding: "14px 16px", color: "#6b7280" }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
-                    <td style={{ padding: "14px 16px" }}>
+                    <td style={{ padding: "10px 10px", color: "#6b7280" }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
+                    <td style={{ padding: "10px 10px", whiteSpace: "nowrap" }}>
                       <p style={{ fontWeight: 700, color: "#111827", margin: 0 }}>{c.name}</p>
-                      <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>{c.phone}</p>
+                      <a
+                        href={getWhatsAppUrl(c.phone)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          fontSize: 12,
+                          color: "#25D366",
+                          fontWeight: 700,
+                          margin: "2px 0 0",
+                          textDecoration: "none",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                        title="Chat WhatsApp (Buka Tab Baru)"
+                      >
+                        💬 {c.phone}
+                      </a>
                     </td>
-                    <td style={{ padding: "14px 16px" }}>
+                    <td style={{ padding: "10px 10px", whiteSpace: "normal", maxWidth: 220, wordBreak: "break-word" }}>
                       <p style={{ fontWeight: 600, color: "#374151", margin: 0 }}>
                         {c.area_kecamatan ? `${c.area_kecamatan}` : "-"}
                       </p>
-                      <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>{c.address || "-"}</p>
+                      <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0", lineHeight: 1.3 }}>{c.address || "-"}</p>
                     </td>
-                    <td style={{ padding: "14px 16px", color: "#b10fbd", fontWeight: 600, fontSize: 13, whiteSpace: "normal", minWidth: 200, maxWidth: 320, wordBreak: "break-word", lineHeight: 1.4 }}>
+                    <td style={{ padding: "10px 10px", color: "#b10fbd", fontWeight: 600, fontSize: 12, whiteSpace: "normal", maxWidth: 170, wordBreak: "break-word", lineHeight: 1.3 }}>
                       {c.patokan ? `📍 ${c.patokan}` : "-"}
                     </td>
-                    <td style={{ padding: "14px 16px", textAlign: "center", fontWeight: 700 }}>
+                    <td style={{ padding: "10px 10px", textAlign: "center", fontWeight: 700 }}>
                       {c.total_orders || 0}
                     </td>
-                    <td style={{ padding: "14px 16px", fontWeight: 700, color: "#5005A6" }}>
+                    <td style={{ padding: "10px 10px", fontWeight: 700, color: "#5005A6", whiteSpace: "nowrap" }}>
                       Rp {Number(c.total_omset || 0).toLocaleString("id-ID")}
                     </td>
-                    <td style={{ padding: "14px 16px", fontWeight: 800, color: "#15803d" }}>
+                    <td style={{ padding: "10px 10px", fontWeight: 800, color: "#15803d", whiteSpace: "nowrap" }}>
                       ⭐ {Number(c.loyalty_points || 0).toLocaleString("id-ID")} Poin
                     </td>
-                    <td style={{ padding: "14px 16px" }}>
+                    <td style={{ padding: "10px 10px" }}>
                       <span
                         style={{
-                          padding: "3px 10px",
+                          padding: "3px 8px",
                           borderRadius: 20,
-                          fontSize: 12,
+                          fontSize: 11,
                           fontWeight: 700,
                           background: sStyle.bg,
                           color: sStyle.color,
                           border: `1px solid ${sStyle.border}`,
+                          whiteSpace: "nowrap",
                         }}
                       >
                         {c.segmen || "Potential Loyalist"}
                       </span>
                     </td>
-                    <td style={{ padding: "14px 16px", textAlign: "right" }}>
-                      <div style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
+                    <td style={{ padding: "10px 10px", textAlign: "right" }}>
+                      <div style={{ display: "flex", justifyContent: "flex-end", gap: 4 }}>
                         <button
                           onClick={() => handleViewDetail(c.id)}
-                          style={{ padding: "6px 10px", background: "#f3f4f6", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 12, cursor: "pointer" }}
+                          style={{ padding: "5px 8px", background: "#f3f4f6", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 12, cursor: "pointer" }}
                         >
                           <Eye size={14} />
                         </button>
                         <button
                           onClick={() => handleOpenEdit(c)}
-                          style={{ padding: "6px 10px", background: "#5005A6", color: "white", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer" }}
+                          style={{ padding: "5px 8px", background: "#5005A6", color: "white", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer" }}
                         >
                           <Edit3 size={14} />
                         </button>
@@ -657,7 +675,24 @@ export default function SiapSajiCustomersPage() {
               <h4 style={{ fontSize: 16, fontWeight: 800, color: "#111827", margin: 0 }}>
                 {selectedCustDetail.customer.name}
               </h4>
-              <p style={{ fontSize: 13, color: "#6b7280", margin: "2px 0 0" }}>{selectedCustDetail.customer.phone}</p>
+              <a
+                href={getWhatsAppUrl(selectedCustDetail.customer.phone)}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  fontSize: 13,
+                  color: "#25D366",
+                  fontWeight: 700,
+                  margin: "4px 0 0",
+                  textDecoration: "none",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                }}
+                title="Chat WhatsApp (Buka Tab Baru)"
+              >
+                💬 {selectedCustDetail.customer.phone}
+              </a>
               <p style={{ fontSize: 13, color: "#374151", marginTop: 8 }}>
                 <strong>Kecamatan:</strong> {selectedCustDetail.customer.area_kecamatan || "-"} ({selectedCustDetail.customer.area_kota || "-"})
               </p>

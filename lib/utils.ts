@@ -79,3 +79,14 @@ export const formatDate = (d: string | Date | null | undefined): string => {
     return String(d);
   }
 };
+
+export const getWhatsAppUrl = (phone?: string): string => {
+  if (!phone) return "#";
+  const clean = String(phone).trim().replace(/[^0-9]/g, "");
+  if (!clean) return "#";
+  let formatted = clean;
+  if (formatted.startsWith("0")) {
+    formatted = "62" + formatted.slice(1);
+  }
+  return `https://wa.me/${formatted}`;
+};
