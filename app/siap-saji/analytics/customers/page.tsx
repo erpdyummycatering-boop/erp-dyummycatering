@@ -12,6 +12,8 @@ import {
   PieChart as PieIcon,
   Lightbulb,
   ExternalLink,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -40,6 +42,8 @@ export default function SiapSajiCustomerAnalyticsPage() {
   const [segmentCustomers, setSegmentCustomers] = useState<any[]>([]);
   const [loadingModal, setLoadingModal] = useState(false);
   const [modalSearch, setModalSearch] = useState("");
+  const [modalPage, setModalPage] = useState(1);
+  const modalPageSize = 10;
 
   const fetchAnalytics = async () => {
     setLoading(true);
@@ -77,6 +81,7 @@ export default function SiapSajiCustomerAnalyticsPage() {
     setLoadingModal(true);
     setSegmentCustomers([]);
     setModalSearch("");
+    setModalPage(1);
     try {
       const res = await fetch(`/api/siap-saji/analytics/customers?segment=${encodeURIComponent(segmentName)}`);
       if (!res.ok) throw new Error("Gagal mengambil daftar customer segmen");
@@ -93,6 +98,7 @@ export default function SiapSajiCustomerAnalyticsPage() {
     setSelectedSegment(null);
     setSegmentCustomers([]);
     setModalSearch("");
+    setModalPage(1);
   };
 
   const formatRp = (val: number) => {
@@ -721,7 +727,10 @@ export default function SiapSajiCustomerAnalyticsPage() {
                   type="text"
                   placeholder="Cari nama atau nomor HP customer..."
                   value={modalSearch}
-                  onChange={(e) => setModalSearch(e.target.value)}
+                  onChange={(e) => {
+                    setModalSearch(e.target.value);
+                    setModalPage(1);
+                  }}
                   style={{
                     width: "100%",
                     padding: "8px 12px 8px 36px",
@@ -745,99 +754,199 @@ export default function SiapSajiCustomerAnalyticsPage() {
                   Tidak ada customer ditemukan di segmen ini.
                 </div>
               ) : (
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, margin: "12px 0" }}>
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid #e5e7eb", color: "#6b7280", fontSize: 11, textTransform: "uppercase" }}>
-                      <th style={{ padding: "10px 8px", textAlign: "left" }}>Nama Customer</th>
-                      <th style={{ padding: "10px 8px", textAlign: "left" }}>No. WhatsApp</th>
-                      <th style={{ padding: "10px 8px", textAlign: "center" }}>Total Order</th>
-                      <th style={{ padding: "10px 8px", textAlign: "left" }}>Order Terakhir</th>
-                      <th style={{ padding: "10px 8px", textAlign: "right" }}>Total Belanja</th>
-                      <th style={{ padding: "10px 8px", textAlign: "center" }}>Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredModalCustomers.map((c, i) => (
-                      <tr key={c.id || i} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                        <td style={{ padding: "10px 8px", fontWeight: 700, color: "#111827" }}>
-                          {c.name}
-                        </td>
-                        <td style={{ padding: "10px 8px", color: "#374151" }}>
-                          {formatPhoneForDisplay(c.phone) || c.phone || "-"}
-                        </td>
-                        <td style={{ padding: "10px 8px", textAlign: "center", fontWeight: 700 }}>
-                          {c.total_orders}x
-                        </td>
-                        <td style={{ padding: "10px 8px", color: "#6b7280" }}>
-                          {c.last_order_date
-                            ? new Date(c.last_order_date).toLocaleDateString("id-ID", {
-                                day: "numeric",
-                                month: "short",
-                                year: "numeric",
-                              })
-                            : "-"}
-                        </td>
-                        <td style={{ padding: "10px 8px", textAlign: "right", fontWeight: 700, color: "#5005A6" }}>
-                          Rp {c.total_spending.toLocaleString("id-ID")}
-                        </td>
-                        <td style={{ padding: "10px 8px", textAlign: "center" }}>
-                          {c.phone ? (
-                            <a
-                              href={`https://wa.me/${normalizePhoneNumber(c.phone).replace(/^0/, "62")}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: 4,
-                                background: "#25D366",
-                                color: "white",
-                                padding: "4px 10px",
-                                borderRadius: 6,
-                                fontSize: 12,
-                                fontWeight: 700,
-                                textDecoration: "none",
-                              }}
-                            >
-                              <MessageCircle size={13} /> WA
-                            </a>
-                          ) : (
-                            "-"
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                {...(() => {
+                  const totalFiltered = filteredModalCustomers.length;
+                  const totalPages = Math.ceil(totalFiltered / modalPageSize) || 1;
+                  const currentPage = Math.min(modalPage, totalPages);
+                  const startIdx = (currentPage - 1) * modalPageSize;
+                  const paginatedCustomers = filteredModalCustomers.slice(startIdx, startIdx + modalPageSize);
+
+                  return (
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, margin: "12px 0" }}>
+                      <thead>
+                        <tr style={{ borderBottom: "1px solid #e5e7eb", color: "#6b7280", fontSize: 11, textTransform: "uppercase", background: "#f8fafc" }}>
+                          <th style={{ padding: "10px 8px", textAlign: "center", width: 45 }}>No.</th>
+                          <th style={{ padding: "10px 8px", textAlign: "left" }}>Nama Customer</th>
+                          <th style={{ padding: "10px 8px", textAlign: "left" }}>No. WhatsApp</th>
+                          <th style={{ padding: "10px 8px", textAlign: "center" }}>Total Order</th>
+                          <th style={{ padding: "10px 8px", textAlign: "left" }}>Order Terakhir</th>
+                          <th style={{ padding: "10px 8px", textAlign: "right" }}>Total Belanja</th>
+                          <th style={{ padding: "10px 8px", textAlign: "center" }}>Aksi</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paginatedCustomers.map((c, i) => (
+                          <tr key={c.id || i} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                            <td style={{ padding: "10px 8px", textAlign: "center", fontWeight: 700, color: "#6b7280" }}>
+                              {startIdx + i + 1}
+                            </td>
+                            <td style={{ padding: "10px 8px", fontWeight: 700, color: "#111827" }}>
+                              {c.name}
+                            </td>
+                            <td style={{ padding: "10px 8px", color: "#374151" }}>
+                              {formatPhoneForDisplay(c.phone) || c.phone || "-"}
+                            </td>
+                            <td style={{ padding: "10px 8px", textAlign: "center", fontWeight: 700 }}>
+                              {c.total_orders}x
+                            </td>
+                            <td style={{ padding: "10px 8px", color: "#6b7280" }}>
+                              {c.last_order_date
+                                ? new Date(c.last_order_date).toLocaleDateString("id-ID", {
+                                    day: "numeric",
+                                    month: "short",
+                                    year: "numeric",
+                                  })
+                                : "-"}
+                            </td>
+                            <td style={{ padding: "10px 8px", textAlign: "right", fontWeight: 700, color: "#5005A6" }}>
+                              Rp {c.total_spending.toLocaleString("id-ID")}
+                            </td>
+                            <td style={{ padding: "10px 8px", textAlign: "center" }}>
+                              {c.phone ? (
+                                <a
+                                  href={`https://wa.me/${normalizePhoneNumber(c.phone).replace(/^0/, "62")}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 4,
+                                    background: "#25D366",
+                                    color: "white",
+                                    padding: "4px 10px",
+                                    borderRadius: 6,
+                                    fontSize: 12,
+                                    fontWeight: 700,
+                                    textDecoration: "none",
+                                  }}
+                                >
+                                  <MessageCircle size={13} /> WA
+                                </a>
+                              ) : (
+                                "-"
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  );
+                })()}
               )}
             </div>
 
-            {/* Modal Footer */}
-            <div
-              style={{
-                padding: "14px 24px",
-                borderTop: "1px solid #e5e7eb",
-                background: "#fafafa",
-                display: "flex",
-                justifyContent: "flex-end",
-              }}
-            >
-              <button
-                onClick={closeModal}
-                style={{
-                  background: "#e5e7eb",
-                  color: "#374151",
-                  border: "none",
-                  borderRadius: 8,
-                  padding: "8px 16px",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
-              >
-                Tutup
-              </button>
-            </div>
+            {/* Modal Footer with Pagination Controls */}
+            {(() => {
+              const totalFiltered = filteredModalCustomers.length;
+              const totalPages = Math.ceil(totalFiltered / modalPageSize) || 1;
+              const currentPage = Math.min(modalPage, totalPages);
+              const startIdx = (currentPage - 1) * modalPageSize;
+              const startRow = totalFiltered > 0 ? startIdx + 1 : 0;
+              const endRow = Math.min(startIdx + modalPageSize, totalFiltered);
+
+              return (
+                <div
+                  style={{
+                    padding: "14px 24px",
+                    borderTop: "1px solid #e5e7eb",
+                    background: "#fafafa",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                    gap: 12,
+                  }}
+                >
+                  <div style={{ fontSize: 13, color: "#6b7280", fontWeight: 500 }}>
+                    {totalFiltered > 0 ? (
+                      <>
+                        Menampilkan <strong>{startRow}</strong>–<strong>{endRow}</strong> dari <strong>{totalFiltered}</strong> customer
+                      </>
+                    ) : (
+                      "Tidak ada data"
+                    )}
+                  </div>
+
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <button
+                      onClick={() => setModalPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage <= 1}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                        padding: "6px 10px",
+                        borderRadius: 6,
+                        border: "1px solid #d1d5db",
+                        background: "white",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: currentPage <= 1 ? "#9ca3af" : "#374151",
+                        cursor: currentPage <= 1 ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      <ChevronLeft size={14} /> Sebelah
+                    </button>
+
+                    {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((pageNum) => (
+                      <button
+                        key={pageNum}
+                        onClick={() => setModalPage(pageNum)}
+                        style={{
+                          padding: "5px 10px",
+                          borderRadius: 6,
+                          border: pageNum === currentPage ? "none" : "1px solid #d1d5db",
+                          background: pageNum === currentPage ? "#5005A6" : "white",
+                          color: pageNum === currentPage ? "white" : "#374151",
+                          fontSize: 12,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {pageNum}
+                      </button>
+                    ))}
+
+                    <button
+                      onClick={() => setModalPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={currentPage >= totalPages}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                        padding: "6px 10px",
+                        borderRadius: 6,
+                        border: "1px solid #d1d5db",
+                        background: "white",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: currentPage >= totalPages ? "#9ca3af" : "#374151",
+                        cursor: currentPage >= totalPages ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      Lanjut <ChevronRight size={14} />
+                    </button>
+
+                    <button
+                      onClick={closeModal}
+                      style={{
+                        background: "#e5e7eb",
+                        color: "#374151",
+                        border: "none",
+                        borderRadius: 6,
+                        padding: "6px 14px",
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        marginLeft: 6,
+                      }}
+                    >
+                      Tutup
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
