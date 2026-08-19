@@ -27,6 +27,7 @@ import {
 import { toast } from "sonner";
 import { Pagination } from "@/components/ui/Pagination";
 import { formatDate, getWhatsAppUrl } from "@/lib/utils";
+import { normalizePhoneNumber, isSamePhoneNumber, formatPhoneForDisplay } from "@/lib/phoneUtils";
 import * as XLSX from "xlsx";
 
 interface Product {
@@ -172,12 +173,16 @@ export default function SiapSajiOrdersPage() {
   const [masterAreas, setMasterAreas] = useState<Area[]>([]);
   const [masterKasBank, setMasterKasBank] = useState<KasBank[]>([]);
   const [masterProducts, setMasterProducts] = useState<Product[]>([]);
+  const [masterCustomers, setMasterCustomers] = useState<any[]>([]);
 
   // Form Order State
   const [selectedChannelId, setSelectedChannelId] = useState<number | "">("");
   const [customerMode, setCustomerMode] = useState<"new" | "select">("new");
+  const [selectedCustomerId, setSelectedCustomerId] = useState<number | "new">("new");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [isCustDropdownOpen, setIsCustDropdownOpen] = useState(false);
+  const [duplicatePhoneCust, setDuplicatePhoneCust] = useState<any | null>(null);
   const [selectedAreaId, setSelectedAreaId] = useState<number | "">("");
   const [customerAddress, setCustomerAddress] = useState("");
   const [customerPatokan, setCustomerPatokan] = useState("");
@@ -329,7 +334,11 @@ export default function SiapSajiOrdersPage() {
   // Fetch Master Data
   const fetchMasterData = async () => {
     try {
-      const res = await fetch("/api/siap-saji/master");
+      const [res, custRes] = await Promise.all([
+        fetch("/api/siap-saji/master"),
+        fetch("/api/customers?dropdown=true&limit=1000"),
+      ]);
+
       if (res.ok) {
         const data = await res.json();
         setMasterChannels(data.channels || []);
@@ -344,6 +353,11 @@ export default function SiapSajiOrdersPage() {
           const def = data.kas_bank.find((k: KasBank) => k.is_payment_default) || data.kas_bank[0];
           setSelectedBankId(def.id);
         }
+      }
+
+      if (custRes.ok) {
+        const custData = await custRes.json();
+        setMasterCustomers(custData.data || []);
       }
     } catch (e) {
       console.error("Master data fetch error:", e);
@@ -1557,32 +1571,179 @@ export default function SiapSajiOrdersPage() {
                 </h3>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 12 }}>
-                  <div>
+                  {/* Nama Pelanggan with Autocomplete Search (Req 5a) */}
+                  <div style={{ position: "relative" }}>
                     <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>
                       Nama Pelanggan *
                     </label>
                     <input
                       type="text"
-                      placeholder="Contoh: Ibu Elly"
+                      placeholder="Ketik nama untuk cari/input..."
                       value={customerName}
-                      onChange={(e) => setCustomerName(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setCustomerName(val);
+                        setIsCustDropdownOpen(val.trim().length > 0);
+                        if (selectedCustomerId !== "new") {
+                          setSelectedCustomerId("new");
+                        }
+                      }}
+                      onFocus={() => {
+                        if (customerName.trim().length > 0) setIsCustDropdownOpen(true);
+                      }}
                       required
                       style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
                     />
+
+                    {/* Autocomplete Dropdown List */}
+                    {isCustDropdownOpen && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: "100%",
+                          left: 0,
+                          right: 0,
+                          background: "white",
+                          border: "1px solid #d1d5db",
+                          borderRadius: 8,
+                          boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)",
+                          maxHeight: 200,
+                          overflowY: "auto",
+                          zIndex: 50,
+                          marginTop: 4,
+                        }}
+                      >
+                        {(() => {
+                          const matched = masterCustomers.filter(
+                            (c) =>
+                              c.name.toLowerCase().includes(customerName.toLowerCase()) ||
+                              (c.phone && c.phone.includes(customerName))
+                          );
+
+                          if (matched.length === 0) {
+                            return (
+                              <div style={{ padding: "8px 12px", fontSize: 12, color: "#6b7280" }}>
+                                ➕ Buat sebagai Customer Baru: &quot;<strong>{customerName}</strong>&quot;
+                              </div>
+                            );
+                          }
+
+                          return matched.slice(0, 10).map((c) => (
+                            <div
+                              key={c.id}
+                              onClick={() => {
+                                setCustomerName(c.name);
+                                setCustomerPhone(c.phone || "");
+                                if (c.address) setCustomerAddress(c.address);
+                                if (c.patokan) setCustomerPatokan(c.patokan);
+                                if (c.area_id) setSelectedAreaId(c.area_id);
+                                setSelectedCustomerId(c.id);
+                                setIsCustDropdownOpen(false);
+                                setDuplicatePhoneCust(null);
+                              }}
+                              style={{
+                                padding: "8px 12px",
+                                borderBottom: "1px solid #f3f4f6",
+                                cursor: "pointer",
+                                fontSize: 13,
+                              }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = "#f3f4f6")}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
+                            >
+                              <div style={{ fontWeight: 700, color: "#111827" }}>{c.name}</div>
+                              <div style={{ fontSize: 11, color: "#6b7280" }}>
+                                📞 {c.phone || "-"} {c.address ? `• ${c.address}` : ""}
+                              </div>
+                            </div>
+                          ));
+                        })()}
+                      </div>
+                    )}
                   </div>
 
+                  {/* No WhatsApp Input with Duplicate Phone Check (Req 5b) */}
                   <div>
                     <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>
                       No. WhatsApp / HP *
                     </label>
                     <input
                       type="text"
-                      placeholder="Contoh: 08111100004"
+                      placeholder="Contoh: 08111100004 / 62811..."
                       value={customerPhone}
-                      onChange={(e) => setCustomerPhone(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setCustomerPhone(val);
+                        const normInput = normalizePhoneNumber(val);
+                        if (normInput.length >= 8) {
+                          const found = masterCustomers.find(
+                            (c) =>
+                              isSamePhoneNumber(c.phone, normInput) &&
+                              c.name.toLowerCase() !== customerName.toLowerCase()
+                          );
+                          if (found) {
+                            setDuplicatePhoneCust(found);
+                          } else {
+                            setDuplicatePhoneCust(null);
+                          }
+                        } else {
+                          setDuplicatePhoneCust(null);
+                        }
+                      }}
                       required
-                      style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                      style={{
+                        width: "100%",
+                        padding: "8px 12px",
+                        borderRadius: 8,
+                        border: duplicatePhoneCust ? "1px solid #f59e0b" : "1px solid #d1d5db",
+                        fontSize: 14,
+                      }}
                     />
+
+                    {/* Duplicate Phone Notice (Req 5b) */}
+                    {duplicatePhoneCust && (
+                      <div
+                        style={{
+                          marginTop: 6,
+                          padding: "8px 10px",
+                          background: "#fffbe6",
+                          border: "1px solid #ffe58f",
+                          borderRadius: 8,
+                          fontSize: 12,
+                          color: "#854d0e",
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        <div>
+                          ⚠️ Nomor WA ini sudah terdaftar atas nama: <strong>{duplicatePhoneCust.name}</strong>!
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCustomerName(duplicatePhoneCust.name);
+                            setCustomerPhone(duplicatePhoneCust.phone || customerPhone);
+                            if (duplicatePhoneCust.address) setCustomerAddress(duplicatePhoneCust.address);
+                            if (duplicatePhoneCust.patokan) setCustomerPatokan(duplicatePhoneCust.patokan);
+                            if (duplicatePhoneCust.area_id) setSelectedAreaId(duplicatePhoneCust.area_id);
+                            setSelectedCustomerId(duplicatePhoneCust.id);
+                            setDuplicatePhoneCust(null);
+                            toast.success(`Menggunakan data customer ${duplicatePhoneCust.name}`);
+                          }}
+                          style={{
+                            marginTop: 4,
+                            background: "#faad14",
+                            color: "white",
+                            border: "none",
+                            borderRadius: 4,
+                            padding: "3px 8px",
+                            fontSize: 11,
+                            fontWeight: 700,
+                            cursor: "pointer",
+                          }}
+                        >
+                          Gunakan Customer Ini
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
 

@@ -191,22 +191,35 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
-      const existRes = await client.query("SELECT id FROM customers WHERE phone = $1", [customer_phone.trim()]);
+      
+      // Clean and normalize phone number (e.g. convert 62812... or 812... to 0812...)
+      const rawPhone = String(customer_phone).trim();
+      const normPhone = rawPhone.replace(/\D/g, "").replace(/^62/, "0").replace(/^(?!0)/, "0");
+      const altPhone62 = "62" + normPhone.slice(1);
+
+      const existRes = await client.query(
+        `SELECT id FROM customers 
+         WHERE phone = $1 OR phone = $2 OR phone = $3 
+            OR regexp_replace(phone, '\\D', '', 'g') = $4 
+            OR regexp_replace(phone, '\\D', '', 'g') = $5`,
+        [rawPhone, normPhone, altPhone62, normPhone, altPhone62]
+      );
+
       if (existRes.rows.length > 0) {
         finalCustomerId = existRes.rows[0].id;
         // Update customer details if provided
         await client.query(
           `UPDATE customers 
-           SET name = $1, address = COALESCE($2, address), patokan = COALESCE($3, patokan), area_id = COALESCE($4, area_id), lini = 'siap_saji'
-           WHERE id = $5`,
-          [customer_name.trim(), address || null, patokan || null, area_id ? Number(area_id) : null, finalCustomerId]
+           SET name = $1, phone = $2, address = COALESCE($3, address), patokan = COALESCE($4, patokan), area_id = COALESCE($5, area_id), lini = 'siap_saji'
+           WHERE id = $6`,
+          [customer_name.trim(), normPhone, address || null, patokan || null, area_id ? Number(area_id) : null, finalCustomerId]
         );
       } else {
         const insCustRes = await client.query(
           `INSERT INTO customers (name, phone, type, address, patokan, area_id, lini, status)
            VALUES ($1, $2, 'Personal', $3, $4, $5, 'siap_saji', 'Aktif')
            RETURNING id`,
-          [customer_name.trim(), customer_phone.trim(), address || null, patokan || null, area_id ? Number(area_id) : null]
+          [customer_name.trim(), normPhone, address || null, patokan || null, area_id ? Number(area_id) : null]
         );
         finalCustomerId = insCustRes.rows[0].id;
       }
