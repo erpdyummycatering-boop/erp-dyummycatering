@@ -336,7 +336,7 @@ export default function SiapSajiOrdersPage() {
     try {
       const [res, custRes] = await Promise.all([
         fetch("/api/siap-saji/master"),
-        fetch("/api/customers?dropdown=true&limit=1000"),
+        fetch("/api/siap-saji/customers?dropdown=true&limit=1000"),
       ]);
 
       if (res.ok) {

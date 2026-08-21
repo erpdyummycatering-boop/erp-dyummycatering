@@ -253,10 +253,93 @@ export async function GET(req: NextRequest) {
       };
     });
 
+    // 2d. Kecamatan Breakdown (RFM & Retaining vs New)
+    const kecamatanRes = await client.query(
+      `WITH customer_stats AS (
+        SELECT 
+          c.id AS customer_id,
+          COALESCE(a.kecamatan, 'Lainnya / Non-Area') AS kecamatan,
+          COUNT(o.id) AS total_orders,
+          MAX(o.order_date) AS last_order_date,
+          COALESCE(SUM(o.grand_total), 0) AS total_spending
+        FROM customers c
+        LEFT JOIN areas a ON a.id = c.area_id
+        LEFT JOIN orders o ON o.customer_id = c.id AND o.lini = 'siap_saji' AND o.status_order <> 'Dibatalkan'
+        WHERE c.lini IN ('siap_saji', 'keduanya') OR o.id IS NOT NULL
+        GROUP BY c.id, a.kecamatan
+      ),
+      segmented AS (
+        SELECT 
+          customer_id,
+          kecamatan,
+          total_orders,
+          total_spending,
+          CASE 
+            WHEN last_order_date IS NOT NULL AND (CURRENT_DATE - last_order_date::date) > 180 THEN 'Dormant'
+            WHEN last_order_date IS NOT NULL AND (CURRENT_DATE - last_order_date::date) > 90  THEN 'At Risk'
+            WHEN total_orders = 1      THEN 'New Customer'
+            WHEN total_orders >= 8     THEN 'Champion'
+            WHEN total_orders >= 4     THEN 'Loyal'
+            WHEN total_orders >= 2     THEN 'Active'
+            WHEN total_orders = 0      THEN 'New Customer'
+            ELSE 'Potential'
+          END AS segmen
+        FROM customer_stats
+      )
+      SELECT 
+        kecamatan,
+        COUNT(customer_id)::int AS total_customers,
+        COUNT(CASE WHEN total_orders <= 1 THEN 1 END)::int AS new_customers,
+        COUNT(CASE WHEN total_orders >= 2 THEN 1 END)::int AS retaining_customers,
+        COALESCE(SUM(total_spending), 0)::numeric AS total_omset,
+        COALESCE(SUM(total_orders), 0)::int AS total_orders,
+        MODE() WITHIN GROUP (ORDER BY segmen) AS dominant_rfm_segment
+      FROM segmented
+      GROUP BY kecamatan
+      ORDER BY total_customers DESC, total_omset DESC`
+    );
+
+    // 2e. Top Customers (Omset) with dynamic top_limit (10, 20, 100, all)
+    const topLimitParam = searchParams.get("top_limit") || "10";
+    let topLimitClause = "LIMIT 10";
+    if (topLimitParam === "20") topLimitClause = "LIMIT 20";
+    else if (topLimitParam === "100") topLimitClause = "LIMIT 100";
+    else if (topLimitParam === "all") topLimitClause = "";
+
+    const topCustomersRes = await client.query(
+      `SELECT 
+        c.id,
+        c.name,
+        c.phone,
+        COALESCE(a.kecamatan, '-') AS kecamatan,
+        COUNT(o.id)::int AS orders_count,
+        COALESCE(SUM(o.grand_total), 0)::numeric AS omset
+      FROM customers c
+      JOIN orders o ON o.customer_id = c.id AND o.lini = 'siap_saji' AND o.status_order <> 'Dibatalkan'
+      LEFT JOIN areas a ON a.id = c.area_id
+      GROUP BY c.id, c.name, c.phone, a.kecamatan
+      ORDER BY omset DESC
+      ${topLimitClause}`
+    );
+
     return NextResponse.json({
       total_customers: totalCustomers,
       distribution: segmentsFormatted,
       monthly_retention: monthlyRetentionFormatted,
+      by_kecamatan: kecamatanRes.rows.map((r: any) => ({
+        ...r,
+        total_omset: Number(r.total_omset || 0),
+        total_customers: Number(r.total_customers || 0),
+        new_customers: Number(r.new_customers || 0),
+        retaining_customers: Number(r.retaining_customers || 0),
+        total_orders: Number(r.total_orders || 0),
+      })),
+      top_customers: topCustomersRes.rows.map((r: any) => ({
+        ...r,
+        omset: Number(r.omset || 0),
+        orders_count: Number(r.orders_count || 0),
+      })),
+      top_limit: topLimitParam,
     });
   } catch (error: any) {
     console.error("Gagal mengambil data analitik RFM customer:", error);

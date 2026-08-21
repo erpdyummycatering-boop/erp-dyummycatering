@@ -14,6 +14,8 @@ import {
   ExternalLink,
   ChevronLeft,
   ChevronRight,
+  MapPin,
+  Crown,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -35,7 +37,8 @@ export default function SiapSajiCustomerAnalyticsPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState<"overview" | "count" | "monetary" | "retention">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "count" | "monetary" | "retention" | "kecamatan">("overview");
+  const [topLimit, setTopLimit] = useState<string>("10");
 
   // Modal drill-down state
   const [selectedSegment, setSelectedSegment] = useState<string | null>(null);
@@ -45,10 +48,10 @@ export default function SiapSajiCustomerAnalyticsPage() {
   const [modalPage, setModalPage] = useState(1);
   const modalPageSize = 10;
 
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = async (limitVal = topLimit) => {
     setLoading(true);
     try {
-      const res = await fetch("/api/siap-saji/analytics/customers");
+      const res = await fetch(`/api/siap-saji/analytics/customers?top_limit=${limitVal}`);
       if (!res.ok) throw new Error("Gagal memuat analitik customer");
       setData(await res.json());
     } catch (err: any) {
@@ -242,6 +245,25 @@ export default function SiapSajiCustomerAnalyticsPage() {
           }}
         >
           <TrendingUp size={16} /> Customer Baru vs Retaining (Gambar 4)
+        </button>
+
+        <button
+          onClick={() => setActiveTab("kecamatan")}
+          style={{
+            padding: "10px 18px",
+            fontSize: 14,
+            fontWeight: 700,
+            color: activeTab === "kecamatan" ? "#5005A6" : "#6b7280",
+            borderBottom: activeTab === "kecamatan" ? "3px solid #5005A6" : "3px solid transparent",
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <MapPin size={16} /> Segmen per Kecamatan
         </button>
       </div>
 
@@ -652,6 +674,171 @@ export default function SiapSajiCustomerAnalyticsPage() {
           </div>
         </div>
       )}
+
+      {/* TAB 5: SEGMENTATION BY KECAMATAN (RFM & RETAINING VS NEW) */}
+      {activeTab === "kecamatan" && (
+        <div style={{ background: "white", borderRadius: 16, padding: 24, border: "1px solid #e5e7eb", marginBottom: 24 }}>
+          <div style={{ marginBottom: 20 }}>
+            <h2 style={{ fontSize: 22, fontWeight: 900, color: "#111827", margin: 0 }}>
+              Breakdown Segmen Customer per Kecamatan
+            </h2>
+            <p style={{ fontSize: 14, color: "#6b7280", margin: "4px 0 0" }}>
+              Distribusi segmen RFM dan rasio Customer Retaining (Lama) vs Customer Baru untuk setiap area Kecamatan
+            </p>
+          </div>
+
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 13 }}>
+              <thead>
+                <tr style={{ borderBottom: "2px solid #e5e7eb", color: "#374151", fontWeight: 700, fontSize: 12, textTransform: "uppercase", background: "#f8fafc" }}>
+                  <th style={{ padding: "12px 16px" }}>Kecamatan</th>
+                  <th style={{ padding: "12px 16px", textAlign: "center" }}>Total Customer</th>
+                  <th style={{ padding: "12px 16px", textAlign: "center" }}>Customer Baru (≤1 Order)</th>
+                  <th style={{ padding: "12px 16px", textAlign: "center" }}>Customer Retaining (≥2 Order)</th>
+                  <th style={{ padding: "12px 16px", textAlign: "center" }}>Rasio Retain vs New</th>
+                  <th style={{ padding: "12px 16px", textAlign: "right" }}>Total Omset (Rp)</th>
+                  <th style={{ padding: "12px 16px", textAlign: "center" }}>Dominant RFM Segment</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                      Memuat data kecamatan...
+                    </td>
+                  </tr>
+                ) : !data?.by_kecamatan || data.by_kecamatan.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                      Tidak ada data area kecamatan.
+                    </td>
+                  </tr>
+                ) : (
+                  data.by_kecamatan.map((row: any, idx: number) => {
+                    const total = row.total_customers || 1;
+                    const retainPct = Math.round((row.retaining_customers / total) * 100);
+                    const newPct = 100 - retainPct;
+                    return (
+                      <tr key={idx} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                        <td style={{ padding: "12px 16px", fontWeight: 800, color: "#111827" }}>
+                          📍 {row.kecamatan}
+                        </td>
+                        <td style={{ padding: "12px 16px", textAlign: "center", fontWeight: 800 }}>
+                          {row.total_customers}
+                        </td>
+                        <td style={{ padding: "12px 16px", textAlign: "center", color: "#ca8a04", fontWeight: 700 }}>
+                          {row.new_customers}
+                        </td>
+                        <td style={{ padding: "12px 16px", textAlign: "center", color: "#111827", fontWeight: 800 }}>
+                          {row.retaining_customers}
+                        </td>
+                        <td style={{ padding: "12px 16px", textAlign: "center" }}>
+                          <div style={{ display: "inline-flex", borderRadius: 6, overflow: "hidden", width: 100, height: 16, border: "1px solid #e5e7eb", margin: "0 auto" }} title={`Retain: ${retainPct}% | New: ${newPct}%`}>
+                            <div style={{ width: `${retainPct}%`, background: "#111827" }} />
+                            <div style={{ width: `${newPct}%`, background: "#facc15" }} />
+                          </div>
+                          <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
+                            {retainPct}% Retain / {newPct}% New
+                          </div>
+                        </td>
+                        <td style={{ padding: "12px 16px", textAlign: "right", fontWeight: 800, color: "#5005A6" }}>
+                          Rp {Number(row.total_omset).toLocaleString("id-ID")}
+                        </td>
+                        <td style={{ padding: "12px 16px", textAlign: "center" }}>
+                          <span style={{ background: "#f3f4f6", color: "#5005A6", padding: "4px 10px", borderRadius: 8, fontSize: 11, fontWeight: 800 }}>
+                            {row.dominant_rfm_segment || "Active"}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* TOP CUSTOMERS (OMSET) SECTION WITH LIMIT SELECTOR (REQ 5 & SCREENSHOT 5) */}
+      <div style={{ background: "white", borderRadius: 16, padding: 24, border: "1px solid #e5e7eb", marginBottom: 24 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <div>
+            <h3 style={{ fontSize: 18, fontWeight: 900, color: "#111827", margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+              <Crown size={20} color="#5005A6" /> Top Customer (Omset)
+            </h3>
+            <p style={{ fontSize: 13, color: "#6b7280", marginTop: 2, margin: 0 }}>
+              Daftar pelanggan dengan total omset tertinggi (dapat difilter top 10, 20, 100, & semua)
+            </p>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>Tampilkan:</label>
+            <select
+              value={topLimit}
+              onChange={(e) => {
+                setTopLimit(e.target.value);
+                fetchAnalytics(e.target.value);
+              }}
+              style={{
+                padding: "6px 12px",
+                borderRadius: 8,
+                border: "1px solid #d1d5db",
+                fontSize: 13,
+                fontWeight: 700,
+                background: "white",
+                color: "#5005A6",
+                cursor: "pointer",
+              }}
+            >
+              <option value="10">Top 10</option>
+              <option value="20">Top 20</option>
+              <option value="100">Top 100</option>
+              <option value="all">Semua (All)</option>
+            </select>
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+          {loading ? (
+            <p style={{ color: "#9ca3af", gridColumn: "1 / -1", textAlign: "center", padding: 20 }}>Memuat Top Customer...</p>
+          ) : !data?.top_customers || data.top_customers.length === 0 ? (
+            <p style={{ color: "#9ca3af", gridColumn: "1 / -1", textAlign: "center", padding: 20 }}>Tidak ada data customer.</p>
+          ) : (
+            data.top_customers.map((c: any, idx: number) => (
+              <div
+                key={c.id || idx}
+                style={{
+                  background: "#fafafa",
+                  border: "1px solid #f3f4f6",
+                  borderRadius: 12,
+                  padding: 14,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                }}
+              >
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: "#6b7280", background: "#e5e7eb", padding: "1px 6px", borderRadius: 4 }}>
+                      #{idx + 1}
+                    </span>
+                    <span style={{ fontWeight: 800, fontSize: 14, color: "#111827" }}>{c.name}</span>
+                  </div>
+                  <p style={{ fontSize: 12, color: "#6b7280", margin: "4px 0 0" }}>{formatPhoneForDisplay(c.phone)}</p>
+                  <span style={{ fontSize: 11, color: "#9ca3af" }}>📍 {c.kecamatan} • {c.orders_count} Order</span>
+                </div>
+
+                <div style={{ textAlign: "right" }}>
+                  <span style={{ fontSize: 14, fontWeight: 900, color: "#5005A6" }}>
+                    Rp {Number(c.omset).toLocaleString("id-ID")}
+                  </span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
 
       {/* DRILL-DOWN CUSTOMER LIST MODAL (REQUIREMENT 1) */}
       {selectedSegment && (

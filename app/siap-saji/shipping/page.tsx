@@ -151,16 +151,37 @@ export default function SiapSajiShippingPage() {
   };
 
   const handleDeleteOverride = async (row: any) => {
-    if (!confirm(`Apakah Anda yakin ingin menghapus override tarif ongkir untuk ${row.kecamatan} (${row.channel_name})? Tarif akan kembali ke default zona.`)) return;
-    try {
-      const res = await fetch(`/api/siap-saji/shipping?area_id=${row.area_id}&channel_id=${row.channel_id}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) throw new Error("Gagal menghapus override tarif");
-      toast.success("Tarif ongkir dikembalikan ke default zona.");
-      fetchMatrix();
-    } catch (err: any) {
-      toast.error(err.message || "Gagal menghapus tarif");
+    if (row.sumber_fee === "spesifik") {
+      if (!confirm(`Apakah Anda yakin ingin menghapus override tarif ongkir untuk ${row.kecamatan} (${row.channel_name})? Tarif akan kembali ke default zona.`)) return;
+      try {
+        const res = await fetch(`/api/siap-saji/shipping?area_id=${row.area_id}&channel_id=${row.channel_id}`, {
+          method: "DELETE",
+        });
+        if (!res.ok) throw new Error("Gagal menghapus override tarif");
+        toast.success("Tarif ongkir dikembalikan ke default zona.");
+        fetchMatrix();
+      } catch (err: any) {
+        toast.error(err.message || "Gagal menghapus tarif");
+      }
+    } else {
+      if (!confirm(`Apakah Anda yakin ingin set tarif ongkir Rp 0 untuk ${row.kecamatan} (${row.channel_name})?`)) return;
+      try {
+        const res = await fetch("/api/siap-saji/shipping", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            area_id: row.area_id,
+            channel_id: row.channel_id,
+            shipping_fee: 0,
+            notes: "Set 0 via Hapus",
+          }),
+        });
+        if (!res.ok) throw new Error("Gagal mengeset tarif ke Rp 0");
+        toast.success("Tarif ongkir berhasil diset ke Rp 0.");
+        fetchMatrix();
+      } catch (err: any) {
+        toast.error(err.message || "Gagal mengeset tarif");
+      }
     }
   };
 
@@ -366,27 +387,25 @@ export default function SiapSajiShippingPage() {
                         <Edit3 size={12} /> Ubah
                       </button>
 
-                      {row.sumber_fee === "spesifik" && (
-                        <button
-                          onClick={() => handleDeleteOverride(row)}
-                          style={{
-                            padding: "5px 8px",
-                            background: "#fee2e2",
-                            color: "#dc2626",
-                            border: "1px solid #fca5a5",
-                            borderRadius: 6,
-                            fontSize: 11,
-                            fontWeight: 600,
-                            cursor: "pointer",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 3,
-                          }}
-                          title="Hapus override (kembalikan ke default zona)"
-                        >
-                          <Trash2 size={12} /> Hapus
-                        </button>
-                      )}
+                      <button
+                        onClick={() => handleDeleteOverride(row)}
+                        style={{
+                          padding: "5px 8px",
+                          background: "#fee2e2",
+                          color: "#dc2626",
+                          border: "1px solid #fca5a5",
+                          borderRadius: 6,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 3,
+                        }}
+                        title={row.sumber_fee === "spesifik" ? "Hapus override (kembalikan ke default zona)" : "Hapus / set tarif ke Rp 0"}
+                      >
+                        <Trash2 size={12} /> Hapus
+                      </button>
                     </div>
                   </td>
                 </tr>

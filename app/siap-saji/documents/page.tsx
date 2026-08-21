@@ -191,13 +191,34 @@ export default function SiapSajiDocumentsPage() {
         ) : activeTab === "produksi" ? (
           /* TAB 1: LAPORAN PRODUKSI DAPUR */
           <div>
-            <div style={{ textAlign: "center", borderBottom: "2px solid #111827", paddingBottom: 12, marginBottom: 20 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0, textTransform: "uppercase" }}>
-                LAPORAN PENJUALAN HARIAN — PRODUKSI DAPUR
-              </h2>
-              <p style={{ fontSize: 13, color: "#4b5563", marginTop: 4 }}>
-                DYUMMY CATERING | Tanggal: <strong>{formatDate(tanggal)}</strong> | Channel: <strong>{docData.channel}</strong>
-              </p>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "2px solid #111827", paddingBottom: 12, marginBottom: 20 }}>
+              <div>
+                <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0, textTransform: "uppercase" }}>
+                  LAPORAN PENJUALAN HARIAN — PRODUKSI DAPUR
+                </h2>
+                <p style={{ fontSize: 13, color: "#4b5563", marginTop: 4, margin: 0 }}>
+                  DYUMMY CATERING | Tanggal: <strong>{formatDate(tanggal)}</strong> | Channel: <strong>{docData.channel}</strong>
+                </p>
+              </div>
+              <button
+                onClick={() => window.open(`/api/siap-saji/orders/recap-pdf?date_from=${tanggal}&date_to=${tanggal}`, "_blank")}
+                style={{
+                  padding: "8px 14px",
+                  background: "#378ADD",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  boxShadow: "0 2px 8px rgba(55, 138, 221, 0.3)",
+                }}
+              >
+                🍳 Cetak PDF Rekap Dapur (A4)
+              </button>
             </div>
 
             <div style={{ overflowX: "auto" }}>
@@ -361,23 +382,23 @@ export default function SiapSajiDocumentsPage() {
                     <td style={{ padding: "10px 12px", textAlign: "center" }}>{(page - 1) * limit + idx + 1}</td>
                     <td style={{ padding: "10px 12px", fontWeight: 700, color: "#111827" }}>{row.pelanggan}</td>
                     <td style={{ padding: "10px 12px", textAlign: "right" }}>
-                      Rp {Number(row.penjualan).toLocaleString("id-ID")}
+                      Rp {Number(row.penjualan || 0).toLocaleString("id-ID")}
                     </td>
                     <td style={{ padding: "10px 12px", textAlign: "right" }}>
-                      Rp {Number(row.ongkir).toLocaleString("id-ID")}
+                      Rp {Number(row.ongkir || 0).toLocaleString("id-ID")}
                     </td>
                     <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 800, color: "#5005A6" }}>
-                      Rp {Number(row.total).toLocaleString("id-ID")}
+                      Rp {Number(row.total || 0).toLocaleString("id-ID")}
                     </td>
                     <td style={{ padding: "10px 12px", textAlign: "center", fontSize: 12 }}>
-                      {row.bank} ({row.no_rekening})
+                      {row.bank || "Cash"}{row.no_rekening && row.no_rekening !== "-" ? ` (${row.no_rekening})` : ""}
                     </td>
                     <td style={{ padding: "10px 12px", textAlign: "center" }}>
                       <span style={{ background: "#f0fdf4", color: "#639922", padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 700 }}>
-                        {row.status}
+                        {row.status || "Lunas"}
                       </span>
                     </td>
-                    <td style={{ padding: "10px 12px", color: "#4b5563" }}>{row.kecamatan}</td>
+                    <td style={{ padding: "10px 12px", color: "#4b5563" }}>{row.kecamatan || "-"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -387,13 +408,13 @@ export default function SiapSajiDocumentsPage() {
                     TOTAL REKAP HARIAN:
                   </td>
                   <td style={{ padding: "12px", textAlign: "right" }}>
-                    Rp {(docData.total_omset - docData.total_ongkir).toLocaleString("id-ID")}
+                    Rp {((docData.total_omset || 0) - (docData.total_ongkir || 0)).toLocaleString("id-ID")}
                   </td>
                   <td style={{ padding: "12px", textAlign: "right" }}>
-                    Rp {docData.total_ongkir.toLocaleString("id-ID")}
+                    Rp {(docData.total_ongkir || 0).toLocaleString("id-ID")}
                   </td>
                   <td style={{ padding: "12px", textAlign: "right", fontSize: 16, color: "#5005A6" }}>
-                    Rp {docData.total_omset.toLocaleString("id-ID")}
+                    Rp {(docData.total_omset || 0).toLocaleString("id-ID")}
                   </td>
                   <td colSpan={3}></td>
                 </tr>

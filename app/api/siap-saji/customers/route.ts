@@ -4,7 +4,7 @@ import pool from "@/lib/db";
 export async function GET(req: NextRequest) {
   const { searchParams: p } = new URL(req.url);
   const page = Math.max(1, Number(p.get("page") || 1));
-  const limit = Math.min(100, Number(p.get("limit") || 20));
+  const limit = Math.min(10000, Number(p.get("limit") || 20));
   const offset = (page - 1) * limit;
   const search = p.get("search") || "";
   const segmen = p.get("segmen") || "";
