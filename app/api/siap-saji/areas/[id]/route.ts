@@ -1,65 +1,51 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
-  const areaId = Number(id);
-  if (isNaN(areaId)) return NextResponse.json({ error: "ID Area tidak valid" }, { status: 400 });
-
-  const body = await req.json();
-  const { kecamatan, kota, provinsi, shipping_zone, is_active } = body;
-
-  const client = await pool.connect();
-  try {
-    const res = await client.query(
-      `UPDATE areas
-       SET kecamatan = COALESCE($1, kecamatan),
-           kota = COALESCE($2, kota),
-           provinsi = COALESCE($3, provinsi),
-           shipping_zone = COALESCE($4, shipping_zone),
-           is_active = COALESCE($5, is_active)
-       WHERE id = $6
-       RETURNING *`,
-      [
-        kecamatan ? kecamatan.trim() : null,
-        kota ? kota.trim() : null,
-        provinsi || null,
-        shipping_zone || null,
-        is_active !== undefined ? Boolean(is_active) : null,
-        areaId,
-      ]
-    );
-
-    if (res.rows.length === 0) {
-      return NextResponse.json({ error: "Area tidak ditemukan" }, { status: 404 });
-    }
-
-    return NextResponse.json(res.rows[0]);
-  } catch (error: any) {
-    console.error("Gagal meng-update area:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  } finally {
-    client.release();
-  }
-}
-
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
   const areaId = Number(id);
-  if (isNaN(areaId)) return NextResponse.json({ error: "ID Area tidak valid" }, { status: 400 });
+  if (isNaN(areaId)) {
+    return NextResponse.json({ error: "ID area/wilayah tidak valid" }, { status: 400 });
+  }
 
   const client = await pool.connect();
   try {
-    await client.query("UPDATE areas SET is_active = false WHERE id = $1", [areaId]);
-    return NextResponse.json({ message: "Area dinonaktifkan." });
+    // Check if area is referenced by any customer who has orders
+    const checkRes = await client.query(
+      `SELECT COUNT(o.id) FROM customers c
+       JOIN orders o ON o.customer_id = c.id
+       WHERE c.area_id = $1 AND o.status_order <> 'Dibatalkan'`,
+      [areaId]
+    );
+
+    const orderCount = Number(checkRes.rows[0].count || 0);
+    if (orderCount > 0) {
+      return NextResponse.json(
+        { error: `Kecamatan tidak dapat dihapus karena sudah memiliki ${orderCount} transaksi/order terhubung.` },
+        { status: 400 }
+      );
+    }
+
+    await client.query("BEGIN");
+    // Delete orphan shipping rates linked to this area
+    await client.query("DELETE FROM shipping_rates WHERE area_id = $1", [areaId]);
+    // Reset area_id to null for customers linked to this area who don't have active orders
+    await client.query("UPDATE customers SET area_id = NULL WHERE area_id = $1", [areaId]);
+    // Delete area
+    const delRes = await client.query("DELETE FROM areas WHERE id = $1 RETURNING *", [areaId]);
+    await client.query("COMMIT");
+
+    if (delRes.rows.length === 0) {
+      return NextResponse.json({ error: "Kecamatan tidak ditemukan." }, { status: 404 });
+    }
+
+    return NextResponse.json({ message: "Kecamatan berhasil dihapus." });
   } catch (error: any) {
-    console.error("Gagal menonaktifkan area:", error);
+    await client.query("ROLLBACK");
+    console.error("Gagal menghapus kecamatan:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   } finally {
     client.release();

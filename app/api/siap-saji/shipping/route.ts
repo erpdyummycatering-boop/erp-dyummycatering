@@ -104,6 +104,22 @@ export async function DELETE(req: NextRequest) {
 
   const client = await pool.connect();
   try {
+    // Check if active orders exist using this area and channel combination
+    const checkRes = await client.query(
+      `SELECT COUNT(o.id) FROM orders o
+       JOIN customers c ON o.customer_id = c.id
+       WHERE c.area_id = $1 AND o.channel_id = $2 AND o.status_order <> 'Dibatalkan'`,
+      [Number(area_id), Number(channel_id)]
+    );
+
+    const count = Number(checkRes.rows[0].count || 0);
+    if (count > 0) {
+      return NextResponse.json(
+        { error: `Tarif ongkir area & channel ini tidak dapat dihapus karena sudah memiliki ${count} transaksi terhubung.` },
+        { status: 400 }
+      );
+    }
+
     await client.query(
       "DELETE FROM area_channel_shipping WHERE area_id = $1 AND channel_id = $2",
       [Number(area_id), Number(channel_id)]

@@ -161,6 +161,9 @@ export async function POST(req: NextRequest) {
     departure_time,
     arrival_time,
     shipping_fee,
+    discount,
+    discount_type,
+    discount_value,
     payment_bank_id,
     order_notes,
     items,
@@ -307,7 +310,10 @@ export async function POST(req: NextRequest) {
       return sum + (prc * qty - disc);
     }, 0);
 
-    const grandTotal = itemsSubtotal + finalShippingFee;
+    const orderDiscount = Number(discount || 0);
+    const orderDiscountType = discount_type || "nominal";
+    const orderDiscountValue = Number(discount_value || 0);
+    const grandTotal = Math.max(0, itemsSubtotal - orderDiscount + finalShippingFee);
 
     // Check Repeat Customer
     const prevOrdersRes = await client.query(
@@ -321,10 +327,10 @@ export async function POST(req: NextRequest) {
       `INSERT INTO orders (
         customer_id, pic_id, lini, channel_id, no_struk, order_date, delivery_date,
         departure_time, arrival_time, venue, order_notes, status_order, status_payment,
-        shipping_fee, shipping_zone, grand_total, payment_bank, payment_account,
+        shipping_fee, discount, discount_type, discount_value, shipping_zone, grand_total, payment_bank, payment_account,
         input_source, jenis_order, closing_date
       )
-      VALUES ($1, $2, 'siap_saji', $3, $4, $5, $6, $7, $8, $9, $10, 'Aktif', 'Lunas', $11, $12, $13, $14, $15, 'manual', $16, $17)
+      VALUES ($1, $2, 'siap_saji', $3, $4, $5, $6, $7, $8, $9, $10, 'Aktif', 'Lunas', $11, $12, $13, $14, $15, $16, $17, $18, 'manual', $19, $20)
       RETURNING *`,
       [
         finalCustomerId,
@@ -338,6 +344,9 @@ export async function POST(req: NextRequest) {
         address || null,
         order_notes || null,
         finalShippingFee,
+        orderDiscount,
+        orderDiscountType,
+        orderDiscountValue,
         snapshotZone,
         grandTotal,
         paymentBankName,

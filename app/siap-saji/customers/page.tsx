@@ -131,7 +131,9 @@ export default function SiapSajiCustomersPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !phone) return toast.error("Nama dan No Phone wajib diisi.");
+    if (!name.trim() || !phone.trim() || !areaId || !address.trim() || !patokan.trim()) {
+      return toast.error("Harap lengkapi semua data pelanggan (Nama, No HP, Kecamatan, Alamat Lengkap, dan Patokan/Landmark wajib diisi) sebelum menyimpan.");
+    }
 
     setIsSubmitting(true);
     try {
@@ -141,7 +143,7 @@ export default function SiapSajiCustomersPage() {
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, phone, address, patokan, area_id: areaId }),
+        body: JSON.stringify({ name: name.trim(), phone: phone.trim(), address: address.trim(), patokan: patokan.trim(), area_id: areaId }),
       });
 
       if (!res.ok) {
@@ -364,7 +366,8 @@ export default function SiapSajiCustomersPage() {
               </tr>
             ) : (
               customers.map((c, idx) => {
-                const sStyle = getSegmenBadgeStyle(c.segmen || "Potential Loyalist");
+                const segmenName = Number(c.total_orders || 0) === 0 ? "New Customers" : (c.segmen || "New Customers");
+                const sStyle = getSegmenBadgeStyle(segmenName);
                 return (
                   <tr key={c.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
                     <td style={{ padding: "10px 10px", color: "#6b7280" }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
@@ -426,7 +429,7 @@ export default function SiapSajiCustomersPage() {
                           whiteSpace: "nowrap",
                         }}
                       >
-                        {c.segmen || "Potential Loyalist"}
+                        {segmenName}
                       </span>
                     </td>
                     <td style={{ padding: "10px 10px", textAlign: "right" }}>
@@ -546,26 +549,28 @@ export default function SiapSajiCustomersPage() {
 
               <div style={{ marginBottom: 14 }}>
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
-                  Alamat Lengkap
+                  Alamat Lengkap *
                 </label>
                 <input
                   type="text"
                   placeholder="Jl Pluto I Blok C No 5 Kel Margasari"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
+                  required
                   style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
                 />
               </div>
 
               <div style={{ marginBottom: 20 }}>
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
-                  Patokan / Landmark Lokasi (Khusus Kurir)
+                  Patokan / Landmark Lokasi (Khusus Kurir) *
                 </label>
                 <input
                   type="text"
                   placeholder="Dekat Griya Margahayuraya, depan puskesmas ada gerbang..."
                   value={patokan}
                   onChange={(e) => setPatokan(e.target.value)}
+                  required
                   style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
                 />
               </div>

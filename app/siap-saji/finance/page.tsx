@@ -95,6 +95,24 @@ export default function SiapSajiFinancePage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Tab 4: Kas Masuk & Kas Keluar Modal State (Req 4 & Screenshot 4)
+  const [isKasMutasiModalOpen, setIsKasMutasiModalOpen] = useState(false);
+  const [kasMutasiJenis, setKasMutasiJenis] = useState<"Masuk" | "Keluar">("Keluar");
+  const [kasMutasiBankId, setKasMutasiBankId] = useState<number | "">("");
+  const [kasMutasiDate, setKasMutasiDate] = useState(new Date().toISOString().split("T")[0]);
+  const [kasMutasiNominal, setKasMutasiNominal] = useState<number>(0);
+  const [kasMutasiCoaId, setKasMutasiCoaId] = useState<number | "">("");
+  const [kasMutasiKeterangan, setKasMutasiKeterangan] = useState("");
+
+  // Tab 5: Jurnal Umum Manual Modal State (Req 5 & Screenshot 5)
+  const [isJournalModalOpen, setIsJournalModalOpen] = useState(false);
+  const [jouFormDate, setJouFormDate] = useState(new Date().toISOString().split("T")[0]);
+  const [jouFormRefNo, setJouFormRefNo] = useState("");
+  const [jouFormDebitCoaId, setJouFormDebitCoaId] = useState<number | "">("");
+  const [jouFormCreditCoaId, setJouFormCreditCoaId] = useState<number | "">("");
+  const [jouFormNominal, setJouFormNominal] = useState<number>(0);
+  const [jouFormKeterangan, setJouFormKeterangan] = useState("");
+
   // Fetch Master Accounts & Kas Bank
   const fetchKasBankMaster = async () => {
     try {
@@ -370,6 +388,98 @@ export default function SiapSajiFinancePage() {
   const labaKotor = totalPendapatan - totalHpp;
   const totalBiayaOperasional = calculatePlCategoryTotal("Beban", "Beban Operasional");
   const labaBersih = labaKotor - totalBiayaOperasional;
+
+  // Handlers for Kas Masuk / Keluar & Jurnal Umum Manual
+  const handleOpenKasMutasiModal = (jenis: "Masuk" | "Keluar") => {
+    setKasMutasiJenis(jenis);
+    setKasMutasiBankId(accounts.length > 0 ? accounts[0].id : "");
+    setKasMutasiDate(new Date().toISOString().split("T")[0]);
+    setKasMutasiNominal(0);
+
+    if (jenis === "Keluar") {
+      const priveAcc = coaListAll.find((c: any) => c.kode_akun === "3-2001");
+      setKasMutasiCoaId(priveAcc ? priveAcc.id : "");
+      setKasMutasiKeterangan("Pengambilan prive owner");
+    } else {
+      const modalAcc = coaListAll.find((c: any) => c.kode_akun === "3-1001");
+      setKasMutasiCoaId(modalAcc ? modalAcc.id : "");
+      setKasMutasiKeterangan("Setoran modal owner");
+    }
+    setIsKasMutasiModalOpen(true);
+  };
+
+  const handleSubmitKasMutasi = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!kasMutasiBankId) return toast.error("Pilih rekening Kas/Bank");
+    if (!kasMutasiNominal || kasMutasiNominal <= 0) return toast.error("Masukkan nominal valid");
+
+    setIsSubmitting(true);
+    try {
+      const res = await fetch("/api/siap-saji/finance/kas-mutasi", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kas_bank_id: Number(kasMutasiBankId),
+          jenis: kasMutasiJenis,
+          nominal: kasMutasiNominal,
+          mutasi_date: kasMutasiDate,
+          keterangan: kasMutasiKeterangan,
+          target_account_id: kasMutasiCoaId ? Number(kasMutasiCoaId) : null,
+        }),
+      });
+
+      if (!res.ok) {
+        const json = await res.json();
+        throw new Error(json.error || "Gagal mencatat mutasi kas");
+      }
+
+      toast.success(`Mutasi Kas ${kasMutasiJenis} berhasil dicatat!`);
+      setIsKasMutasiModalOpen(false);
+      fetchKasBankMaster();
+      fetchTabData();
+    } catch (err: any) {
+      toast.error(err.message || "Gagal mencatat mutasi kas");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSubmitManualJournal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!jouFormDebitCoaId || !jouFormCreditCoaId) return toast.error("Pilih akun Debet dan Kredit");
+    if (jouFormDebitCoaId === jouFormCreditCoaId) return toast.error("Akun Debet dan Kredit tidak boleh sama");
+    if (!jouFormNominal || jouFormNominal <= 0) return toast.error("Masukkan nominal valid");
+
+    setIsSubmitting(true);
+    try {
+      const res = await fetch("/api/siap-saji/finance/journals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          journal_date: jouFormDate,
+          ref_no: jouFormRefNo,
+          akun_debit: Number(jouFormDebitCoaId),
+          akun_kredit: Number(jouFormCreditCoaId),
+          nominal: jouFormNominal,
+          keterangan: jouFormKeterangan,
+        }),
+      });
+
+      if (!res.ok) {
+        const json = await res.json();
+        throw new Error(json.error || "Gagal menyimpan jurnal umum");
+      }
+
+      toast.success("Jurnal umum manual berhasil disimpan!");
+      setIsJournalModalOpen(false);
+      fetchKasBankMaster();
+      fetchTabData();
+    } catch (err: any) {
+      toast.error(err.message || "Gagal menyimpan jurnal umum");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div style={{ maxWidth: 1280, margin: "0 auto", paddingBottom: 40 }}>
@@ -931,6 +1041,47 @@ export default function SiapSajiFinancePage() {
               <h3 style={{ fontSize: 16, fontWeight: 800, color: "#111827", margin: 0 }}>
                 Riwayat Mutasi Kas & Bank Terbaru
               </h3>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  onClick={() => handleOpenKasMutasiModal("Masuk")}
+                  style={{
+                    padding: "8px 14px",
+                    background: "#639922",
+                    color: "white",
+                    border: "none",
+                    borderRadius: 8,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    boxShadow: "0 2px 6px rgba(99, 153, 34, 0.2)",
+                  }}
+                >
+                  <Plus size={15} /> Kas Masuk
+                </button>
+
+                <button
+                  onClick={() => handleOpenKasMutasiModal("Keluar")}
+                  style={{
+                    padding: "8px 14px",
+                    background: "#E24B4A",
+                    color: "white",
+                    border: "none",
+                    borderRadius: 8,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    boxShadow: "0 2px 6px rgba(226, 75, 74, 0.2)",
+                  }}
+                >
+                  <Plus size={15} /> Kas Keluar (Prive)
+                </button>
+              </div>
             </div>
 
             {/* Filter Toolbar Mutasi */}
@@ -1109,6 +1260,33 @@ export default function SiapSajiFinancePage() {
               <span style={{ fontSize: 12, fontWeight: 700, background: "#f0fdf4", color: "#166534", padding: "4px 10px", borderRadius: 20, border: "1px solid #bbf7d0" }}>
                 ✓ Debet & Kredit Seimbang (Balanced)
               </span>
+              <button
+                onClick={() => {
+                  setJouFormDate(new Date().toISOString().split("T")[0]);
+                  setJouFormRefNo(`JU-${Date.now().toString().slice(-6)}`);
+                  setJouFormDebitCoaId(coaListAll.length > 0 ? coaListAll[0].id : "");
+                  setJouFormCreditCoaId(coaListAll.length > 1 ? coaListAll[1].id : "");
+                  setJouFormNominal(0);
+                  setJouFormKeterangan("");
+                  setIsJournalModalOpen(true);
+                }}
+                style={{
+                  padding: "8px 16px",
+                  background: "#5005A6",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  boxShadow: "0 2px 6px rgba(80, 5, 166, 0.2)",
+                }}
+              >
+                <BookOpen size={15} /> + Jurnal Umum
+              </button>
             </div>
           </div>
 
@@ -1919,6 +2097,247 @@ export default function SiapSajiFinancePage() {
                 </button>
                 <button type="submit" disabled={isSubmitting} style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "#5005A6", color: "white", fontWeight: 700 }}>
                   {isSubmitting ? "Simpan..." : "Simpan Akun COA"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* MODAL KAS MASUK / KAS KELUAR (REQ 4 & SCREENSHOT 4) */}
+      {isKasMutasiModalOpen && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: "white", borderRadius: 16, maxWidth: 500, width: "100%", padding: 24, boxShadow: "0 20px 25px -5px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 800, color: kasMutasiJenis === "Masuk" ? "#166534" : "#991b1b", margin: 0 }}>
+                {kasMutasiJenis === "Masuk" ? "📥 Transaksi Kas Masuk" : "📤 Transaksi Kas Keluar (Prive Owner / Lainnya)"}
+              </h3>
+              <button onClick={() => setIsKasMutasiModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280" }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitKasMutasi}>
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                  Rekening Kas / Bank *
+                </label>
+                <select
+                  value={kasMutasiBankId}
+                  onChange={(e) => setKasMutasiBankId(Number(e.target.value))}
+                  required
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                >
+                  {accounts.map((acc) => (
+                    <option key={acc.id} value={acc.id}>
+                      {acc.nama_bank} (Rp {Number(acc.saldo_saat_ini || 0).toLocaleString("id-ID")})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                  Tanggal Transaksi *
+                </label>
+                <input
+                  type="date"
+                  value={kasMutasiDate}
+                  onChange={(e) => setKasMutasiDate(e.target.value)}
+                  required
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                  Akun Lawan COA ({kasMutasiJenis === "Keluar" ? "Debet" : "Kredit"}) *
+                </label>
+                <select
+                  value={kasMutasiCoaId}
+                  onChange={(e) => setKasMutasiCoaId(Number(e.target.value))}
+                  required
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                >
+                  <option value="">-- Pilih Akun COA --</option>
+                  {coaListAll.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      [{c.kode_akun}] {c.nama_akun} ({c.kelompok})
+                    </option>
+                  ))}
+                </select>
+                <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
+                  {kasMutasiJenis === "Keluar"
+                    ? "✓ Jurnal Otomatis: Debet [Akun Lawan], Kredit [Kas/Bank]"
+                    : "✓ Jurnal Otomatis: Debet [Kas/Bank], Kredit [Akun Lawan]"}
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                  Nominal (Rp) *
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: 500.000"
+                  value={formatThousand(kasMutasiNominal)}
+                  onChange={(e) => setKasMutasiNominal(parseThousand(e.target.value))}
+                  required
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, fontWeight: 700 }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                  Keterangan Transaksi *
+                </label>
+                <input
+                  type="text"
+                  placeholder={kasMutasiJenis === "Keluar" ? "Pengambilan prive owner..." : "Setoran modal owner..."}
+                  value={kasMutasiKeterangan}
+                  onChange={(e) => setKasMutasiKeterangan(e.target.value)}
+                  required
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                />
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                <button type="button" onClick={() => setIsKasMutasiModalOpen(false)} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "white" }}>
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  style={{
+                    padding: "8px 20px",
+                    borderRadius: 8,
+                    border: "none",
+                    background: kasMutasiJenis === "Masuk" ? "#639922" : "#E24B4A",
+                    color: "white",
+                    fontWeight: 700,
+                  }}
+                >
+                  {isSubmitting ? "Menyimpan..." : `Simpan Kas ${kasMutasiJenis}`}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL JURNAL UMUM MANUAL (REQ 5 & SCREENSHOT 5) */}
+      {isJournalModalOpen && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: "white", borderRadius: 16, maxWidth: 550, width: "100%", padding: 24, boxShadow: "0 20px 25px -5px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 800, color: "#111827", margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                <BookOpen size={18} color="#5005A6" /> + Input Jurnal Umum Manual
+              </h3>
+              <button onClick={() => setIsJournalModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280" }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitManualJournal}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                    Tanggal Jurnal *
+                  </label>
+                  <input
+                    type="date"
+                    value={jouFormDate}
+                    onChange={(e) => setJouFormDate(e.target.value)}
+                    required
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                    No. Referensi / Bukti
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: JU-2026-001"
+                    value={jouFormRefNo}
+                    onChange={(e) => setJouFormRefNo(e.target.value)}
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#15803d", marginBottom: 4 }}>
+                  Pilih Akun Debet *
+                </label>
+                <select
+                  value={jouFormDebitCoaId}
+                  onChange={(e) => setJouFormDebitCoaId(Number(e.target.value))}
+                  required
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #bbf7d0", background: "#f0fdf4", fontSize: 14, fontWeight: 600 }}
+                >
+                  <option value="">-- Pilih Akun Debet --</option>
+                  {coaListAll.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      [{c.kode_akun}] {c.nama_akun} ({c.kelompok})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#b91c1c", marginBottom: 4 }}>
+                  Pilih Akun Kredit *
+                </label>
+                <select
+                  value={jouFormCreditCoaId}
+                  onChange={(e) => setJouFormCreditCoaId(Number(e.target.value))}
+                  required
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #fca5a5", background: "#fef2f2", fontSize: 14, fontWeight: 600 }}
+                >
+                  <option value="">-- Pilih Akun Kredit --</option>
+                  {coaListAll.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      [{c.kode_akun}] {c.nama_akun} ({c.kelompok})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                  Nominal (Rp) *
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: 500.000"
+                  value={formatThousand(jouFormNominal)}
+                  onChange={(e) => setJouFormNominal(parseThousand(e.target.value))}
+                  required
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, fontWeight: 700 }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                  Keterangan Jurnal *
+                </label>
+                <input
+                  type="text"
+                  placeholder="Deskripsi transaksi jurnal umum..."
+                  value={jouFormKeterangan}
+                  onChange={(e) => setJouFormKeterangan(e.target.value)}
+                  required
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                />
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                <button type="button" onClick={() => setIsJournalModalOpen(false)} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "white" }}>
+                  Batal
+                </button>
+                <button type="submit" disabled={isSubmitting} style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "#5005A6", color: "white", fontWeight: 700 }}>
+                  {isSubmitting ? "Simpan..." : "Simpan Jurnal Umum"}
                 </button>
               </div>
             </form>

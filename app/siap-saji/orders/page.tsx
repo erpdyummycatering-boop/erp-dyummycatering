@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useEffect, useTransition, useMemo } from "react";
 import {
   ShoppingCart,
   Plus,
@@ -128,6 +128,12 @@ export default function SiapSajiOrdersPage() {
       const today = getTodayStr();
       setDateFrom(today);
       setDateTo(today);
+    } else if (val === "yesterday") {
+      const yest = new Date();
+      yest.setDate(yest.getDate() - 1);
+      const yestStr = yest.toISOString().split("T")[0];
+      setDateFrom(yestStr);
+      setDateTo(yestStr);
     } else if (val === "week") {
       const now = new Date();
       const day = now.getDay();
@@ -189,7 +195,8 @@ export default function SiapSajiOrdersPage() {
   const [orderDate, setOrderDate] = useState(new Date().toISOString().split("T")[0]);
   const [deliveryDate, setDeliveryDate] = useState(new Date().toISOString().split("T")[0]);
   const [shippingFee, setShippingFee] = useState<number>(0);
-  const [discount, setDiscount] = useState<number>(0);
+  const [discountType, setDiscountType] = useState<"nominal" | "percent">("nominal");
+  const [discountValue, setDiscountValue] = useState<number>(0);
   const [isShippingAuto, setIsShippingAuto] = useState(true);
   const [selectedBankId, setSelectedBankId] = useState<number | "">("");
   const [orderNotes, setOrderNotes] = useState("");
@@ -202,6 +209,98 @@ export default function SiapSajiOrdersPage() {
 
   // Edit Order State
   const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
+
+  // Auto-Draft Sales Order Entry State (Req 2)
+  const DRAFT_KEY = "siap_saji_order_draft";
+  const [draftInfo, setDraftInfo] = useState<{ timestamp: string } | null>(null);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && (parsed.customerName || parsed.customerPhone || (parsed.cartItems && parsed.cartItems.length > 0))) {
+          setDraftInfo({ timestamp: parsed.savedAt || "Terbaru" });
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (editingOrderId) return;
+    const hasContent = Boolean(customerName || customerPhone || customerAddress || cartItems.length > 0 || shippingFee > 0);
+    if (hasContent) {
+      const draftObj = {
+        selectedChannelId,
+        customerName,
+        customerPhone,
+        selectedAreaId,
+        customerAddress,
+        customerPatokan,
+        orderDate,
+        deliveryDate,
+        shippingFee,
+        discountType,
+        discountValue,
+        selectedBankId,
+        orderNotes,
+        cartItems,
+        savedAt: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+      };
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(draftObj));
+    }
+  }, [
+    selectedChannelId,
+    customerName,
+    customerPhone,
+    selectedAreaId,
+    customerAddress,
+    customerPatokan,
+    orderDate,
+    deliveryDate,
+    shippingFee,
+    discountType,
+    discountValue,
+    selectedBankId,
+    orderNotes,
+    cartItems,
+    editingOrderId,
+  ]);
+
+  const handleRestoreDraft = () => {
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY);
+      if (saved) {
+        const d = JSON.parse(saved);
+        if (d.selectedChannelId) setSelectedChannelId(d.selectedChannelId);
+        if (d.customerName) setCustomerName(d.customerName);
+        if (d.customerPhone) setCustomerPhone(d.customerPhone);
+        if (d.selectedAreaId) setSelectedAreaId(d.selectedAreaId);
+        if (d.customerAddress) setCustomerAddress(d.customerAddress);
+        if (d.customerPatokan) setCustomerPatokan(d.customerPatokan);
+        if (d.orderDate) setOrderDate(d.orderDate);
+        if (d.deliveryDate) setDeliveryDate(d.deliveryDate);
+        if (d.shippingFee) setShippingFee(d.shippingFee);
+        if (d.discountType) setDiscountType(d.discountType);
+        if (d.discountValue) setDiscountValue(d.discountValue);
+        if (d.selectedBankId) setSelectedBankId(d.selectedBankId);
+        if (d.orderNotes) setOrderNotes(d.orderNotes);
+        if (Array.isArray(d.cartItems)) setCartItems(d.cartItems);
+        toast.success("Draft order berhasil dipulihkan!");
+        setDraftInfo(null);
+      }
+    } catch (e) {
+      toast.error("Gagal memulihkan draft order");
+    }
+  };
+
+  const handleDiscardDraft = () => {
+    localStorage.removeItem(DRAFT_KEY);
+    setDraftInfo(null);
+    toast.info("Draft order dihapus.");
+  };
 
   // Import Excel State
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -435,9 +534,17 @@ export default function SiapSajiOrdersPage() {
     setCartItems(updated);
   };
 
-  // Cart total calculations
+  // Cart total calculations & discount calculation (% or nominal)
   const cartSubtotal = cartItems.reduce((acc, it) => acc + (it.price * it.quantity - it.discount), 0);
-  const cartGrandTotal = cartSubtotal + Number(shippingFee || 0);
+
+  const calculatedDiscount = useMemo(() => {
+    if (discountType === "percent") {
+      return Math.round((cartSubtotal * (Number(discountValue) || 0)) / 100);
+    }
+    return Number(discountValue) || 0;
+  }, [cartSubtotal, discountType, discountValue]);
+
+  const cartGrandTotal = Math.max(0, cartSubtotal - calculatedDiscount + Number(shippingFee || 0));
 
   // Helper handlers for Create, Edit, & Import Order
   const handleOpenCreateOrder = () => {
@@ -463,7 +570,8 @@ export default function SiapSajiOrdersPage() {
       setSelectedBankId(data.kas_bank_id || (masterKasBank.length > 0 ? masterKasBank[0].id : ""));
       setDeliveryDate(data.delivery_date ? data.delivery_date.split("T")[0] : getTodayStr());
       setShippingFee(Number(data.shipping_fee || 0));
-      setDiscount(Number(data.discount || 0));
+      setDiscountType(data.discount_type || "nominal");
+      setDiscountValue(Number(data.discount_value || data.discount || 0));
 
       if (data.items && Array.isArray(data.items)) {
         setCartItems(
@@ -498,10 +606,13 @@ export default function SiapSajiOrdersPage() {
     setCustomerAddress("");
     setCustomerPatokan("");
     setShippingFee(0);
-    setDiscount(0);
+    setDiscountType("nominal");
+    setDiscountValue(0);
     setOrderNotes("");
     setCartItems([]);
     setProductSearchQuery("");
+    localStorage.removeItem(DRAFT_KEY);
+    setDraftInfo(null);
   };
 
   // Submit Order Form (Create POST / Edit PUT)
@@ -527,7 +638,9 @@ export default function SiapSajiOrdersPage() {
           customer_patokan: customerPatokan,
           area_id: Number(selectedAreaId),
           shipping_fee: shippingFee,
-          discount: discount,
+          discount: calculatedDiscount,
+          discount_type: discountType,
+          discount_value: discountValue,
           items: cartItems.map((it) => ({
             product_id: it.product_id,
             price: it.price,
@@ -565,6 +678,9 @@ export default function SiapSajiOrdersPage() {
           order_date: orderDate,
           delivery_date: deliveryDate,
           shipping_fee: shippingFee,
+          discount: calculatedDiscount,
+          discount_type: discountType,
+          discount_value: discountValue,
           payment_bank_id: selectedBankId ? Number(selectedBankId) : null,
           order_notes: orderNotes,
           items: cartItems.map((it) => ({
@@ -1061,6 +1177,7 @@ export default function SiapSajiOrdersPage() {
             style={{ width: 140, padding: "7px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, outline: "none", background: "white" }}
           >
             <option value="today">📅 Hari Ini</option>
+            <option value="yesterday">📅 Hari Kemarin</option>
             <option value="week">📅 Pekan Ini</option>
             <option value="month">📅 Bulan Ini</option>
             <option value="year">📅 Tahun Ini</option>
@@ -1523,6 +1640,69 @@ export default function SiapSajiOrdersPage() {
               </button>
             </div>
 
+            {/* DRAFT RESTORATION BANNER (REQ 2) */}
+            {draftInfo && !editingOrderId && (
+              <div
+                style={{
+                  background: "#fffbebe6",
+                  border: "1px solid #fef3c7",
+                  borderRadius: 12,
+                  padding: "12px 16px",
+                  marginBottom: 16,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 18 }}>📌</span>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: 13, color: "#92400e" }}>
+                      Terdapat Draft Order yang belum diselesaikan
+                    </div>
+                    <div style={{ fontSize: 12, color: "#b45309" }}>
+                      Otomatis tersimpan pukul {draftInfo.timestamp}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={handleRestoreDraft}
+                    style={{
+                      background: "#d97706",
+                      color: "white",
+                      border: "none",
+                      borderRadius: 6,
+                      padding: "6px 14px",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Lanjutkan Draft
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDiscardDraft}
+                    style={{
+                      background: "#f3f4f6",
+                      color: "#4b5563",
+                      border: "1px solid #d1d5db",
+                      borderRadius: 6,
+                      padding: "6px 12px",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Hapus Draft
+                  </button>
+                </div>
+              </div>
+            )}
+
             <form onSubmit={handleSubmitOrder}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
                 {/* 1. Channel Penjualan */}
@@ -1628,34 +1808,41 @@ export default function SiapSajiOrdersPage() {
                             );
                           }
 
-                          return matched.slice(0, 10).map((c) => (
-                            <div
-                              key={c.id}
-                              onClick={() => {
-                                setCustomerName(c.name);
-                                setCustomerPhone(c.phone || "");
-                                if (c.address) setCustomerAddress(c.address);
-                                if (c.patokan) setCustomerPatokan(c.patokan);
-                                if (c.area_id) setSelectedAreaId(c.area_id);
-                                setSelectedCustomerId(c.id);
-                                setIsCustDropdownOpen(false);
-                                setDuplicatePhoneCust(null);
-                              }}
-                              style={{
-                                padding: "8px 12px",
-                                borderBottom: "1px solid #f3f4f6",
-                                cursor: "pointer",
-                                fontSize: 13,
-                              }}
-                              onMouseEnter={(e) => (e.currentTarget.style.background = "#f3f4f6")}
-                              onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
-                            >
-                              <div style={{ fontWeight: 700, color: "#111827" }}>{c.name}</div>
-                              <div style={{ fontSize: 11, color: "#6b7280" }}>
-                                📞 {c.phone || "-"} {c.address ? `• ${c.address}` : ""}
+                          return matched.slice(0, 10).map((c) => {
+                            const selArea = masterAreas.find((a) => a.id === Number(c.area_id));
+                            const kecName = c.area_kecamatan || selArea?.kecamatan || "";
+                            return (
+                              <div
+                                key={c.id}
+                                onClick={() => {
+                                  setCustomerName(c.name);
+                                  setCustomerPhone(c.phone || "");
+                                  if (c.address) setCustomerAddress(c.address);
+                                  if (c.patokan) setCustomerPatokan(c.patokan);
+                                  if (c.area_id) {
+                                    setSelectedAreaId(c.area_id);
+                                    setIsShippingAuto(true);
+                                  }
+                                  setSelectedCustomerId(c.id);
+                                  setIsCustDropdownOpen(false);
+                                  setDuplicatePhoneCust(null);
+                                }}
+                                style={{
+                                  padding: "8px 12px",
+                                  borderBottom: "1px solid #f3f4f6",
+                                  cursor: "pointer",
+                                  fontSize: 13,
+                                }}
+                                onMouseEnter={(e) => (e.currentTarget.style.background = "#f3f4f6")}
+                                onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
+                              >
+                                <div style={{ fontWeight: 700, color: "#111827" }}>{c.name}</div>
+                                <div style={{ fontSize: 11, color: "#6b7280" }}>
+                                  📞 {c.phone || "-"} {kecName ? `• Kec. ${kecName}` : ""} {c.address ? `• ${c.address}` : ""}
+                                </div>
                               </div>
-                            </div>
-                          ));
+                            );
+                          });
                         })()}
                       </div>
                     )}
@@ -1908,6 +2095,35 @@ export default function SiapSajiOrdersPage() {
                       </button>
                     </div>
                   </div>
+                </div>
+
+                {/* Diskon Promo Row */}
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>
+                    Diskon Promo Transaksi (Diskon % atau Nominal Rp)
+                  </label>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <select
+                      value={discountType}
+                      onChange={(e) => setDiscountType(e.target.value as "nominal" | "percent")}
+                      style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, background: "#f9fafb", outline: "none", fontWeight: 600 }}
+                    >
+                      <option value="nominal">Nominal (Rp)</option>
+                      <option value="percent">Persentase (%)</option>
+                    </select>
+                    <input
+                      type="number"
+                      placeholder={discountType === "percent" ? "Misal: 17 (untuk promo 17%)" : "Misal: 15000"}
+                      value={discountValue || ""}
+                      onChange={(e) => setDiscountValue(Number(e.target.value))}
+                      style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                    />
+                  </div>
+                  {discountType === "percent" && discountValue > 0 && (
+                    <div style={{ fontSize: 11, color: "#059669", marginTop: 4, fontWeight: 600 }}>
+                      ✓ Potongan Diskon {discountValue}% = -Rp {calculatedDiscount.toLocaleString("id-ID")}
+                    </div>
+                  )}
                 </div>
 
                 <div style={{ marginBottom: 12 }}>
@@ -2191,7 +2407,7 @@ export default function SiapSajiOrdersPage() {
               <div style={{ background: "#f3f4f6", borderRadius: 12, padding: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
                   <p style={{ fontSize: 13, color: "#6b7280", margin: 0 }}>
-                    Subtotal Item: Rp {cartSubtotal.toLocaleString("id-ID")} | Biaya Kirim: Rp {Number(shippingFee).toLocaleString("id-ID")}
+                    Subtotal Item: Rp {cartSubtotal.toLocaleString("id-ID")} | Diskon Promo: {discountType === "percent" ? `${discountValue}%` : ""} (-Rp {calculatedDiscount.toLocaleString("id-ID")}) | Biaya Kirim: Rp {Number(shippingFee).toLocaleString("id-ID")}
                   </p>
                   <p style={{ fontSize: 20, fontWeight: 800, color: "#5005A6", marginTop: 4 }}>
                     Total Akhir: Rp {cartGrandTotal.toLocaleString("id-ID")}

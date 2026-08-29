@@ -299,28 +299,57 @@ export async function GET(req: NextRequest) {
       ORDER BY total_customers DESC, total_omset DESC`
     );
 
-    // 2e. Top Customers (Omset) with dynamic top_limit (10, 20, 100, all)
+    // 2e. Top Customers (Omset & Frequency) with dynamic top_limit (10, 20, 100, all)
     const topLimitParam = searchParams.get("top_limit") || "10";
     let topLimitClause = "LIMIT 10";
     if (topLimitParam === "20") topLimitClause = "LIMIT 20";
     else if (topLimitParam === "100") topLimitClause = "LIMIT 100";
     else if (topLimitParam === "all") topLimitClause = "";
 
-    const topCustomersRes = await client.query(
-      `SELECT 
-        c.id,
-        c.name,
-        c.phone,
-        COALESCE(a.kecamatan, '-') AS kecamatan,
-        COUNT(o.id)::int AS orders_count,
-        COALESCE(SUM(o.grand_total), 0)::numeric AS omset
-      FROM customers c
-      JOIN orders o ON o.customer_id = c.id AND o.lini = 'siap_saji' AND o.status_order <> 'Dibatalkan'
-      LEFT JOIN areas a ON a.id = c.area_id
-      GROUP BY c.id, c.name, c.phone, a.kecamatan
-      ORDER BY omset DESC
-      ${topLimitClause}`
-    );
+    const [topOmsetRes, topFreqRes] = await Promise.all([
+      client.query(
+        `SELECT 
+          c.id,
+          c.name,
+          c.phone,
+          COALESCE(a.kecamatan, '-') AS kecamatan,
+          COUNT(o.id)::int AS orders_count,
+          COALESCE(SUM(o.grand_total), 0)::numeric AS omset
+        FROM customers c
+        JOIN orders o ON o.customer_id = c.id AND o.lini = 'siap_saji' AND o.status_order <> 'Dibatalkan'
+        LEFT JOIN areas a ON a.id = c.area_id
+        GROUP BY c.id, c.name, c.phone, a.kecamatan
+        ORDER BY omset DESC, orders_count DESC
+        ${topLimitClause}`
+      ),
+      client.query(
+        `SELECT 
+          c.id,
+          c.name,
+          c.phone,
+          COALESCE(a.kecamatan, '-') AS kecamatan,
+          COUNT(o.id)::int AS orders_count,
+          COALESCE(SUM(o.grand_total), 0)::numeric AS omset
+        FROM customers c
+        JOIN orders o ON o.customer_id = c.id AND o.lini = 'siap_saji' AND o.status_order <> 'Dibatalkan'
+        LEFT JOIN areas a ON a.id = c.area_id
+        GROUP BY c.id, c.name, c.phone, a.kecamatan
+        ORDER BY orders_count DESC, omset DESC
+        ${topLimitClause}`
+      ),
+    ]);
+
+    const formattedOmset = topOmsetRes.rows.map((r: any) => ({
+      ...r,
+      omset: Number(r.omset || 0),
+      orders_count: Number(r.orders_count || 0),
+    }));
+
+    const formattedFreq = topFreqRes.rows.map((r: any) => ({
+      ...r,
+      omset: Number(r.omset || 0),
+      orders_count: Number(r.orders_count || 0),
+    }));
 
     return NextResponse.json({
       total_customers: totalCustomers,
@@ -334,11 +363,9 @@ export async function GET(req: NextRequest) {
         retaining_customers: Number(r.retaining_customers || 0),
         total_orders: Number(r.total_orders || 0),
       })),
-      top_customers: topCustomersRes.rows.map((r: any) => ({
-        ...r,
-        omset: Number(r.omset || 0),
-        orders_count: Number(r.orders_count || 0),
-      })),
+      top_customers: formattedOmset,
+      top_customers_omset: formattedOmset,
+      top_customers_frequency: formattedFreq,
       top_limit: topLimitParam,
     });
   } catch (error: any) {

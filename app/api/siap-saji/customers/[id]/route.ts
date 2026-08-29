@@ -142,8 +142,11 @@ export async function PUT(
     const body = await req.json();
     const { name, phone, address, patokan, area_id } = body;
 
-    if (!name || !phone) {
-      return NextResponse.json({ error: "Nama dan Nomor HP/WA wajib diisi." }, { status: 400 });
+    if (!name || !phone || !area_id || !address || !patokan) {
+      return NextResponse.json(
+        { error: "Harap lengkapi semua data pelanggan (Nama, No HP, Kecamatan, Alamat Lengkap, dan Patokan/Landmark wajib diisi)." },
+        { status: 400 }
+      );
     }
 
     const cleanPhone = String(phone).trim().replace(/[^0-9]/g, "");

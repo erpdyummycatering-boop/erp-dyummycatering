@@ -107,8 +107,11 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { name, phone, address, patokan, area_id, type } = body;
 
-  if (!name || !phone) {
-    return NextResponse.json({ error: "Nama dan No Telepon wajib diisi." }, { status: 400 });
+  if (!name || !phone || !area_id || !address || !patokan) {
+    return NextResponse.json(
+      { error: "Harap lengkapi semua data pelanggan (Nama, No HP, Kecamatan, Alamat Lengkap, dan Patokan/Landmark wajib diisi)." },
+      { status: 400 }
+    );
   }
 
   const client = await pool.connect();

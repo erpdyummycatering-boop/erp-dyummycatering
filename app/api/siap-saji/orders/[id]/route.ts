@@ -95,6 +95,8 @@ export async function PUT(
       area_id,
       shipping_fee,
       discount,
+      discount_type,
+      discount_value,
       items,
     } = body;
 
@@ -164,6 +166,8 @@ export async function PUT(
 
     const shipFee = Number(shipping_fee || 0);
     const discVal = Number(discount || 0);
+    const discType = discount_type || "nominal";
+    const discInputVal = Number(discount_value || 0);
     const grandTotal = Math.max(0, itemsTotal + shipFee - discVal);
 
     // Resolve Bank details if kas_bank_id provided
@@ -184,16 +188,22 @@ export async function PUT(
            channel_id = $2,
            delivery_date = $3::date,
            shipping_fee = $4,
-           grand_total = $5,
-           payment_bank = $6,
-           payment_account = $7,
+           discount = $5,
+           discount_type = $6,
+           discount_value = $7,
+           grand_total = $8,
+           payment_bank = $9,
+           payment_account = $10,
            updated_at = NOW()
-       WHERE id = $8`,
+       WHERE id = $11`,
       [
         finalCustomerId,
         channel_id || existingOrder.channel_id,
         delivery_date || existingOrder.delivery_date,
         shipFee,
+        discVal,
+        discType,
+        discInputVal,
         grandTotal,
         paymentBankName,
         paymentAccountNo,

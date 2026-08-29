@@ -8,7 +8,7 @@ import { formatDate } from "@/lib/utils";
 
 export default function SiapSajiDocumentsPage() {
   const [activeTab, setActiveTab] = useState<"produksi" | "pengiriman" | "rekap_cs">("produksi");
-  const [tanggal, setTanggal] = useState("2026-06-18"); // default date matching seed order data
+  const [tanggal, setTanggal] = useState(() => new Date().toISOString().split("T")[0]); // default date: Hari Ini
   const [channelFilter, setChannelFilter] = useState("");
   const [channels, setChannels] = useState<{ id: number; name: string }[]>([]);
 

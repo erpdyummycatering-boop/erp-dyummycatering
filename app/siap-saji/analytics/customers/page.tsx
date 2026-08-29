@@ -16,7 +16,10 @@ import {
   ChevronRight,
   MapPin,
   Crown,
+  Download,
+  FileSpreadsheet,
 } from "lucide-react";
+import * as XLSX from "xlsx";
 import {
   ResponsiveContainer,
   PieChart,
@@ -47,6 +50,60 @@ export default function SiapSajiCustomerAnalyticsPage() {
   const [modalSearch, setModalSearch] = useState("");
   const [modalPage, setModalPage] = useState(1);
   const modalPageSize = 10;
+
+  // Customer Order Drilldown state
+  const [selectedCustDetail, setSelectedCustDetail] = useState<any | null>(null);
+  const [custOrdersList, setCustOrdersList] = useState<any[]>([]);
+  const [loadingCustOrders, setLoadingCustOrders] = useState(false);
+
+  const handleOpenCustOrders = async (cust: any) => {
+    setSelectedCustDetail(cust);
+    setLoadingCustOrders(true);
+    try {
+      const res = await fetch(`/api/siap-saji/orders?customer_id=${cust.id}&limit=100`);
+      if (!res.ok) throw new Error("Gagal mengambil riwayat order customer");
+      const json = await res.json();
+      setCustOrdersList(json.data || []);
+    } catch (err: any) {
+      toast.error(err.message || "Gagal memuat riwayat order");
+    } finally {
+      setLoadingCustOrders(false);
+    }
+  };
+
+  const handleExportTopCustomers = (type: "omset" | "frequency" | "both") => {
+    const wb = XLSX.utils.book_new();
+
+    if (type === "omset" || type === "both") {
+      const rowsOmset = (data?.top_customers_omset || data?.top_customers || []).map((c: any, idx: number) => ({
+        Peringkat: `#${idx + 1}`,
+        "Nama Pelanggan": c.name,
+        "No. WhatsApp / HP": c.phone || "-",
+        Kecamatan: c.kecamatan || "-",
+        "Total Omset (Rp)": Number(c.omset || 0),
+        "Total Transaksi (Order)": Number(c.orders_count || 0),
+      }));
+      const wsOmset = XLSX.utils.json_to_sheet(rowsOmset);
+      XLSX.utils.book_append_sheet(wb, wsOmset, "Top Customer Omset");
+    }
+
+    if (type === "frequency" || type === "both") {
+      const rowsFreq = (data?.top_customers_frequency || data?.top_customers || []).map((c: any, idx: number) => ({
+        Peringkat: `#${idx + 1}`,
+        "Nama Pelanggan": c.name,
+        "No. WhatsApp / HP": c.phone || "-",
+        Kecamatan: c.kecamatan || "-",
+        "Total Transaksi (Order)": Number(c.orders_count || 0),
+        "Total Omset (Rp)": Number(c.omset || 0),
+      }));
+      const wsFreq = XLSX.utils.json_to_sheet(rowsFreq);
+      XLSX.utils.book_append_sheet(wb, wsFreq, "Top Customer Frekuensi");
+    }
+
+    const dateStr = new Date().toISOString().split("T")[0];
+    XLSX.writeFile(wb, `Top_Customers_${type}_${dateStr}.xlsx`);
+    toast.success(`File Excel Top Customers (${type}) berhasil diunduh!`);
+  };
 
   const fetchAnalytics = async (limitVal = topLimit) => {
     setLoading(true);
@@ -759,84 +816,232 @@ export default function SiapSajiCustomerAnalyticsPage() {
         </div>
       )}
 
-      {/* TOP CUSTOMERS (OMSET) SECTION WITH LIMIT SELECTOR (REQ 5 & SCREENSHOT 5) */}
+      {/* TOP CUSTOMERS SECTION (2 COLUMNS: REVENUE & FREQUENCY + EXCEL EXPORT + DRILLDOWN) */}
       <div style={{ background: "white", borderRadius: 16, padding: 24, border: "1px solid #e5e7eb", marginBottom: 24 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
           <div>
             <h3 style={{ fontSize: 18, fontWeight: 900, color: "#111827", margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
-              <Crown size={20} color="#5005A6" /> Top Customer (Omset)
+              <Crown size={20} color="#5005A6" /> Top Customer Analytics
             </h3>
             <p style={{ fontSize: 13, color: "#6b7280", marginTop: 2, margin: 0 }}>
-              Daftar pelanggan dengan total omset tertinggi (dapat difilter top 10, 20, 100, & semua)
+              Daftar pelanggan teratas berdasarkan Omset & Frekuensi Transaksi (Klik customer untuk rincian order)
             </p>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <label style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>Tampilkan:</label>
-            <select
-              value={topLimit}
-              onChange={(e) => {
-                setTopLimit(e.target.value);
-                fetchAnalytics(e.target.value);
-              }}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>Tampilkan:</label>
+              <select
+                value={topLimit}
+                onChange={(e) => {
+                  setTopLimit(e.target.value);
+                  fetchAnalytics(e.target.value);
+                }}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: 8,
+                  border: "1px solid #d1d5db",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  background: "white",
+                  color: "#5005A6",
+                  cursor: "pointer",
+                }}
+              >
+                <option value="10">Top 10</option>
+                <option value="20">Top 20</option>
+                <option value="100">Top 100</option>
+                <option value="all">Semua (All)</option>
+              </select>
+            </div>
+
+            {/* Excel Download Buttons */}
+            <button
+              onClick={() => handleExportTopCustomers("omset")}
               style={{
                 padding: "6px 12px",
+                background: "#f0fdf4",
+                color: "#166534",
+                border: "1px solid #bbf7d0",
                 borderRadius: 8,
-                border: "1px solid #d1d5db",
-                fontSize: 13,
+                fontSize: 12,
                 fontWeight: 700,
-                background: "white",
-                color: "#5005A6",
                 cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
               }}
+              title="Unduh Excel Top Customer by Omset"
             >
-              <option value="10">Top 10</option>
-              <option value="20">Top 20</option>
-              <option value="100">Top 100</option>
-              <option value="all">Semua (All)</option>
-            </select>
+              <FileSpreadsheet size={14} /> Export Omset
+            </button>
+
+            <button
+              onClick={() => handleExportTopCustomers("frequency")}
+              style={{
+                padding: "6px 12px",
+                background: "#eff6ff",
+                color: "#1d4ed8",
+                border: "1px solid #bfdbfe",
+                borderRadius: 8,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+              }}
+              title="Unduh Excel Top Customer by Frekuensi"
+            >
+              <FileSpreadsheet size={14} /> Export Frekuensi
+            </button>
+
+            <button
+              onClick={() => handleExportTopCustomers("both")}
+              style={{
+                padding: "6px 14px",
+                background: "#5005A6",
+                color: "white",
+                border: "none",
+                borderRadius: 8,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                boxShadow: "0 2px 6px rgba(80, 5, 166, 0.2)",
+              }}
+              title="Unduh Excel gabungan (Omset & Frekuensi)"
+            >
+              <Download size={14} /> Export Both (Semua)
+            </button>
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
-          {loading ? (
-            <p style={{ color: "#9ca3af", gridColumn: "1 / -1", textAlign: "center", padding: 20 }}>Memuat Top Customer...</p>
-          ) : !data?.top_customers || data.top_customers.length === 0 ? (
-            <p style={{ color: "#9ca3af", gridColumn: "1 / -1", textAlign: "center", padding: 20 }}>Tidak ada data customer.</p>
-          ) : (
-            data.top_customers.map((c: any, idx: number) => (
-              <div
-                key={c.id || idx}
-                style={{
-                  background: "#fafafa",
-                  border: "1px solid #f3f4f6",
-                  borderRadius: 12,
-                  padding: 14,
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-                }}
-              >
-                <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ fontSize: 11, fontWeight: 800, color: "#6b7280", background: "#e5e7eb", padding: "1px 6px", borderRadius: 4 }}>
-                      #{idx + 1}
-                    </span>
-                    <span style={{ fontWeight: 800, fontSize: 14, color: "#111827" }}>{c.name}</span>
-                  </div>
-                  <p style={{ fontSize: 12, color: "#6b7280", margin: "4px 0 0" }}>{formatPhoneForDisplay(c.phone)}</p>
-                  <span style={{ fontSize: 11, color: "#9ca3af" }}>📍 {c.kecamatan} • {c.orders_count} Order</span>
-                </div>
+        {/* 2 COLUMNS LAYOUT: COLUMN 1 BY REVENUE, COLUMN 2 BY FREQUENCY */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+          {/* KOLOM 1: TOP CUSTOMER BY REVENUE (OMSET) */}
+          <div style={{ background: "#fafafa", borderRadius: 12, padding: 16, border: "1px solid #f3f4f6" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, paddingBottom: 8, borderBottom: "2px solid #e5e7eb" }}>
+              <h4 style={{ fontSize: 15, fontWeight: 800, color: "#5005A6", margin: 0 }}>
+                🏆 Kolom 1: Top Customer by Revenue
+              </h4>
+              <span style={{ fontSize: 11, background: "#f3e8ff", color: "#7e22ce", fontWeight: 700, padding: "2px 8px", borderRadius: 12 }}>
+                Sort: Omset (Rp)
+              </span>
+            </div>
 
-                <div style={{ textAlign: "right" }}>
-                  <span style={{ fontSize: 14, fontWeight: 900, color: "#5005A6" }}>
-                    Rp {Number(c.omset).toLocaleString("id-ID")}
-                  </span>
-                </div>
-              </div>
-            ))
-          )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {loading ? (
+                <p style={{ color: "#9ca3af", textAlign: "center", padding: 20 }}>Memuat Top Revenue...</p>
+              ) : !(data?.top_customers_omset || data?.top_customers) || (data?.top_customers_omset || data?.top_customers).length === 0 ? (
+                <p style={{ color: "#9ca3af", textAlign: "center", padding: 20 }}>Tidak ada data customer.</p>
+              ) : (
+                (data?.top_customers_omset || data?.top_customers).map((c: any, idx: number) => (
+                  <div
+                    key={c.id || idx}
+                    onClick={() => handleOpenCustOrders(c)}
+                    style={{
+                      background: "white",
+                      border: "1px solid #e5e7eb",
+                      borderRadius: 10,
+                      padding: "10px 14px",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      cursor: "pointer",
+                      transition: "all 0.15s ease",
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#5005A6")}
+                    onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#e5e7eb")}
+                  >
+                    <div style={{ flex: 1, minWidth: 0, paddingRight: 10 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: "#5005A6", background: "#f3e8ff", padding: "1px 6px", borderRadius: 4 }}>
+                          #{idx + 1}
+                        </span>
+                        <span style={{ fontWeight: 800, fontSize: 13, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {c.name}
+                        </span>
+                      </div>
+                      <p style={{ fontSize: 11, color: "#6b7280", margin: "2px 0 0" }}>
+                        📞 {formatPhoneForDisplay(c.phone)} • 📍 {c.kecamatan}
+                      </p>
+                    </div>
+
+                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 900, color: "#5005A6" }}>
+                        Rp {Number(c.omset).toLocaleString("id-ID")}
+                      </div>
+                      <span style={{ fontSize: 11, color: "#6b7280" }}>{c.orders_count} Order</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* KOLOM 2: TOP CUSTOMER BY FREQUENCY (JUMLAH ORDER) */}
+          <div style={{ background: "#fafafa", borderRadius: 12, padding: 16, border: "1px solid #f3f4f6" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, paddingBottom: 8, borderBottom: "2px solid #e5e7eb" }}>
+              <h4 style={{ fontSize: 15, fontWeight: 800, color: "#1d4ed8", margin: 0 }}>
+                ⚡ Kolom 2: Top Customer by Frequency
+              </h4>
+              <span style={{ fontSize: 11, background: "#eff6ff", color: "#1d4ed8", fontWeight: 700, padding: "2px 8px", borderRadius: 12 }}>
+                Sort: Jumlah Order
+              </span>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {loading ? (
+                <p style={{ color: "#9ca3af", textAlign: "center", padding: 20 }}>Memuat Top Frequency...</p>
+              ) : !(data?.top_customers_frequency || data?.top_customers) || (data?.top_customers_frequency || data?.top_customers).length === 0 ? (
+                <p style={{ color: "#9ca3af", textAlign: "center", padding: 20 }}>Tidak ada data customer.</p>
+              ) : (
+                (data?.top_customers_frequency || data?.top_customers).map((c: any, idx: number) => (
+                  <div
+                    key={c.id || idx}
+                    onClick={() => handleOpenCustOrders(c)}
+                    style={{
+                      background: "white",
+                      border: "1px solid #e5e7eb",
+                      borderRadius: 10,
+                      padding: "10px 14px",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      cursor: "pointer",
+                      transition: "all 0.15s ease",
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#1d4ed8")}
+                    onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#e5e7eb")}
+                  >
+                    <div style={{ flex: 1, minWidth: 0, paddingRight: 10 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: "#1d4ed8", background: "#eff6ff", padding: "1px 6px", borderRadius: 4 }}>
+                          #{idx + 1}
+                        </span>
+                        <span style={{ fontWeight: 800, fontSize: 13, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {c.name}
+                        </span>
+                      </div>
+                      <p style={{ fontSize: 11, color: "#6b7280", margin: "2px 0 0" }}>
+                        📞 {formatPhoneForDisplay(c.phone)} • 📍 {c.kecamatan}
+                      </p>
+                    </div>
+
+                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 900, color: "#1d4ed8" }}>
+                        {c.orders_count} Order
+                      </div>
+                      <span style={{ fontSize: 11, color: "#6b7280" }}>Rp {Number(c.omset).toLocaleString("id-ID")}</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1134,6 +1339,119 @@ export default function SiapSajiCustomerAnalyticsPage() {
                 </div>
               );
             })()}
+          </div>
+        </div>
+      )}
+
+      {/* CUSTOMER ORDER DRILLDOWN MODAL */}
+      {selectedCustDetail && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 110,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              background: "white",
+              borderRadius: 16,
+              maxWidth: 780,
+              width: "100%",
+              maxHeight: "85vh",
+              display: "flex",
+              flexDirection: "column",
+              boxShadow: "0 20px 25px -5px rgba(0,0,0,0.2)",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                padding: "16px 24px",
+                borderBottom: "1px solid #e5e7eb",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                background: "#f9fafb",
+              }}
+            >
+              <div>
+                <h3 style={{ fontSize: 17, fontWeight: 800, color: "#111827", margin: 0 }}>
+                  Riwayat Order — {selectedCustDetail.name}
+                </h3>
+                <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>
+                  📞 {selectedCustDetail.phone || "-"} • 📍 Kec. {selectedCustDetail.kecamatan || "-"}
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedCustDetail(null)}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280", padding: 4 }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
+              {loadingCustOrders ? (
+                <p style={{ textAlign: "center", padding: 30, color: "#9ca3af" }}>Memuat riwayat order...</p>
+              ) : custOrdersList.length === 0 ? (
+                <p style={{ textAlign: "center", padding: 30, color: "#9ca3af" }}>Belum ada riwayat transaksi order ditemukan.</p>
+              ) : (
+                <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 13, whiteSpace: "nowrap" }}>
+                  <thead>
+                    <tr style={{ background: "#f3f4f6", color: "#4b5563", fontSize: 11, fontWeight: 700, textTransform: "uppercase" }}>
+                      <th style={{ padding: "10px 12px" }}>No. Struk</th>
+                      <th style={{ padding: "10px 12px" }}>Tgl Order</th>
+                      <th style={{ padding: "10px 12px" }}>Tgl Kirim</th>
+                      <th style={{ padding: "10px 12px" }}>Channel</th>
+                      <th style={{ padding: "10px 12px" }}>Status</th>
+                      <th style={{ padding: "10px 12px", textAlign: "right" }}>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {custOrdersList.map((ord: any) => (
+                      <tr key={ord.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                        <td style={{ padding: "10px 12px", fontWeight: 700, color: "#5005A6" }}>{ord.no_struk}</td>
+                        <td style={{ padding: "10px 12px", color: "#374151" }}>{ord.order_date ? ord.order_date.split("T")[0] : "-"}</td>
+                        <td style={{ padding: "10px 12px", color: "#374151" }}>{ord.delivery_date ? ord.delivery_date.split("T")[0] : "-"}</td>
+                        <td style={{ padding: "10px 12px", color: "#4b5563" }}>{ord.channel_name || "-"}</td>
+                        <td style={{ padding: "10px 12px" }}>
+                          <span
+                            style={{
+                              padding: "2px 8px",
+                              borderRadius: 4,
+                              fontSize: 11,
+                              fontWeight: 700,
+                              background: ord.status_order === "Dibatalkan" ? "#fee2e2" : "#dcfce7",
+                              color: ord.status_order === "Dibatalkan" ? "#dc2626" : "#15803d",
+                            }}
+                          >
+                            {ord.status_order}
+                          </span>
+                        </td>
+                        <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 800, color: "#111827" }}>
+                          Rp {Number(ord.grand_total || 0).toLocaleString("id-ID")}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div style={{ padding: "12px 20px", borderTop: "1px solid #e5e7eb", background: "#f9fafb", textAlign: "right" }}>
+              <button
+                onClick={() => setSelectedCustDetail(null)}
+                style={{ padding: "8px 16px", background: "#5005A6", color: "white", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+              >
+                Tutup
+              </button>
+            </div>
           </div>
         </div>
       )}

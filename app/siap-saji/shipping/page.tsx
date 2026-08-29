@@ -151,37 +151,19 @@ export default function SiapSajiShippingPage() {
   };
 
   const handleDeleteOverride = async (row: any) => {
-    if (row.sumber_fee === "spesifik") {
-      if (!confirm(`Apakah Anda yakin ingin menghapus override tarif ongkir untuk ${row.kecamatan} (${row.channel_name})? Tarif akan kembali ke default zona.`)) return;
-      try {
-        const res = await fetch(`/api/siap-saji/shipping?area_id=${row.area_id}&channel_id=${row.channel_id}`, {
-          method: "DELETE",
-        });
-        if (!res.ok) throw new Error("Gagal menghapus override tarif");
-        toast.success("Tarif ongkir dikembalikan ke default zona.");
-        fetchMatrix();
-      } catch (err: any) {
-        toast.error(err.message || "Gagal menghapus tarif");
+    if (!confirm(`Apakah Anda yakin ingin menghapus tarif ongkir untuk ${row.kecamatan} (${row.channel_name})?`)) return;
+    try {
+      const res = await fetch(`/api/siap-saji/shipping?area_id=${row.area_id}&channel_id=${row.channel_id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const errJson = await res.json();
+        throw new Error(errJson.error || "Gagal menghapus tarif ongkir");
       }
-    } else {
-      if (!confirm(`Apakah Anda yakin ingin set tarif ongkir Rp 0 untuk ${row.kecamatan} (${row.channel_name})?`)) return;
-      try {
-        const res = await fetch("/api/siap-saji/shipping", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            area_id: row.area_id,
-            channel_id: row.channel_id,
-            shipping_fee: 0,
-            notes: "Set 0 via Hapus",
-          }),
-        });
-        if (!res.ok) throw new Error("Gagal mengeset tarif ke Rp 0");
-        toast.success("Tarif ongkir berhasil diset ke Rp 0.");
-        fetchMatrix();
-      } catch (err: any) {
-        toast.error(err.message || "Gagal mengeset tarif");
-      }
+      toast.success("Tarif ongkir berhasil dihapus!");
+      fetchMatrix();
+    } catch (err: any) {
+      toast.error(err.message || "Gagal menghapus tarif");
     }
   };
 

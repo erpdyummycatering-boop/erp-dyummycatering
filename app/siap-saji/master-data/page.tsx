@@ -122,6 +122,21 @@ export default function SiapSajiMasterDataPage() {
     }
   };
 
+  const handleDeleteArea = async (id: number, name: string) => {
+    if (!confirm(`Apakah Anda yakin ingin menghapus wilayah/kecamatan "${name}"?`)) return;
+    try {
+      const res = await fetch(`/api/siap-saji/areas/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const errJson = await res.json();
+        throw new Error(errJson.error || "Gagal menghapus kecamatan");
+      }
+      toast.success(`Kecamatan "${name}" berhasil dihapus!`);
+      fetchAreas();
+    } catch (err: any) {
+      toast.error(err.message || "Gagal menghapus kecamatan");
+    }
+  };
+
   // Handle Channel Submit
   const handleSubmitChannel = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -359,18 +374,26 @@ export default function SiapSajiMasterDataPage() {
                         </span>
                       </td>
                       <td style={{ padding: "14px 16px", textAlign: "right" }}>
-                        <button
-                          onClick={() => {
-                            setEditingArea(a);
-                            setKecamatan(a.kecamatan);
-                            setKota(a.kota);
-                            setShippingZone(a.shipping_zone);
-                            setIsAreaModalOpen(true);
-                          }}
-                          style={{ padding: "6px 12px", background: "#5005A6", color: "white", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
-                        >
-                          Edit
-                        </button>
+                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
+                          <button
+                            onClick={() => {
+                              setEditingArea(a);
+                              setKecamatan(a.kecamatan);
+                              setKota(a.kota);
+                              setShippingZone(a.shipping_zone);
+                              setIsAreaModalOpen(true);
+                            }}
+                            style={{ padding: "6px 12px", background: "#5005A6", color: "white", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeleteArea(a.id, a.kecamatan)}
+                            style={{ padding: "6px 12px", background: "#fee2e2", color: "#dc2626", border: "1px solid #fca5a5", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                          >
+                            Hapus
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))

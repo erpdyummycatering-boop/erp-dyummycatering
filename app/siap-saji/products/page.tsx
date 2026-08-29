@@ -104,7 +104,10 @@ export default function SiapSajiProductsPage() {
     fetchProducts();
   }, [search, categoryFilter, porsiFilter]);
 
-  const handleOpenAdd = () => {
+  const [baseAutoSku, setBaseAutoSku] = useState("");
+  const [baseAutoHalfSku, setBaseAutoHalfSku] = useState("");
+
+  const handleOpenAdd = async () => {
     setEditingProd(null);
     setSku("");
     setName("");
@@ -115,6 +118,31 @@ export default function SiapSajiProductsPage() {
     setParentSku("");
     setChannelPricesInput({});
     setIsModalOpen(true);
+
+    try {
+      const res = await fetch("/api/siap-saji/products/next-sku");
+      if (res.ok) {
+        const json = await res.json();
+        if (json.next_sku) {
+          setBaseAutoSku(json.next_sku);
+          setBaseAutoHalfSku(json.next_half_sku);
+          setSku(json.next_sku);
+        }
+      }
+    } catch (err) {
+      console.error("Gagal auto-fetch SKU:", err);
+    }
+  };
+
+  const handleToggleHalfPortion = (checked: boolean) => {
+    setIsHalfPortion(checked);
+    if (!editingProd && baseAutoSku) {
+      if (checked && baseAutoHalfSku) {
+        setSku(baseAutoHalfSku);
+      } else {
+        setSku(baseAutoSku);
+      }
+    }
   };
 
   const handleOpenEdit = (prod: Product) => {
@@ -455,7 +483,7 @@ export default function SiapSajiProductsPage() {
                   <input
                     type="checkbox"
                     checked={isHalfPortion}
-                    onChange={(e) => setIsHalfPortion(e.target.checked)}
+                    onChange={(e) => handleToggleHalfPortion(e.target.checked)}
                     style={{ width: 16, height: 16, accentColor: "#b10fbd" }}
                   />
                   Produk ini Varian ½ Porsi (SKU terpisah & harga berbeda)
