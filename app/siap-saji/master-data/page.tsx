@@ -137,6 +137,21 @@ export default function SiapSajiMasterDataPage() {
     }
   };
 
+  const handleDeleteChannel = async (id: number, name: string) => {
+    if (!confirm(`Apakah Anda yakin ingin menghapus/menonaktifkan channel "${name}"?`)) return;
+    try {
+      const res = await fetch(`/api/siap-saji/channels/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const errJson = await res.json();
+        throw new Error(errJson.error || "Gagal menghapus channel");
+      }
+      toast.success(`Channel "${name}" berhasil dinonaktifkan!`);
+      fetchChannels();
+    } catch (err: any) {
+      toast.error(err.message || "Gagal menghapus channel");
+    }
+  };
+
   // Handle Channel Submit
   const handleSubmitChannel = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -461,19 +476,27 @@ export default function SiapSajiMasterDataPage() {
                         </span>
                       </td>
                       <td style={{ padding: "14px 16px", textAlign: "right" }}>
-                        <button
-                          onClick={() => {
-                            setEditingChannel(c);
-                            setChannelName(c.name);
-                            setHargaType(c.harga_type);
-                            setPlatformKey(c.platform_key || "");
-                            setUrutan(c.urutan);
-                            setIsChannelModalOpen(true);
-                          }}
-                          style={{ padding: "6px 12px", background: "#5005A6", color: "white", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
-                        >
-                          Edit
-                        </button>
+                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
+                          <button
+                            onClick={() => {
+                              setEditingChannel(c);
+                              setChannelName(c.name);
+                              setHargaType(c.harga_type);
+                              setPlatformKey(c.platform_key || "");
+                              setUrutan(c.urutan);
+                              setIsChannelModalOpen(true);
+                            }}
+                            style={{ padding: "6px 12px", background: "#5005A6", color: "white", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeleteChannel(c.id, c.name)}
+                            style={{ padding: "6px 12px", background: "#fee2e2", color: "#dc2626", border: "1px solid #fca5a5", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                          >
+                            Hapus
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
