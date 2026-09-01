@@ -600,6 +600,8 @@ export default function SiapSajiOrdersPage() {
 
   const resetForm = () => {
     setEditingOrderId(null);
+    setDeliveryDate(getTodayStr());
+    setOrderDate(getTodayStr());
     setCustomerName("");
     setCustomerPhone("");
     setSelectedAreaId(masterAreas.length > 0 ? masterAreas[0].id : "");
@@ -1704,8 +1706,25 @@ export default function SiapSajiOrdersPage() {
             )}
 
             <form onSubmit={handleSubmitOrder}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
-                {/* 1. Channel Penjualan */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 20 }}>
+                {/* 1. Tanggal Kirim / Order */}
+                <div>
+                  <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 6 }}>
+                    Tanggal Transaksi / Kirim *
+                  </label>
+                  <input
+                    type="date"
+                    value={deliveryDate}
+                    onChange={(e) => {
+                      setDeliveryDate(e.target.value);
+                      setOrderDate(e.target.value);
+                    }}
+                    required
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, outline: "none" }}
+                  />
+                </div>
+
+                {/* 2. Channel Penjualan */}
                 <div>
                   <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 6 }}>
                     Channel Penjualan *
@@ -1724,7 +1743,7 @@ export default function SiapSajiOrdersPage() {
                   </select>
                 </div>
 
-                {/* 2. Rekening Pembayaran */}
+                {/* 3. Rekening Pembayaran */}
                 <div>
                   <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 6 }}>
                     Rekening Pembayaran *
