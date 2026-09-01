@@ -1,8 +1,25 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Layers, Plus, Search, Filter, Edit3, Trash2, Tag, Check, X } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import {
+  Layers,
+  Plus,
+  Search,
+  Filter,
+  Edit3,
+  Trash2,
+  Tag,
+  Check,
+  X,
+  Upload,
+  Download,
+  FileSpreadsheet,
+  AlertCircle,
+  CheckCircle2,
+  Info,
+} from "lucide-react";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
 import { Pagination } from "@/components/ui/Pagination";
 
 interface Category {
@@ -27,6 +44,21 @@ interface Product {
   parent_sku: string | null;
   status: string;
   channel_prices?: { channel_id: number; channel_name?: string; harga_override: number | null }[];
+}
+
+interface ParsedImportRow {
+  sku: string;
+  autoSkuPreview: string;
+  name: string;
+  category_id: number | null;
+  category_name: string;
+  price: number;
+  is_half_portion: boolean;
+  parent_sku: string;
+  description: string;
+  channel_prices: { channel_id: number; channel_name: string; harga_override: number | null }[];
+  isValid: boolean;
+  errorMsg?: string;
 }
 
 export default function SiapSajiProductsPage() {
@@ -54,6 +86,13 @@ export default function SiapSajiProductsPage() {
   const [parentSku, setParentSku] = useState("");
   const [channelPricesInput, setChannelPricesInput] = useState<{ [chId: number]: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Modal Upload XLSX
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [parsedRows, setParsedRows] = useState<ParsedImportRow[]>([]);
+  const [fileName, setFileName] = useState("");
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchProducts = async (page = meta.page, lim = meta.limit) => {
     setLoading(true);
@@ -213,6 +252,300 @@ export default function SiapSajiProductsPage() {
     }
   };
 
+  // ──────────────────────────────────────────────────────────
+  // EXCEL SAMPLE TEMPLATE GENERATION
+  // ──────────────────────────────────────────────────────────
+  const handleDownloadTemplate = () => {
+    const wb = XLSX.utils.book_new();
+
+    // 1. Main Data Sheet: Katalog_Produk
+    const channelHeaders = channels.map((ch) => `Harga ${ch.name} (ID: ${ch.id})`);
+    const headers = [
+      "SKU",
+      "Nama Produk",
+      "ID Kategori",
+      "Nama Kategori",
+      "Harga Normal (Rp)",
+      "Varian Porsi",
+      "Parent SKU",
+      "Deskripsi",
+      ...channelHeaders,
+    ];
+
+    const catAyam = categories.find((c) => c.name.toLowerCase().includes("ayam")) || categories[0] || { id: 1, name: "Lauk Ayam" };
+    const catDaging = categories.find((c) => c.name.toLowerCase().includes("daging")) || categories[1] || { id: 2, name: "Lauk Daging" };
+
+    const sampleRow1 = [
+      "", // Left empty for automatic SKU generation (e.g. SP-A07)
+      "Ayam Bakar Madu Special",
+      catAyam.id,
+      catAyam.name,
+      95000,
+      "Penuh",
+      "",
+      "Ayam bakar bumbu madu pilihan porsi utuh",
+      ...channels.map((ch) => (ch.name.toLowerCase().includes("marketplace") ? 115000 : "")),
+    ];
+
+    const sampleRow2 = [
+      "", // Left empty for auto SKU (e.g. SP-A07H)
+      "Ayam Bakar Madu Special (½ Porsi)",
+      catAyam.id,
+      catAyam.name,
+      50000,
+      "Setengah",
+      "SP-A07",
+      "Varian setengah porsi ayam bakar madu",
+      ...channels.map((ch) => (ch.name.toLowerCase().includes("marketplace") ? 60000 : "")),
+    ];
+
+    const sampleRow3 = [
+      "SP-D05", // Manual SKU example
+      "Empal Gentong Daging Sapi",
+      catDaging.id,
+      catDaging.name,
+      85000,
+      "Penuh",
+      "",
+      "Empal gentong daging kuah santan gurih",
+      ...channels.map(() => ""),
+    ];
+
+    const wsData = XLSX.utils.aoa_to_sheet([headers, sampleRow1, sampleRow2, sampleRow3]);
+    wsData["!cols"] = [
+      { wch: 14 },
+      { wch: 32 },
+      { wch: 14 },
+      { wch: 22 },
+      { wch: 18 },
+      { wch: 15 },
+      { wch: 14 },
+      { wch: 35 },
+      ...channels.map(() => ({ wch: 26 })),
+    ];
+    XLSX.utils.book_append_sheet(wb, wsData, "Katalog_Produk");
+
+    // 2. Reference Sheet: Referensi_Kategori
+    const catHeaders = ["ID Kategori", "Nama Kategori", "Petunjuk Kodifikasi"];
+    const catRows = categories.map((c) => [c.id, c.name, `Gunakan ID '${c.id}' untuk kategori ${c.name}`]);
+    const wsCat = XLSX.utils.aoa_to_sheet([catHeaders, ...catRows]);
+    wsCat["!cols"] = [{ wch: 14 }, { wch: 30 }, { wch: 45 }];
+    XLSX.utils.book_append_sheet(wb, wsCat, "Referensi_Kategori");
+
+    // 3. Reference Sheet: Referensi_Channel
+    const chHeaders = ["ID Channel", "Nama Channel", "Format Header Kolom", "Keterangan"];
+    const chRows = channels.map((ch) => [
+      ch.id,
+      ch.name,
+      `Harga ${ch.name} (ID: ${ch.id})`,
+      "Isi nominal harga khusus channel ini. Kosongkan jika menggunakan Harga Normal.",
+    ]);
+    const wsCh = XLSX.utils.aoa_to_sheet([chHeaders, ...chRows]);
+    wsCh["!cols"] = [{ wch: 14 }, { wch: 25 }, { wch: 32 }, { wch: 60 }];
+    XLSX.utils.book_append_sheet(wb, wsCh, "Referensi_Channel");
+
+    // 4. Reference Sheet: Petunjuk_Pengisian
+    const guideRows = [
+      ["PANDUAN & PETUNJUK IMPOR PRODUK SIAP SAJI"],
+      [""],
+      ["Nama Kolom", "Status", "Panduan Pengisian Data"],
+      ["SKU", "Opsional", "Kosongkan jika ingin sistem secara otomatis men-generate SKU (contoh: SP-A07 / SP-A07H)."],
+      ["Nama Produk", "Wajib", "Nama lengkap produk retail."],
+      ["ID Kategori", "Rekomendasi", "Isi dengan angka ID Kategori sesuai tabel di sheet 'Referensi_Kategori'."],
+      ["Nama Kategori", "Opsional", "Nama kategori produk. Jika ID Kategori kosong, sistem otomatis mencocokkan nama ini."],
+      ["Harga Normal (Rp)", "Wajib", "Harga dasar porsi penuh dalam angka tanpa titik/Rp (contoh: 100000)."],
+      ["Varian Porsi", "Wajib", "Isi 'Penuh' untuk porsi utuh, atau 'Setengah' / '½ Porsi' / '1/2' untuk varian setengah."],
+      ["Parent SKU", "Opsional", "Jika Varian Porsi = 'Setengah', isi SKU dari produk porsi penuhnya."],
+      ["Harga Channel", "Opsional", "Isi override harga di kolom 'Harga [Channel] (ID: X)'. Kosongkan jika sama dengan Harga Normal."],
+    ];
+    const wsGuide = XLSX.utils.aoa_to_sheet(guideRows);
+    wsGuide["!cols"] = [{ wch: 20 }, { wch: 16 }, { wch: 80 }];
+    XLSX.utils.book_append_sheet(wb, wsGuide, "Petunjuk_Pengisian");
+
+    XLSX.writeFile(wb, "Template_Import_Produk_SiapSaji.xlsx");
+    toast.success("Template sample Excel berhasil diunduh!");
+  };
+
+  // ──────────────────────────────────────────────────────────
+  // PARSE UPLOADED EXCEL FILE
+  // ──────────────────────────────────────────────────────────
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setFileName(file.name);
+    const reader = new FileReader();
+
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: "binary" });
+        const sheetName = wb.SheetNames.includes("Katalog_Produk") ? "Katalog_Produk" : wb.SheetNames[0];
+        const ws = wb.Sheets[sheetName];
+        const rawData: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
+
+        if (rawData.length < 2) {
+          toast.error("File Excel kosong atau tidak memiliki baris data.");
+          return;
+        }
+
+        const headers: string[] = rawData[0].map((h) => String(h || "").trim());
+
+        // Find column indices
+        const skuIdx = headers.findIndex((h) => /^sku$/i.test(h));
+        const nameIdx = headers.findIndex((h) => /nama\s*produk/i.test(h) || /^name$/i.test(h));
+        const catIdIdx = headers.findIndex((h) => /id\s*kategori/i.test(h) || /category_id/i.test(h));
+        const catNameIdx = headers.findIndex((h) => /nama\s*kategori/i.test(h) || /category_name/i.test(h));
+        const priceIdx = headers.findIndex((h) => /harga\s*normal/i.test(h) || /price/i.test(h));
+        const porsiIdx = headers.findIndex((h) => /porsi|varian/i.test(h));
+        const parentSkuIdx = headers.findIndex((h) => /parent\s*sku/i.test(h));
+        const descIdx = headers.findIndex((h) => /deskripsi|description/i.test(h));
+
+        // Find Channel columns in header by ID pattern e.g. (ID: 1) or channel names
+        const channelColMap: { colIdx: number; channelId: number; channelName: string }[] = [];
+        headers.forEach((h, colIdx) => {
+          const matchId = h.match(/\(ID:\s*(\d+)\)/i);
+          if (matchId) {
+            const chId = parseInt(matchId[1], 10);
+            const foundCh = channels.find((c) => c.id === chId);
+            if (foundCh) {
+              channelColMap.push({ colIdx, channelId: foundCh.id, channelName: foundCh.name });
+            }
+          } else {
+            // Check by exact channel name match
+            const foundCh = channels.find((c) => h.toLowerCase().includes(c.name.toLowerCase()));
+            if (foundCh) {
+              channelColMap.push({ colIdx, channelId: foundCh.id, channelName: foundCh.name });
+            }
+          }
+        });
+
+        const rowsParsed: ParsedImportRow[] = [];
+        let autoSkuCounter = 1;
+
+        for (let i = 1; i < rawData.length; i++) {
+          const row = rawData[i];
+          if (!row || row.length === 0 || row.every((c) => c === undefined || c === null || String(c).trim() === "")) {
+            continue; // Skip empty rows
+          }
+
+          const rawSku = skuIdx >= 0 ? String(row[skuIdx] || "").trim() : "";
+          const prodName = nameIdx >= 0 ? String(row[nameIdx] || "").trim() : "";
+          const rawCatId = catIdIdx >= 0 && row[catIdIdx] !== undefined && row[catIdIdx] !== null ? Number(row[catIdIdx]) : null;
+          const catNameVal = catNameIdx >= 0 ? String(row[catNameIdx] || "").trim() : "";
+          const priceVal = priceIdx >= 0 ? Number(row[priceIdx] || 0) : 0;
+          const porsiVal = porsiIdx >= 0 ? String(row[porsiIdx] || "").trim().toLowerCase() : "";
+          const parentSkuVal = parentSkuIdx >= 0 ? String(row[parentSkuIdx] || "").trim() : "";
+          const descVal = descIdx >= 0 ? String(row[descIdx] || "").trim() : "";
+
+          const isHalf = porsiVal.includes("setengah") || porsiVal.includes("½") || porsiVal.includes("1/2") || porsiVal.includes("half") || porsiVal === "true" || porsiVal === "1";
+
+          // Match Category Name if catId is null
+          let matchedCatName = catNameVal;
+          if (rawCatId) {
+            const foundCat = categories.find((c) => c.id === rawCatId);
+            if (foundCat) matchedCatName = foundCat.name;
+          } else if (catNameVal) {
+            const foundCat = categories.find((c) => c.name.toLowerCase() === catNameVal.toLowerCase());
+            if (foundCat) matchedCatName = foundCat.name;
+          }
+
+          // Channel price overrides
+          const chPrices: { channel_id: number; channel_name: string; harga_override: number | null }[] = [];
+          channelColMap.forEach((cMap) => {
+            const cellVal = row[cMap.colIdx];
+            const numVal = cellVal !== undefined && cellVal !== null && String(cellVal).trim() !== "" ? Number(cellVal) : null;
+            chPrices.push({
+              channel_id: cMap.channelId,
+              channel_name: cMap.channelName,
+              harga_override: numVal !== null && !isNaN(numVal) ? numVal : null,
+            });
+          });
+
+          // SKU Preview
+          let autoSkuPreview = rawSku;
+          if (!rawSku) {
+            autoSkuPreview = isHalf ? `SP-A[AUTO]H` : `SP-A[AUTO]`;
+            autoSkuCounter++;
+          }
+
+          const isValid = Boolean(prodName) && priceVal >= 0;
+          let errorMsg = "";
+          if (!prodName) errorMsg = "Nama Produk wajib diisi";
+
+          rowsParsed.push({
+            sku: rawSku,
+            autoSkuPreview,
+            name: prodName,
+            category_id: rawCatId && !isNaN(rawCatId) ? rawCatId : null,
+            category_name: matchedCatName,
+            price: priceVal,
+            is_half_portion: isHalf,
+            parent_sku: parentSkuVal,
+            description: descVal,
+            channel_prices: chPrices,
+            isValid,
+            errorMsg,
+          });
+        }
+
+        setParsedRows(rowsParsed);
+      } catch (err: any) {
+        console.error("Gagal membaca file Excel:", err);
+        toast.error("Gagal membaca file Excel: " + (err.message || "Format file tidak valid"));
+      }
+    };
+
+    reader.readAsBinaryString(file);
+  };
+
+  const handleProcessImport = async () => {
+    if (parsedRows.length === 0) return toast.error("Belum ada data produk yang di-parse.");
+
+    const validRows = parsedRows.filter((r) => r.isValid);
+    if (validRows.length === 0) return toast.error("Semua baris data memiliki kesalahan.");
+
+    setIsImporting(true);
+
+    try {
+      const payload = {
+        products: validRows.map((r) => ({
+          sku: r.sku,
+          name: r.name,
+          category_id: r.category_id,
+          category_name: r.category_name,
+          price: r.price,
+          is_half_portion: r.is_half_portion,
+          parent_sku: r.parent_sku,
+          description: r.description,
+          channel_prices: r.channel_prices,
+        })),
+      };
+
+      const res = await fetch("/api/siap-saji/products/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json();
+        throw new Error(errJson.error || "Gagal mengimpor produk");
+      }
+
+      const json = await res.json();
+      toast.success(`Berhasil mengimpor ${json.count || validRows.length} produk Siap Saji!`);
+      setIsUploadModalOpen(false);
+      setParsedRows([]);
+      setFileName("");
+      fetchProducts();
+    } catch (err: any) {
+      toast.error(err.message || "Terjadi kesalahan saat mengimpor produk");
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   return (
     <div style={{ maxWidth: 1280, margin: "0 auto", paddingBottom: 40 }}>
       {/* Header */}
@@ -226,25 +559,51 @@ export default function SiapSajiProductsPage() {
           </p>
         </div>
 
-        <button
-          onClick={handleOpenAdd}
-          style={{
-            background: "linear-gradient(135deg, #5005A6 0%, #B10FBD 100%)",
-            color: "white",
-            border: "none",
-            borderRadius: 10,
-            padding: "10px 18px",
-            fontSize: 14,
-            fontWeight: 700,
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            boxShadow: "0 4px 12px rgba(177, 15, 189, 0.25)",
-          }}
-        >
-          <Plus size={18} /> Tambah Produk
-        </button>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button
+            onClick={() => {
+              setParsedRows([]);
+              setFileName("");
+              setIsUploadModalOpen(true);
+            }}
+            style={{
+              background: "#ffffff",
+              color: "#5005A6",
+              border: "1.5px solid #5005A6",
+              borderRadius: 10,
+              padding: "10px 18px",
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              transition: "all 0.2s",
+            }}
+          >
+            <Upload size={18} /> Import XLSX
+          </button>
+
+          <button
+            onClick={handleOpenAdd}
+            style={{
+              background: "linear-gradient(135deg, #5005A6 0%, #B10FBD 100%)",
+              color: "white",
+              border: "none",
+              borderRadius: 10,
+              padding: "10px 18px",
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              boxShadow: "0 4px 12px rgba(177, 15, 189, 0.25)",
+            }}
+          >
+            <Plus size={18} /> Tambah Produk
+          </button>
+        </div>
       </div>
 
       {/* Filter Toolbar */}
@@ -390,6 +749,217 @@ export default function SiapSajiProductsPage() {
           onLimitChange={(lim) => fetchProducts(1, lim)}
         />
       </div>
+
+      {/* ── MODAL: UPLOAD / IMPORT XLSX ──────────────────────────── */}
+      {isUploadModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 100,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <div style={{ background: "white", borderRadius: 16, maxWidth: 900, width: "100%", padding: 24, maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
+            {/* Header Modal */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <div>
+                <h3 style={{ fontSize: 18, fontWeight: 800, color: "#111827", margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                  <FileSpreadsheet color="#5005A6" size={22} /> Import Produk dari Excel (.xlsx)
+                </h3>
+                <p style={{ fontSize: 13, color: "#6b7280", margin: "4px 0 0" }}>
+                  Gunakan template sample multi-sheet untuk pengisian kode kategori & ID channel dengan tepat.
+                </p>
+              </div>
+              <button onClick={() => setIsUploadModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af" }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Action Buttons & Dropzone */}
+            <div style={{ background: "#f8fafc", borderRadius: 12, padding: 16, border: "1px dashed #cbd5e1", marginBottom: 16, display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", display: "block", marginBottom: 4 }}>
+                  1. Unduh Template XLSX Sample
+                </span>
+                <span style={{ fontSize: 12, color: "#64748b" }}>
+                  Terdiri dari sheet Katalog Data, Referensi Kategori, Referensi Channel & Panduan
+                </span>
+              </div>
+              <button
+                onClick={handleDownloadTemplate}
+                style={{
+                  background: "#eff6ff",
+                  color: "#1d4ed8",
+                  border: "1px solid #bfdbfe",
+                  borderRadius: 8,
+                  padding: "8px 16px",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <Download size={16} /> Unduh Template Sample
+              </button>
+            </div>
+
+            <div style={{ background: "#f9fafb", borderRadius: 12, padding: 20, border: "2px dashed #d1d5db", textAlign: "center", marginBottom: 16 }}>
+              <Upload size={32} color="#9ca3af" style={{ margin: "0 auto 8px" }} />
+              <p style={{ fontSize: 14, fontWeight: 600, color: "#374151", margin: 0 }}>
+                2. Pilih atau Drop File Excel (.xlsx / .xls)
+              </p>
+              <p style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
+                {fileName ? `File terpilih: ${fileName}` : "Format didukung: .xlsx, .xls"}
+              </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx, .xls"
+                onChange={handleFileUpload}
+                style={{ display: "none" }}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  marginTop: 10,
+                  padding: "8px 20px",
+                  background: "#5005A6",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Pilih File Excel
+              </button>
+            </div>
+
+            {/* Preview Table */}
+            {parsedRows.length > 0 && (
+              <div style={{ flex: 1, overflowY: "auto", border: "1px solid #e5e7eb", borderRadius: 10, marginBottom: 16 }}>
+                <div style={{ padding: "10px 14px", background: "#f8fafc", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>
+                    Pratinjau Hasil Parsing ({parsedRows.length} Produk)
+                  </span>
+                  <span style={{ fontSize: 12, color: "#16a34a", fontWeight: 600 }}>
+                    <CheckCircle2 size={14} style={{ display: "inline", marginRight: 4 }} />
+                    {parsedRows.filter((r) => r.isValid).length} Baris Valid
+                  </span>
+                </div>
+
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, textAlign: "left", whiteSpace: "nowrap" }}>
+                  <thead>
+                    <tr style={{ background: "#f1f5f9", color: "#475569", fontWeight: 700 }}>
+                      <th style={{ padding: "8px 12px" }}>No.</th>
+                      <th style={{ padding: "8px 12px" }}>SKU Status</th>
+                      <th style={{ padding: "8px 12px" }}>Nama Produk</th>
+                      <th style={{ padding: "8px 12px" }}>Kategori</th>
+                      <th style={{ padding: "8px 12px" }}>Varian Porsi</th>
+                      <th style={{ padding: "8px 12px" }}>Harga Normal</th>
+                      <th style={{ padding: "8px 12px" }}>Harga Channel Overrides</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {parsedRows.map((row, idx) => (
+                      <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9", background: row.isValid ? "white" : "#fef2f2" }}>
+                        <td style={{ padding: "8px 12px", color: "#64748b" }}>{idx + 1}</td>
+                        <td style={{ padding: "8px 12px" }}>
+                          {row.sku ? (
+                            <span style={{ fontFamily: "monospace", fontWeight: 700, color: "#5005A6" }}>{row.sku}</span>
+                          ) : (
+                            <span style={{ padding: "2px 6px", background: "#eff6ff", color: "#1d4ed8", borderRadius: 4, fontWeight: 600, fontSize: 11 }}>
+                              Auto ({row.autoSkuPreview})
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: "8px 12px", fontWeight: 700, color: "#0f172a" }}>
+                          {row.name || <span style={{ color: "#ef4444" }}>[Tanpa Nama]</span>}
+                        </td>
+                        <td style={{ padding: "8px 12px" }}>
+                          {row.category_name ? (
+                            <span>{row.category_name} {row.category_id ? `(#${row.category_id})` : ""}</span>
+                          ) : (
+                            <span style={{ color: "#94a3b8" }}>-</span>
+                          )}
+                        </td>
+                        <td style={{ padding: "8px 12px" }}>
+                          {row.is_half_portion ? (
+                            <span style={{ padding: "2px 6px", background: "#fdf4ff", color: "#b10fbd", borderRadius: 4, fontWeight: 700, fontSize: 11 }}>
+                              ½ Porsi {row.parent_sku ? `(${row.parent_sku})` : ""}
+                            </span>
+                          ) : (
+                            <span style={{ padding: "2px 6px", background: "#f1f5f9", color: "#475569", borderRadius: 4, fontSize: 11 }}>
+                              Penuh
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: "8px 12px", fontWeight: 700 }}>
+                          Rp {Number(row.price).toLocaleString("id-ID")}
+                        </td>
+                        <td style={{ padding: "8px 12px" }}>
+                          {row.channel_prices && row.channel_prices.some((cp) => cp.harga_override !== null) ? (
+                            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                              {row.channel_prices.map((cp, i) =>
+                                cp.harga_override !== null ? (
+                                  <span key={i} style={{ background: "#eff6ff", color: "#1d4ed8", padding: "1px 5px", borderRadius: 4, fontSize: 11, fontWeight: 600 }}>
+                                    {cp.channel_name}: Rp{Number(cp.harga_override).toLocaleString("id-ID")}
+                                  </span>
+                                ) : null
+                              )}
+                            </div>
+                          ) : (
+                            <span style={{ color: "#94a3b8" }}>Normal</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Footer Modal */}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => setIsUploadModalOpen(false)}
+                style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "white", fontSize: 14, cursor: "pointer" }}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleProcessImport}
+                disabled={isImporting || parsedRows.length === 0}
+                style={{
+                  padding: "8px 20px",
+                  borderRadius: 8,
+                  border: "none",
+                  background: parsedRows.length > 0 ? "#5005A6" : "#9ca3af",
+                  color: "white",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: parsedRows.length > 0 ? "pointer" : "not-allowed",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                {isImporting ? "Memproses Import..." : `Proses Import (${parsedRows.filter((r) => r.isValid).length} Produk)`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── MODAL: ADD / EDIT PRODUCT ────────────────────────────── */}
       {isModalOpen && (
