@@ -73,6 +73,25 @@ interface OrderItemInput {
   is_half_portion: boolean;
 }
 
+interface DraftOrder {
+  id: string;
+  savedAt: string;
+  customerName: string;
+  customerPhone: string;
+  customerAddress: string;
+  customerPatokan: string;
+  selectedAreaId: number | "";
+  selectedChannelId: number | "";
+  selectedBankId: number | "";
+  orderDate: string;
+  deliveryDate: string;
+  shippingFee: number;
+  discountType: "nominal" | "percent";
+  discountValue: number;
+  orderNotes: string;
+  cartItems: OrderItemInput[];
+}
+
 interface Order {
   id: number;
   no_struk: string;
@@ -210,47 +229,107 @@ export default function SiapSajiOrdersPage() {
   // Edit Order State
   const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
 
-  // Auto-Draft Sales Order Entry State (Req 2)
-  const DRAFT_KEY = "siap_saji_order_draft";
-  const [draftInfo, setDraftInfo] = useState<{ timestamp: string } | null>(null);
+  // Multi-Draft Sales Order State & Engine
+  const DRAFTS_KEY = "siap_saji_order_drafts_v2";
+  const [drafts, setDrafts] = useState<DraftOrder[]>([]);
+  const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
+  const [isDraftModalOpen, setIsDraftModalOpen] = useState(false);
+  const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
 
+  // Load drafts on mount
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(DRAFT_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed && (parsed.customerName || parsed.customerPhone || (parsed.cartItems && parsed.cartItems.length > 0))) {
-          setDraftInfo({ timestamp: parsed.savedAt || "Terbaru" });
+      const listRaw = localStorage.getItem(DRAFTS_KEY);
+      let list: DraftOrder[] = listRaw ? JSON.parse(listRaw) : [];
+
+      // Backward compatibility with legacy single draft key
+      const legacy = localStorage.getItem("siap_saji_order_draft");
+      if (legacy) {
+        const p = JSON.parse(legacy);
+        if (p && (p.customerName || p.customerPhone || (p.cartItems && p.cartItems.length > 0))) {
+          const migrated: DraftOrder = {
+            id: "draft_legacy_" + Date.now(),
+            savedAt: p.savedAt || "Terbaru",
+            customerName: p.customerName || "",
+            customerPhone: p.customerPhone || "",
+            customerAddress: p.customerAddress || "",
+            customerPatokan: p.customerPatokan || "",
+            selectedAreaId: p.selectedAreaId || "",
+            selectedChannelId: p.selectedChannelId || "",
+            selectedBankId: p.selectedBankId || "",
+            orderDate: p.orderDate || getTodayStr(),
+            deliveryDate: p.deliveryDate || getTodayStr(),
+            shippingFee: p.shippingFee || 0,
+            discountType: p.discountType || "nominal",
+            discountValue: p.discountValue || 0,
+            orderNotes: p.orderNotes || "",
+            cartItems: p.cartItems || [],
+          };
+          list.unshift(migrated);
+          localStorage.setItem(DRAFTS_KEY, JSON.stringify(list));
         }
+        localStorage.removeItem("siap_saji_order_draft");
       }
+      setDrafts(list);
     } catch (e) {
-      console.error(e);
+      console.error("Gagal memuat drafts:", e);
     }
   }, []);
 
+  // Auto-Save Effect
   useEffect(() => {
     if (editingOrderId) return;
-    const hasContent = Boolean(customerName || customerPhone || customerAddress || cartItems.length > 0 || shippingFee > 0);
-    if (hasContent) {
-      const draftObj = {
-        selectedChannelId,
-        customerName,
-        customerPhone,
-        selectedAreaId,
-        customerAddress,
-        customerPatokan,
-        orderDate,
-        deliveryDate,
-        shippingFee,
-        discountType,
-        discountValue,
-        selectedBankId,
-        orderNotes,
-        cartItems,
-        savedAt: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
-      };
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(draftObj));
-    }
+    const hasContent = Boolean(
+      customerName.trim() ||
+        customerPhone.trim() ||
+        customerAddress.trim() ||
+        cartItems.length > 0 ||
+        shippingFee > 0 ||
+        orderNotes.trim()
+    );
+
+    if (!hasContent) return;
+
+    const nowStr = new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) + " WIB";
+    const draftId = currentDraftId || `draft_${Date.now()}`;
+    if (!currentDraftId) setCurrentDraftId(draftId);
+
+    const draftData: DraftOrder = {
+      id: draftId,
+      savedAt: nowStr,
+      customerName,
+      customerPhone,
+      customerAddress,
+      customerPatokan,
+      selectedAreaId,
+      selectedChannelId,
+      selectedBankId,
+      orderDate,
+      deliveryDate,
+      shippingFee,
+      discountType,
+      discountValue,
+      orderNotes,
+      cartItems,
+    };
+
+    setDrafts((prev) => {
+      const idx = prev.findIndex((d) => d.id === draftId);
+      let updated: DraftOrder[];
+      if (idx >= 0) {
+        updated = [...prev];
+        updated[idx] = draftData;
+      } else {
+        updated = [draftData, ...prev];
+      }
+      try {
+        localStorage.setItem(DRAFTS_KEY, JSON.stringify(updated));
+      } catch (err) {
+        console.error("Gagal menyimpan draft ke localStorage", err);
+      }
+      return updated;
+    });
+    setLastSavedTime(nowStr);
   }, [
     selectedChannelId,
     customerName,
@@ -267,39 +346,56 @@ export default function SiapSajiOrdersPage() {
     orderNotes,
     cartItems,
     editingOrderId,
+    currentDraftId,
   ]);
 
-  const handleRestoreDraft = () => {
+  const handleRestoreDraft = (d: DraftOrder) => {
     try {
-      const saved = localStorage.getItem(DRAFT_KEY);
-      if (saved) {
-        const d = JSON.parse(saved);
-        if (d.selectedChannelId) setSelectedChannelId(d.selectedChannelId);
-        if (d.customerName) setCustomerName(d.customerName);
-        if (d.customerPhone) setCustomerPhone(d.customerPhone);
-        if (d.selectedAreaId) setSelectedAreaId(d.selectedAreaId);
-        if (d.customerAddress) setCustomerAddress(d.customerAddress);
-        if (d.customerPatokan) setCustomerPatokan(d.customerPatokan);
-        if (d.orderDate) setOrderDate(d.orderDate);
-        if (d.deliveryDate) setDeliveryDate(d.deliveryDate);
-        if (d.shippingFee) setShippingFee(d.shippingFee);
-        if (d.discountType) setDiscountType(d.discountType);
-        if (d.discountValue) setDiscountValue(d.discountValue);
-        if (d.selectedBankId) setSelectedBankId(d.selectedBankId);
-        if (d.orderNotes) setOrderNotes(d.orderNotes);
-        if (Array.isArray(d.cartItems)) setCartItems(d.cartItems);
-        toast.success("Draft order berhasil dipulihkan!");
-        setDraftInfo(null);
-      }
+      setCurrentDraftId(d.id);
+      setSelectedChannelId(d.selectedChannelId);
+      setCustomerName(d.customerName);
+      setCustomerPhone(d.customerPhone);
+      setSelectedAreaId(d.selectedAreaId);
+      setCustomerAddress(d.customerAddress);
+      setCustomerPatokan(d.customerPatokan);
+      setOrderDate(d.orderDate || getTodayStr());
+      setDeliveryDate(d.deliveryDate || getTodayStr());
+      setShippingFee(d.shippingFee || 0);
+      setDiscountType(d.discountType || "nominal");
+      setDiscountValue(d.discountValue || 0);
+      setSelectedBankId(d.selectedBankId);
+      setOrderNotes(d.orderNotes || "");
+      setCartItems(Array.isArray(d.cartItems) ? d.cartItems : []);
+      setLastSavedTime(d.savedAt);
+      setIsDraftModalOpen(false);
+      setIsFormOpen(true);
+      toast.success(`Draft order ${d.customerName ? `"${d.customerName}"` : ""} dipulihkan!`);
     } catch (e) {
       toast.error("Gagal memulihkan draft order");
     }
   };
 
-  const handleDiscardDraft = () => {
-    localStorage.removeItem(DRAFT_KEY);
-    setDraftInfo(null);
+  const handleDeleteDraft = (draftId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setDrafts((prev) => {
+      const updated = prev.filter((d) => d.id !== draftId);
+      localStorage.setItem(DRAFTS_KEY, JSON.stringify(updated));
+      return updated;
+    });
+    if (currentDraftId === draftId) {
+      setCurrentDraftId(null);
+    }
     toast.info("Draft order dihapus.");
+  };
+
+  const handleSaveDraftAndClose = () => {
+    if (currentDraftId) {
+      toast.success("Draft order berhasil tersimpan.");
+    } else {
+      toast.info("Form order dikosongkan.");
+    }
+    setIsFormOpen(false);
+    setCurrentDraftId(null);
   };
 
   // Import Excel State
@@ -600,6 +696,7 @@ export default function SiapSajiOrdersPage() {
 
   const resetForm = () => {
     setEditingOrderId(null);
+    setCurrentDraftId(null);
     setDeliveryDate(getTodayStr());
     setOrderDate(getTodayStr());
     setCustomerName("");
@@ -613,8 +710,7 @@ export default function SiapSajiOrdersPage() {
     setOrderNotes("");
     setCartItems([]);
     setProductSearchQuery("");
-    localStorage.removeItem(DRAFT_KEY);
-    setDraftInfo(null);
+    setLastSavedTime(null);
   };
 
   // Submit Order Form (Create POST / Edit PUT)
@@ -708,6 +804,9 @@ export default function SiapSajiOrdersPage() {
         const createdOrder = await res.json();
         toast.success(`Penjualan Siap Saji berhasil disimpan! No Struk: ${createdOrder.no_struk}`);
 
+        if (currentDraftId) {
+          handleDeleteDraft(currentDraftId);
+        }
         setIsFormOpen(false);
         resetForm();
         fetchOrders();
@@ -887,6 +986,45 @@ export default function SiapSajiOrdersPage() {
           </p>
         </div>
         <div style={{ display: "flex", gap: 10 }}>
+          <button
+            onClick={() => setIsDraftModalOpen(true)}
+            style={{
+              background: drafts.length > 0 ? "#fffbe6" : "white",
+              color: drafts.length > 0 ? "#b45309" : "#374151",
+              border: drafts.length > 0 ? "2px solid #f59e0b" : "1px solid #d1d5db",
+              borderRadius: 10,
+              padding: "10px 16px",
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              boxShadow: "0 2px 6px rgba(0, 0, 0, 0.05)",
+              transition: "transform 0.15s ease",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-1px)")}
+            onMouseLeave={(e) => (e.currentTarget.style.transform = "none")}
+          >
+            <ClipboardList size={18} color={drafts.length > 0 ? "#b45309" : "#5005A6"} />
+            📋 Menu Draft
+            {drafts.length > 0 && (
+              <span
+                style={{
+                  background: "#d97706",
+                  color: "white",
+                  borderRadius: 10,
+                  padding: "2px 8px",
+                  fontSize: 12,
+                  fontWeight: 800,
+                  marginLeft: 2,
+                }}
+              >
+                {drafts.length}
+              </span>
+            )}
+          </button>
+
           <button
             onClick={() => {
               setImportFile(null);
@@ -1642,66 +1780,41 @@ export default function SiapSajiOrdersPage() {
               </button>
             </div>
 
-            {/* DRAFT RESTORATION BANNER (REQ 2) */}
-            {draftInfo && !editingOrderId && (
+            {/* AUTO-SAVE DRAFT STATUS BANNER */}
+            {!editingOrderId && (
               <div
                 style={{
-                  background: "#fffbebe6",
-                  border: "1px solid #fef3c7",
-                  borderRadius: 12,
-                  padding: "12px 16px",
+                  background: "#f0fdf4",
+                  border: "1px solid #bbf7d0",
+                  borderRadius: 10,
+                  padding: "8px 14px",
                   marginBottom: 16,
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
-                  boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                  fontSize: 12,
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontSize: 18 }}>📌</span>
-                  <div>
-                    <div style={{ fontWeight: 800, fontSize: 13, color: "#92400e" }}>
-                      Terdapat Draft Order yang belum diselesaikan
-                    </div>
-                    <div style={{ fontSize: 12, color: "#b45309" }}>
-                      Otomatis tersimpan pukul {draftInfo.timestamp}
-                    </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#166534", fontWeight: 600 }}>
+                  <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#22c55e" }}></span>
+                  <span>
+                    Auto-Draft Aktif: Input tersimpan otomatis {lastSavedTime ? `pukul ${lastSavedTime}` : "saat mengetik"}
+                  </span>
+                </div>
+                {drafts.length > 0 && (
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsFormOpen(false);
+                        setIsDraftModalOpen(true);
+                      }}
+                      style={{ background: "none", border: "none", color: "#15803d", fontWeight: 700, cursor: "pointer", fontSize: 12, textDecoration: "underline" }}
+                    >
+                      Lihat Semua Draft ({drafts.length})
+                    </button>
                   </div>
-                </div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button
-                    type="button"
-                    onClick={handleRestoreDraft}
-                    style={{
-                      background: "#d97706",
-                      color: "white",
-                      border: "none",
-                      borderRadius: 6,
-                      padding: "6px 14px",
-                      fontSize: 12,
-                      fontWeight: 700,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Lanjutkan Draft
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDiscardDraft}
-                    style={{
-                      background: "#f3f4f6",
-                      color: "#4b5563",
-                      border: "1px solid #d1d5db",
-                      borderRadius: 6,
-                      padding: "6px 12px",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Hapus Draft
-                  </button>
-                </div>
+                )}
               </div>
             )}
 
@@ -2435,10 +2548,10 @@ export default function SiapSajiOrdersPage() {
                 <div style={{ display: "flex", gap: 10 }}>
                   <button
                     type="button"
-                    onClick={() => setIsFormOpen(false)}
-                    style={{ padding: "10px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "white", fontSize: 14, fontWeight: 600, cursor: "pointer" }}
+                    onClick={handleSaveDraftAndClose}
+                    style={{ padding: "10px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "white", fontSize: 14, fontWeight: 600, cursor: "pointer", color: "#374151" }}
                   >
-                    Batal
+                    Simpan ke Draft & Tutup
                   </button>
                   <button
                     type="submit"
@@ -2459,6 +2572,262 @@ export default function SiapSajiOrdersPage() {
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: MENU DRAFT PENJUALAN ────────────────────────── */}
+      {isDraftModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 110,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              background: "white",
+              borderRadius: 16,
+              maxWidth: 640,
+              width: "100%",
+              maxHeight: "85vh",
+              display: "flex",
+              flexDirection: "column",
+              boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)",
+              overflow: "hidden",
+            }}
+          >
+            {/* Header Modal */}
+            <div
+              style={{
+                padding: "18px 24px",
+                borderBottom: "1px solid #e5e7eb",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                background: "#fafafa",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 10,
+                    background: "rgba(80, 5, 166, 0.1)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#5005A6",
+                  }}
+                >
+                  <ClipboardList size={20} />
+                </div>
+                <div>
+                  <h2 style={{ fontSize: 18, fontWeight: 800, color: "#111827", margin: 0 }}>
+                    Draft Order Penjualan ({drafts.length})
+                  </h2>
+                  <p style={{ fontSize: 13, color: "#6b7280", margin: 0 }}>
+                    Kelola input transaksi Siap Saji yang belum diselesaikan
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsDraftModalOpen(false)}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* List Body */}
+            <div style={{ padding: 20, overflowY: "auto", flex: 1 }}>
+              {drafts.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "40px 20px" }}>
+                  <div style={{ fontSize: 40, marginBottom: 12 }}>📥</div>
+                  <h3 style={{ fontSize: 16, fontWeight: 700, color: "#374151", margin: 0 }}>
+                    Belum ada draft order tersimpan
+                  </h3>
+                  <p style={{ fontSize: 13, color: "#6b7280", marginTop: 6, maxWidth: 380, marginInline: "auto" }}>
+                    Saat CS menginput penjualan dan belum menyelesaikannya, sistem akan menyimpan draf secara otomatis.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setIsDraftModalOpen(false);
+                      handleOpenCreateOrder();
+                    }}
+                    style={{
+                      marginTop: 16,
+                      background: "linear-gradient(135deg, #5005A6 0%, #B10FBD 100%)",
+                      color: "white",
+                      border: "none",
+                      borderRadius: 8,
+                      padding: "8px 18px",
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    + Buat Penjualan Baru
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {drafts.map((d, idx) => {
+                    const totalItems = d.cartItems ? d.cartItems.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0) : 0;
+                    const subtotal = d.cartItems ? d.cartItems.reduce((acc, item) => acc + (Number(item.price) || 0) * (Number(item.quantity) || 0), 0) : 0;
+                    let discount = Number(d.discountValue) || 0;
+                    if (d.discountType === "percent") {
+                      discount = Math.round((subtotal * discount) / 100);
+                    }
+                    const estimatedTotal = Math.max(0, subtotal - discount + Number(d.shippingFee || 0));
+
+                    return (
+                      <div
+                        key={d.id || idx}
+                        style={{
+                          border: "1px solid #e5e7eb",
+                          borderRadius: 12,
+                          padding: 16,
+                          background: "#ffffff",
+                          boxShadow: "0 2px 4px rgba(0,0,0,0.02)",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          gap: 16,
+                          transition: "border-color 0.15s ease",
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#c084fc")}
+                        onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#e5e7eb")}
+                      >
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
+                            <span style={{ fontSize: 15, fontWeight: 800, color: "#1f2937" }}>
+                              {d.customerName ? d.customerName : "Pelanggan Tanpa Nama"}
+                            </span>
+                            {d.customerPhone && (
+                              <span style={{ fontSize: 12, background: "#f3f4f6", color: "#4b5563", padding: "2px 8px", borderRadius: 12, fontWeight: 600 }}>
+                                📞 {d.customerPhone}
+                              </span>
+                            )}
+                            <span style={{ fontSize: 11, background: "#fef3c7", color: "#92400e", padding: "2px 8px", borderRadius: 12, fontWeight: 600 }}>
+                              🕒 Tersimpan {d.savedAt}
+                            </span>
+                          </div>
+
+                          <div style={{ fontSize: 13, color: "#4b5563", marginTop: 6, display: "flex", gap: 12, flexWrap: "wrap" }}>
+                            <span>
+                              🛒 <strong>{totalItems} item</strong> ({d.cartItems?.length || 0} produk)
+                            </span>
+                            <span>
+                              💰 Total Est: <strong style={{ color: "#5005A6" }}>Rp {estimatedTotal.toLocaleString("id-ID")}</strong>
+                            </span>
+                          </div>
+
+                          {d.cartItems && d.cartItems.length > 0 && (
+                            <div style={{ fontSize: 12, color: "#6b7280", marginTop: 6, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              Rincian: {d.cartItems.map((it) => `${it.name} (${it.quantity}x)`).join(", ")}
+                            </div>
+                          )}
+                        </div>
+
+                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                          <button
+                            onClick={() => handleRestoreDraft(d)}
+                            style={{
+                              background: "linear-gradient(135deg, #5005A6 0%, #B10FBD 100%)",
+                              color: "white",
+                              border: "none",
+                              borderRadius: 8,
+                              padding: "8px 14px",
+                              fontSize: 13,
+                              fontWeight: 700,
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 6,
+                              boxShadow: "0 2px 6px rgba(80, 5, 166, 0.2)",
+                            }}
+                          >
+                            🚀 Lanjutkan
+                          </button>
+                          <button
+                            onClick={(e) => handleDeleteDraft(d.id, e)}
+                            title="Hapus draft"
+                            style={{
+                              background: "#fee2e2",
+                              color: "#dc2626",
+                              border: "none",
+                              borderRadius: 8,
+                              padding: "8px 10px",
+                              fontSize: 13,
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Footer Modal */}
+            <div
+              style={{
+                padding: "14px 24px",
+                borderTop: "1px solid #e5e7eb",
+                background: "#fafafa",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <button
+                onClick={() => {
+                  setIsDraftModalOpen(false);
+                  handleOpenCreateOrder();
+                }}
+                style={{
+                  background: "#f3f4f6",
+                  color: "#374151",
+                  border: "1px solid #d1d5db",
+                  borderRadius: 8,
+                  padding: "8px 14px",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                + Buat Order Baru (Kosong)
+              </button>
+              <button
+                onClick={() => setIsDraftModalOpen(false)}
+                style={{
+                  background: "white",
+                  color: "#4b5563",
+                  border: "1px solid #d1d5db",
+                  borderRadius: 8,
+                  padding: "8px 16px",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Tutup
+              </button>
+            </div>
           </div>
         </div>
       )}
