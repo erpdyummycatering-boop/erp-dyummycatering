@@ -78,6 +78,8 @@ export default function SiapSajiProductsPage() {
   const [editingProd, setEditingProd] = useState<Product | null>(null);
 
   const [sku, setSku] = useState("");
+  const [baseAutoSku, setBaseAutoSku] = useState("");
+  const [baseAutoHalfSku, setBaseAutoHalfSku] = useState("");
   const [name, setName] = useState("");
   const [categoryId, setCategoryId] = useState<number | "">("");
   const [description, setDescription] = useState("");
@@ -86,6 +88,12 @@ export default function SiapSajiProductsPage() {
   const [parentSku, setParentSku] = useState("");
   const [channelPricesInput, setChannelPricesInput] = useState<{ [chId: number]: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Modal Category CRUD
+  const [isCatModalOpen, setIsCatModalOpen] = useState(false);
+  const [newCatName, setNewCatName] = useState("");
+  const [editingCat, setEditingCat] = useState<Category | null>(null);
+  const [isSavingCat, setIsSavingCat] = useState(false);
 
   // Modal Upload XLSX
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -134,17 +142,27 @@ export default function SiapSajiProductsPage() {
     }
   };
 
+  const fetchCategories = async () => {
+    try {
+      const res = await fetch("/api/siap-saji/categories");
+      if (res.ok) {
+        const json = await res.json();
+        setCategories(json.data || []);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
     fetchProducts();
     fetchChannels();
+    fetchCategories();
   }, []);
 
   useEffect(() => {
     fetchProducts();
   }, [search, categoryFilter, porsiFilter]);
-
-  const [baseAutoSku, setBaseAutoSku] = useState("");
-  const [baseAutoHalfSku, setBaseAutoHalfSku] = useState("");
 
   const handleOpenAdd = async () => {
     setEditingProd(null);
@@ -469,9 +487,21 @@ export default function SiapSajiProductsPage() {
             autoSkuCounter++;
           }
 
-          const isValid = Boolean(prodName) && priceVal >= 0;
+          // SKU & Name check against existing products
+          const existingSkuMatch = rawSku ? products.find((p) => p.sku.toLowerCase() === rawSku.toLowerCase()) : null;
+          const existingNameMatch = products.find((p) => p.name.toLowerCase() === prodName.toLowerCase());
+
+          let isValid = Boolean(prodName) && priceVal >= 0;
           let errorMsg = "";
-          if (!prodName) errorMsg = "Nama Produk wajib diisi";
+          if (!prodName) {
+            errorMsg = "Nama Produk wajib diisi";
+          } else if (existingSkuMatch) {
+            isValid = false;
+            errorMsg = `SKU '${rawSku}' sudah digunakan produk '${existingSkuMatch.name}'`;
+          } else if (existingNameMatch) {
+            isValid = false;
+            errorMsg = `Nama produk '${prodName}' sudah terdaftar (${existingNameMatch.sku})`;
+          }
 
           rowsParsed.push({
             sku: rawSku,
@@ -488,6 +518,24 @@ export default function SiapSajiProductsPage() {
             errorMsg,
           });
         }
+
+        // Secondary pass: Check internal duplicates within uploaded file
+        const skuCounts = new Map<string, number>();
+        const nameCounts = new Map<string, number>();
+        rowsParsed.forEach((r) => {
+          if (r.sku) skuCounts.set(r.sku.toLowerCase(), (skuCounts.get(r.sku.toLowerCase()) || 0) + 1);
+          if (r.name) nameCounts.set(r.name.toLowerCase(), (nameCounts.get(r.name.toLowerCase()) || 0) + 1);
+        });
+
+        rowsParsed.forEach((r) => {
+          if (r.sku && (skuCounts.get(r.sku.toLowerCase()) || 0) > 1) {
+            r.isValid = false;
+            r.errorMsg = `SKU '${r.sku}' ganda dalam file Excel`;
+          } else if (r.name && (nameCounts.get(r.name.toLowerCase()) || 0) > 1) {
+            r.isValid = false;
+            r.errorMsg = `Nama produk '${r.name}' ganda dalam file Excel`;
+          }
+        });
 
         setParsedRows(rowsParsed);
       } catch (err: any) {
@@ -560,6 +608,25 @@ export default function SiapSajiProductsPage() {
         </div>
 
         <div style={{ display: "flex", gap: 10 }}>
+          <button
+            onClick={() => setIsCatModalOpen(true)}
+            style={{
+              background: "#f9f5ff",
+              color: "#5005A6",
+              border: "1.5px solid #d8b4fe",
+              borderRadius: 10,
+              padding: "10px 16px",
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <Tag size={18} /> Kelola Kategori
+          </button>
+
           <button
             onClick={() => {
               setParsedRows([]);
@@ -870,19 +937,72 @@ export default function SiapSajiProductsPage() {
                   </thead>
                   <tbody>
                     {parsedRows.map((row, idx) => (
-                      <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9", background: row.isValid ? "white" : "#fef2f2" }}>
+                      <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9", background: row.isValid ? "white" : "#fff1f2" }}>
                         <td style={{ padding: "8px 12px", color: "#64748b" }}>{idx + 1}</td>
                         <td style={{ padding: "8px 12px" }}>
-                          {row.sku ? (
-                            <span style={{ fontFamily: "monospace", fontWeight: 700, color: "#5005A6" }}>{row.sku}</span>
-                          ) : (
-                            <span style={{ padding: "2px 6px", background: "#eff6ff", color: "#1d4ed8", borderRadius: 4, fontWeight: 600, fontSize: 11 }}>
-                              Auto ({row.autoSkuPreview})
-                            </span>
-                          )}
+                          <input
+                            type="text"
+                            value={row.sku}
+                            placeholder={row.autoSkuPreview}
+                            onChange={(e) => {
+                              const newSku = e.target.value;
+                              const updated = [...parsedRows];
+                              updated[idx].sku = newSku;
+                              // re-validate
+                              const existingSku = newSku ? products.find((p) => p.sku.toLowerCase() === newSku.toLowerCase()) : null;
+                              if (existingSku) {
+                                updated[idx].isValid = false;
+                                updated[idx].errorMsg = `SKU '${newSku}' sudah terpakai oleh '${existingSku.name}'`;
+                              } else {
+                                updated[idx].isValid = Boolean(updated[idx].name);
+                                updated[idx].errorMsg = updated[idx].name ? "" : "Nama Produk wajib diisi";
+                              }
+                              setParsedRows(updated);
+                            }}
+                            style={{
+                              width: 90,
+                              padding: "4px 8px",
+                              fontSize: 12,
+                              fontFamily: "monospace",
+                              fontWeight: 700,
+                              border: row.errorMsg && row.errorMsg.includes("SKU") ? "1px solid #ef4444" : "1px solid #d1d5db",
+                              borderRadius: 6,
+                            }}
+                          />
                         </td>
-                        <td style={{ padding: "8px 12px", fontWeight: 700, color: "#0f172a" }}>
-                          {row.name || <span style={{ color: "#ef4444" }}>[Tanpa Nama]</span>}
+                        <td style={{ padding: "8px 12px" }}>
+                          <input
+                            type="text"
+                            value={row.name}
+                            onChange={(e) => {
+                              const newName = e.target.value;
+                              const updated = [...parsedRows];
+                              updated[idx].name = newName;
+                              const existingName = products.find((p) => p.name.toLowerCase() === newName.toLowerCase());
+                              if (existingName) {
+                                updated[idx].isValid = false;
+                                updated[idx].errorMsg = `Nama '${newName}' sudah terdaftar`;
+                              } else {
+                                updated[idx].isValid = Boolean(newName) && !updated[idx].errorMsg?.includes("SKU");
+                                updated[idx].errorMsg = newName ? "" : "Nama Produk wajib diisi";
+                              }
+                              setParsedRows(updated);
+                            }}
+                            style={{
+                              width: "100%",
+                              minWidth: 150,
+                              padding: "4px 8px",
+                              fontSize: 12,
+                              fontWeight: 600,
+                              border: row.errorMsg && row.errorMsg.includes("Nama") ? "1px solid #ef4444" : "1px solid #d1d5db",
+                              borderRadius: 6,
+                            }}
+                          />
+                          {row.errorMsg && (
+                            <div style={{ fontSize: 10, color: "#dc2626", marginTop: 2, fontWeight: 600 }}>
+                              ⚠️ {row.errorMsg}
+                            </div>
+                          )}
                         </td>
                         <td style={{ padding: "8px 12px" }}>
                           {row.category_name ? (
@@ -1118,6 +1238,154 @@ export default function SiapSajiProductsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: CATEGORY CRUD ────────────────────────────── */}
+      {isCatModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 110,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <div style={{ background: "white", borderRadius: 16, maxWidth: 500, width: "100%", padding: 24 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 800, color: "#111827", margin: 0 }}>
+                Kelola Kategori Siap Saji
+              </h3>
+              <button onClick={() => setIsCatModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af" }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Form Add / Edit Category */}
+            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+              <input
+                type="text"
+                placeholder="Nama Kategori Baru..."
+                value={newCatName}
+                onChange={(e) => setNewCatName(e.target.value)}
+                style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+              />
+              <button
+                type="button"
+                disabled={isSavingCat || !newCatName.trim()}
+                onClick={async () => {
+                  if (!newCatName.trim()) return;
+                  setIsSavingCat(true);
+                  try {
+                    const url = editingCat ? `/api/siap-saji/categories/${editingCat.id}` : "/api/siap-saji/categories";
+                    const method = editingCat ? "PUT" : "POST";
+                    const res = await fetch(url, {
+                      method,
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ name: newCatName }),
+                    });
+                    if (!res.ok) {
+                      const err = await res.json();
+                      throw new Error(err.error || "Gagal menyimpan kategori");
+                    }
+                    toast.success(editingCat ? "Kategori berhasil diperbarui" : "Kategori baru berhasil ditambahkan");
+                    setNewCatName("");
+                    setEditingCat(null);
+                    fetchCategories();
+                  } catch (e: any) {
+                    toast.error(e.message);
+                  } finally {
+                    setIsSavingCat(false);
+                  }
+                }}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 8,
+                  border: "none",
+                  background: "#5005A6",
+                  color: "white",
+                  fontWeight: 700,
+                  fontSize: 13,
+                  cursor: "pointer",
+                }}
+              >
+                {editingCat ? "Update" : "+ Tambah"}
+              </button>
+              {editingCat && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingCat(null);
+                    setNewCatName("");
+                  }}
+                  style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", background: "white", fontSize: 13, cursor: "pointer" }}
+                >
+                  Batal
+                </button>
+              )}
+            </div>
+
+            {/* List Existing Categories */}
+            <div style={{ maxHeight: 250, overflowY: "auto", border: "1px solid #e5e7eb", borderRadius: 8 }}>
+              {categories.length === 0 ? (
+                <div style={{ padding: 12, textAlign: "center", color: "#9ca3af", fontSize: 13 }}>
+                  Belum ada kategori khusus Siap Saji.
+                </div>
+              ) : (
+                categories.map((c) => (
+                  <div
+                    key={c.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "10px 14px",
+                      borderBottom: "1px solid #f3f4f6",
+                    }}
+                  >
+                    <span style={{ fontWeight: 600, color: "#1f2937", fontSize: 14 }}>{c.name}</span>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingCat(c);
+                          setNewCatName(c.name);
+                        }}
+                        style={{ background: "none", border: "none", color: "#378ADD", cursor: "pointer", padding: 4 }}
+                      >
+                        <Edit3 size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!confirm(`Hapus kategori '${c.name}'?`)) return;
+                          try {
+                            const res = await fetch(`/api/siap-saji/categories/${c.id}`, { method: "DELETE" });
+                            if (res.ok) {
+                              toast.success("Kategori berhasil dihapus");
+                              fetchCategories();
+                            } else {
+                              const err = await res.json();
+                              toast.error(err.error || "Gagal menghapus kategori");
+                            }
+                          } catch (err: any) {
+                            toast.error(err.message);
+                          }
+                        }}
+                        style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", padding: 4 }}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}

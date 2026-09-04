@@ -74,6 +74,7 @@ export async function GET(req: NextRequest) {
       client.query(
         `SELECT 
           o.*,
+          COALESCE(o.shipping_status, 'Menunggu') AS shipping_status,
           c.name AS customer_name,
           c.phone AS customer_phone,
           c.address AS customer_address,
@@ -82,6 +83,7 @@ export async function GET(req: NextRequest) {
           a.kota AS area_kota,
           ch.name AS channel_name,
           u.name AS pic_name,
+          dr.name AS driver_name,
           (
             SELECT json_agg(
               json_build_object(
@@ -106,6 +108,7 @@ export async function GET(req: NextRequest) {
         LEFT JOIN channels ch ON o.channel_id = ch.id
         LEFT JOIN areas a ON c.area_id = a.id
         LEFT JOIN users u ON o.pic_id = u.id
+        LEFT JOIN drivers dr ON o.driver_id = dr.id
         ${whereSql}
         ORDER BY ${orderColumn} ${sort_dir}, o.id ${sort_dir}
         LIMIT $${idx} OFFSET $${idx + 1}`,
@@ -165,6 +168,7 @@ export async function POST(req: NextRequest) {
     discount_type,
     discount_value,
     payment_bank_id,
+    driver_id,
     order_notes,
     items,
   } = body;
@@ -248,7 +252,7 @@ export async function POST(req: NextRequest) {
       snapshotZone = areaRes.rows[0].shipping_zone;
     }
 
-    // 3. Resolve Shipping Fee (use function get_shipping_fee if not explicitly overridden)
+    // 3. Resolve Shipping Fee & Auto-Save History
     let finalShippingFee = Number(shipping_fee);
     if (isNaN(finalShippingFee)) {
       const custAreaRes = await client.query("SELECT area_id FROM customers WHERE id = $1", [finalCustomerId]);
@@ -258,6 +262,19 @@ export async function POST(req: NextRequest) {
         finalShippingFee = Number(feeRes.rows[0]?.fee || 0);
       } else {
         finalShippingFee = 0;
+      }
+    } else if (finalShippingFee >= 0) {
+      // Auto-save history so next order for this area automatically inherits this custom shipping fee
+      const custAreaRes = await client.query("SELECT area_id FROM customers WHERE id = $1", [finalCustomerId]);
+      const custAreaId = custAreaRes.rows[0]?.area_id;
+      if (custAreaId) {
+        await client.query(
+          `INSERT INTO area_channel_shipping (area_id, channel_id, shipping_fee, is_active, notes, updated_at)
+           VALUES ($1, $2, $3, true, 'Auto-saved from order history', NOW())
+           ON CONFLICT (area_id, channel_id)
+           DO UPDATE SET shipping_fee = EXCLUDED.shipping_fee, updated_at = NOW()`,
+          [custAreaId, Number(channel_id), finalShippingFee]
+        );
       }
     }
 
@@ -325,17 +342,18 @@ export async function POST(req: NextRequest) {
     // 7. Insert Order
     const insOrderRes = await client.query(
       `INSERT INTO orders (
-        customer_id, pic_id, lini, channel_id, no_struk, order_date, delivery_date,
+        customer_id, pic_id, lini, channel_id, driver_id, no_struk, order_date, delivery_date,
         departure_time, arrival_time, venue, order_notes, status_order, status_payment,
         shipping_fee, discount, discount_type, discount_value, shipping_zone, grand_total, payment_bank, payment_account,
         input_source, jenis_order, closing_date
       )
-      VALUES ($1, $2, 'siap_saji', $3, $4, $5, $6, $7, $8, $9, $10, 'Aktif', 'Lunas', $11, $12, $13, $14, $15, $16, $17, $18, 'manual', $19, $20)
+      VALUES ($1, $2, 'siap_saji', $3, $4, $5, $6, $7, $8, $9, $10, $11, 'Aktif', 'Lunas', $12, $13, $14, $15, $16, $17, $18, $19, 'manual', $20, $21)
       RETURNING *`,
       [
         finalCustomerId,
         userId,
         Number(channel_id),
+        driver_id ? Number(driver_id) : null,
         noStruk,
         finalOrderDate,
         finalDeliveryDate,

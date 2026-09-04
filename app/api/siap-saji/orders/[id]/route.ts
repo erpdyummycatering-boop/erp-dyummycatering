@@ -194,8 +194,9 @@ export async function PUT(
            grand_total = $8,
            payment_bank = $9,
            payment_account = $10,
+           driver_id = $11,
            updated_at = NOW()
-       WHERE id = $11`,
+       WHERE id = $12`,
       [
         finalCustomerId,
         channel_id || existingOrder.channel_id,
@@ -207,6 +208,7 @@ export async function PUT(
         grandTotal,
         paymentBankName,
         paymentAccountNo,
+        body.driver_id ? Number(body.driver_id) : null,
         orderId,
       ]
     );

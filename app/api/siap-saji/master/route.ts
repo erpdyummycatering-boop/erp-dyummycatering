@@ -4,7 +4,7 @@ import pool from "@/lib/db";
 export async function GET(req: NextRequest) {
   const client = await pool.connect();
   try {
-    const [channelsRes, areasRes, kasBankRes, productsRes] = await Promise.all([
+    const [channelsRes, areasRes, kasBankRes, productsRes, driversRes] = await Promise.all([
       client.query(
         "SELECT id, name, harga_type, platform_key, urutan FROM channels WHERE lini = 'siap_saji' AND is_active = true ORDER BY urutan, name"
       ),
@@ -28,6 +28,9 @@ export async function GET(req: NextRequest) {
         GROUP BY p.id, p.sku, p.name, p.category_id, p.description, p.price, p.is_half_portion, p.parent_sku
         ORDER BY p.is_half_portion ASC, p.name ASC
       `),
+      client.query(
+        "SELECT id, name, phone, status FROM drivers WHERE lini = 'siap_saji' AND status = 'Aktif' ORDER BY id ASC"
+      ).catch(() => ({ rows: [] })),
     ]);
 
     return NextResponse.json({
@@ -35,6 +38,7 @@ export async function GET(req: NextRequest) {
       areas: areasRes.rows,
       kas_bank: kasBankRes.rows,
       products: productsRes.rows,
+      drivers: driversRes.rows,
     });
   } catch (error: any) {
     console.error("Gagal mengambil master data Siap Saji:", error);

@@ -41,6 +41,13 @@ interface Product {
   channel_prices?: { channel_id: number; harga_override: number | null }[];
 }
 
+interface Driver {
+  id: number;
+  name: string;
+  phone?: string;
+  status: string;
+}
+
 interface Channel {
   id: number;
   name: string;
@@ -110,6 +117,8 @@ interface Order {
   payment_account: string;
   status_order: string;
   status_payment: string;
+  shipping_status?: string;
+  driver_name?: string;
   cancel_reason?: string;
   created_at: string;
   items?: any[];
@@ -199,9 +208,11 @@ export default function SiapSajiOrdersPage() {
   const [masterKasBank, setMasterKasBank] = useState<KasBank[]>([]);
   const [masterProducts, setMasterProducts] = useState<Product[]>([]);
   const [masterCustomers, setMasterCustomers] = useState<any[]>([]);
+  const [masterDrivers, setMasterDrivers] = useState<Driver[]>([]);
 
   // Form Order State
   const [selectedChannelId, setSelectedChannelId] = useState<number | "">("");
+  const [selectedDriverId, setSelectedDriverId] = useState<number | "">("");
   const [customerMode, setCustomerMode] = useState<"new" | "select">("new");
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | "new">("new");
   const [customerName, setCustomerName] = useState("");
@@ -540,6 +551,7 @@ export default function SiapSajiOrdersPage() {
         setMasterAreas(data.areas || []);
         setMasterKasBank(data.kas_bank || []);
         setMasterProducts(data.products || []);
+        setMasterDrivers(data.drivers || []);
 
         if (data.channels?.length > 0 && !selectedChannelId) {
           setSelectedChannelId(data.channels[0].id);
@@ -663,6 +675,7 @@ export default function SiapSajiOrdersPage() {
       setCustomerPatokan(data.customer_patokan || "");
       setSelectedAreaId(data.area_id || (masterAreas.length > 0 ? masterAreas[0].id : ""));
       setSelectedChannelId(data.channel_id || (masterChannels.length > 0 ? masterChannels[0].id : ""));
+      setSelectedDriverId(data.driver_id || "");
       setSelectedBankId(data.kas_bank_id || (masterKasBank.length > 0 ? masterKasBank[0].id : ""));
       setDeliveryDate(data.delivery_date ? data.delivery_date.split("T")[0] : getTodayStr());
       setShippingFee(Number(data.shipping_fee || 0));
@@ -701,6 +714,7 @@ export default function SiapSajiOrdersPage() {
     setOrderDate(getTodayStr());
     setCustomerName("");
     setCustomerPhone("");
+    setSelectedDriverId("");
     setSelectedAreaId(masterAreas.length > 0 ? masterAreas[0].id : "");
     setCustomerAddress("");
     setCustomerPatokan("");
@@ -728,6 +742,7 @@ export default function SiapSajiOrdersPage() {
         // EDIT MODE (PUT)
         const payload = {
           channel_id: Number(selectedChannelId),
+          driver_id: selectedDriverId ? Number(selectedDriverId) : null,
           kas_bank_id: selectedBankId ? Number(selectedBankId) : null,
           delivery_date: deliveryDate,
           customer_name: customerName,
@@ -767,6 +782,7 @@ export default function SiapSajiOrdersPage() {
         // CREATE MODE (POST)
         const payload = {
           channel_id: Number(selectedChannelId),
+          driver_id: selectedDriverId ? Number(selectedDriverId) : null,
           customer_id: "new",
           customer_name: customerName,
           customer_phone: customerPhone,
@@ -1560,7 +1576,8 @@ export default function SiapSajiOrdersPage() {
               <th style={{ padding: "12px 16px" }}>Channel</th>
               <th style={{ padding: "12px 16px" }}>Total</th>
               <th style={{ padding: "12px 16px" }}>Rekening</th>
-              <th style={{ padding: "12px 16px" }}>Status</th>
+              <th style={{ padding: "12px 16px" }}>Status Order</th>
+              <th style={{ padding: "12px 16px" }}>Status Pengiriman</th>
               <th style={{ padding: "12px 16px", textAlign: "right" }}>Aksi</th>
             </tr>
           </thead>
@@ -1655,6 +1672,28 @@ export default function SiapSajiOrdersPage() {
                     >
                       {o.status_order}
                     </span>
+                  </td>
+                  <td style={{ padding: "14px 16px" }}>
+                    <div>
+                      {(() => {
+                        const st = o.shipping_status || "Menunggu";
+                        let bg = "#f3f4f6";
+                        let clr = "#4b5563";
+                        if (st === "Selesai" || st === "Terkirim") { bg = "#dcfce7"; clr = "#15803d"; }
+                        else if (st === "Dalam Pengiriman" || st === "Dikirim") { bg = "#dbeafe"; clr = "#1d4ed8"; }
+                        else if (st === "Diproses") { bg = "#fef3c7"; clr = "#b45309"; }
+                        return (
+                          <span style={{ padding: "3px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: bg, color: clr }}>
+                            {st}
+                          </span>
+                        );
+                      })()}
+                      {o.driver_name && (
+                        <p style={{ fontSize: 11, color: "#6b7280", margin: "2px 0 0", fontWeight: 600 }}>
+                          🛵 {o.driver_name}
+                        </p>
+                      )}
+                    </div>
                   </td>
                   <td style={{ padding: "14px 16px", textAlign: "right" }}>
                     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
@@ -1819,7 +1858,7 @@ export default function SiapSajiOrdersPage() {
             )}
 
             <form onSubmit={handleSubmitOrder}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 20 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 14, marginBottom: 20 }}>
                 {/* 1. Tanggal Kirim / Order */}
                 <div>
                   <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 6 }}>
@@ -1856,7 +1895,26 @@ export default function SiapSajiOrdersPage() {
                   </select>
                 </div>
 
-                {/* 3. Rekening Pembayaran */}
+                {/* 3. Driver Pengiriman */}
+                <div>
+                  <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#5005A6", marginBottom: 6 }}>
+                    Driver Pengemudi (Kurir)
+                  </label>
+                  <select
+                    value={selectedDriverId}
+                    onChange={(e) => setSelectedDriverId(e.target.value ? Number(e.target.value) : "")}
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #5005A6", fontSize: 14, outline: "none", background: "#fdf4ff" }}
+                  >
+                    <option value="">-- Pilih Driver --</option>
+                    {masterDrivers.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        🛵 {d.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 4. Rekening Pembayaran */}
                 <div>
                   <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 6 }}>
                     Rekening Pembayaran *
@@ -1934,7 +1992,23 @@ export default function SiapSajiOrdersPage() {
 
                           if (matched.length === 0) {
                             return (
-                              <div style={{ padding: "8px 12px", fontSize: 12, color: "#6b7280" }}>
+                              <div
+                                onClick={() => {
+                                  setSelectedCustomerId("new");
+                                  setIsCustDropdownOpen(false);
+                                  toast.info(`Membuat customer baru: "${customerName}"`);
+                                }}
+                                style={{
+                                  padding: "8px 12px",
+                                  fontSize: 12,
+                                  color: "#5005A6",
+                                  fontWeight: 600,
+                                  cursor: "pointer",
+                                  background: "#f9f5ff",
+                                }}
+                                onMouseEnter={(e) => (e.currentTarget.style.background = "#f3e8ff")}
+                                onMouseLeave={(e) => (e.currentTarget.style.background = "#f9f5ff")}
+                              >
                                 ➕ Buat sebagai Customer Baru: &quot;<strong>{customerName}</strong>&quot;
                               </div>
                             );
@@ -2170,6 +2244,7 @@ export default function SiapSajiOrdersPage() {
                                     key={a.id}
                                     onClick={() => {
                                       setSelectedAreaId(a.id);
+                                      setIsShippingAuto(true);
                                       setIsAreaDropdownOpen(false);
                                       setAreaSearchQuery("");
                                     }}

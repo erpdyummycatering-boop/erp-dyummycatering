@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Settings, MapPin, Share2, Plus, Edit3, Trash2, Search, X, CheckCircle } from "lucide-react";
+import { Settings, MapPin, Share2, Plus, Edit3, Trash2, Search, X, CheckCircle, Truck } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/ui/Pagination";
 
@@ -23,11 +23,19 @@ interface Channel {
   is_active: boolean;
 }
 
+interface Driver {
+  id: number;
+  name: string;
+  phone?: string;
+  status: string;
+}
+
 export default function SiapSajiMasterDataPage() {
-  const [activeTab, setActiveTab] = useState<"areas" | "channels">("areas");
+  const [activeTab, setActiveTab] = useState<"areas" | "channels" | "drivers">("areas");
 
   const [areas, setAreas] = useState<Area[]>([]);
   const [channels, setChannels] = useState<Channel[]>([]);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Pagination
@@ -45,6 +53,7 @@ export default function SiapSajiMasterDataPage() {
   const [kecamatan, setKecamatan] = useState("");
   const [kota, setKota] = useState("");
   const [shippingZone, setShippingZone] = useState("dalam_kota");
+  const [customFee, setCustomFee] = useState<number | "">("");
 
   // Channel Modal State
   const [isChannelModalOpen, setIsChannelModalOpen] = useState(false);
@@ -54,6 +63,12 @@ export default function SiapSajiMasterDataPage() {
   const [hargaType, setHargaType] = useState("normal");
   const [platformKey, setPlatformKey] = useState("");
   const [urutan, setUrutan] = useState(1);
+
+  // Driver Modal State
+  const [isDriverModalOpen, setIsDriverModalOpen] = useState(false);
+  const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
+  const [driverName, setDriverName] = useState("");
+  const [driverPhone, setDriverPhone] = useState("");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -85,9 +100,25 @@ export default function SiapSajiMasterDataPage() {
     }
   };
 
+  const fetchDrivers = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/siap-saji/drivers");
+      if (res.ok) {
+        const json = await res.json();
+        setDrivers(json.data || []);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (activeTab === "areas") fetchAreas();
-    else fetchChannels();
+    else if (activeTab === "channels") fetchChannels();
+    else if (activeTab === "drivers") fetchDrivers();
   }, [activeTab]);
 
   useEffect(() => {
@@ -224,7 +255,7 @@ export default function SiapSajiMasterDataPage() {
             >
               <Plus size={18} /> Tambah Wilayah
             </button>
-          ) : (
+          ) : activeTab === "channels" ? (
             <button
               onClick={() => {
                 setEditingChannel(null);
@@ -249,6 +280,30 @@ export default function SiapSajiMasterDataPage() {
               }}
             >
               <Plus size={18} /> Tambah Channel
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                setEditingDriver(null);
+                setDriverName("");
+                setDriverPhone("");
+                setIsDriverModalOpen(true);
+              }}
+              style={{
+                background: "linear-gradient(135deg, #5005A6 0%, #B10FBD 100%)",
+                color: "white",
+                border: "none",
+                borderRadius: 10,
+                padding: "10px 18px",
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <Plus size={18} /> Tambah Driver
             </button>
           )}
         </div>
@@ -294,6 +349,26 @@ export default function SiapSajiMasterDataPage() {
           }}
         >
           <Share2 size={18} /> Channel Penjualan ({channels.length})
+        </button>
+
+        <button
+          onClick={() => setActiveTab("drivers")}
+          style={{
+            padding: "12px 20px",
+            background: "none",
+            border: "none",
+            borderBottom: activeTab === "drivers" ? "3px solid #5005A6" : "3px solid transparent",
+            color: activeTab === "drivers" ? "#5005A6" : "#6b7280",
+            fontSize: 15,
+            fontWeight: activeTab === "drivers" ? 700 : 500,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            marginBottom: -2,
+          }}
+        >
+          <Truck size={18} /> Master Driver Pengemudi ({drivers.length})
         </button>
       </div>
 
@@ -427,7 +502,7 @@ export default function SiapSajiMasterDataPage() {
             />
           </div>
         </div>
-      ) : (
+      ) : activeTab === "channels" ? (
         /* TAB 2: MASTER CHANNELS */
         <div>
           <div style={{ background: "white", borderRadius: 12, border: "1px solid #e5e7eb", overflowX: "auto" }}>
@@ -515,6 +590,85 @@ export default function SiapSajiMasterDataPage() {
             />
           </div>
         </div>
+      ) : (
+        /* TAB 3: DRIVERS */
+        <div>
+          <div style={{ background: "white", borderRadius: 12, border: "1px solid #e5e7eb", overflow: "hidden" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+              <thead>
+                <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb", textAlign: "left", fontSize: 12, color: "#6b7280", textTransform: "uppercase" }}>
+                  <th style={{ padding: "12px 16px", width: 60 }}>No</th>
+                  <th style={{ padding: "12px 16px" }}>Nama Driver</th>
+                  <th style={{ padding: "12px 16px" }}>No Telepon</th>
+                  <th style={{ padding: "12px 16px" }}>Status</th>
+                  <th style={{ padding: "12px 16px", textAlign: "right" }}>Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={5} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                      Memuat data driver...
+                    </td>
+                  </tr>
+                ) : drivers.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                      Belum ada driver terdaftar.
+                    </td>
+                  </tr>
+                ) : (
+                  drivers.map((d, idx) => (
+                    <tr key={d.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                      <td style={{ padding: "14px 16px", color: "#6b7280" }}>{idx + 1}</td>
+                      <td style={{ padding: "14px 16px", fontWeight: 700, color: "#111827" }}>
+                        🛵 {d.name}
+                      </td>
+                      <td style={{ padding: "14px 16px", color: "#4b5563" }}>{d.phone || "-"}</td>
+                      <td style={{ padding: "14px 16px" }}>
+                        <span style={{ color: d.status === "Aktif" ? "#639922" : "#9ca3af", fontWeight: 600, fontSize: 13 }}>
+                          {d.status}
+                        </span>
+                      </td>
+                      <td style={{ padding: "14px 16px", textAlign: "right" }}>
+                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
+                          <button
+                            onClick={() => {
+                              setEditingDriver(d);
+                              setDriverName(d.name);
+                              setDriverPhone(d.phone || "");
+                              setIsDriverModalOpen(true);
+                            }}
+                            style={{ padding: "6px 12px", background: "#5005A6", color: "white", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (!confirm(`Apakah Anda yakin menghapus driver "${d.name}"?`)) return;
+                              try {
+                                const res = await fetch(`/api/siap-saji/drivers/${d.id}`, { method: "DELETE" });
+                                if (res.ok) {
+                                  toast.success(`Driver "${d.name}" berhasil dihapus!`);
+                                  fetchDrivers();
+                                }
+                              } catch (err: any) {
+                                toast.error("Gagal menghapus driver");
+                              }
+                            }}
+                            style={{ padding: "6px 12px", background: "#fee2e2", color: "#dc2626", border: "1px solid #fca5a5", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                          >
+                            Hapus
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
       {/* ── MODAL: AREA EDIT/ADD ────────────────────────────── */}
@@ -570,7 +724,24 @@ export default function SiapSajiMasterDataPage() {
                 >
                   <option value="dalam_kota">dalam_kota (Rp12.000)</option>
                   <option value="luar_kota">luar_kota (Rp14.000)</option>
+                  <option value="custom_manual">Custom / Input Manual (&gt; Rp14.000)</option>
                 </select>
+
+                {shippingZone === "custom_manual" && (
+                  <div style={{ marginTop: 10 }}>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#5005A6", marginBottom: 4 }}>
+                      Nominal Custom Ongkir (Rp) *
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="Contoh: 25000"
+                      value={customFee}
+                      onChange={(e) => setCustomFee(e.target.value ? Number(e.target.value) : "")}
+                      required
+                      style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #5005A6", fontSize: 14 }}
+                    />
+                  </div>
+                )}
               </div>
 
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
@@ -659,6 +830,86 @@ export default function SiapSajiMasterDataPage() {
                 </button>
                 <button type="submit" disabled={isSubmitting} style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "#5005A6", color: "white", fontWeight: 700 }}>
                   {isSubmitting ? "Simpan..." : "Simpan Channel"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: DRIVER EDIT/ADD ────────────────────────────── */}
+      {isDriverModalOpen && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: "white", borderRadius: 16, maxWidth: 440, width: "100%", padding: 24 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>
+                {editingDriver ? "Edit Driver" : "Tambah Driver Baru"}
+              </h3>
+              <button onClick={() => setIsDriverModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer" }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!driverName.trim()) return toast.error("Nama Driver wajib diisi");
+                setIsSubmitting(true);
+                try {
+                  const url = editingDriver ? `/api/siap-saji/drivers/${editingDriver.id}` : "/api/siap-saji/drivers";
+                  const method = editingDriver ? "PUT" : "POST";
+                  const res = await fetch(url, {
+                    method,
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ name: driverName, phone: driverPhone }),
+                  });
+                  if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.error || "Gagal menyimpan driver");
+                  }
+                  toast.success(editingDriver ? "Driver berhasil diperbarui!" : "Driver baru berhasil ditambahkan!");
+                  setIsDriverModalOpen(false);
+                  fetchDrivers();
+                } catch (err: any) {
+                  toast.error(err.message || "Gagal menyimpan driver");
+                } finally {
+                  setIsSubmitting(false);
+                }
+              }}
+            >
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                  Nama Driver *
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: driver Hendi"
+                  value={driverName}
+                  onChange={(e) => setDriverName(e.target.value)}
+                  required
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                  No Telepon / WhatsApp (Opsional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="0811..."
+                  value={driverPhone}
+                  onChange={(e) => setDriverPhone(e.target.value)}
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                />
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                <button type="button" onClick={() => setIsDriverModalOpen(false)} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "white" }}>
+                  Batal
+                </button>
+                <button type="submit" disabled={isSubmitting} style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "#5005A6", color: "white", fontWeight: 700 }}>
+                  {isSubmitting ? "Simpan..." : "Simpan Driver"}
                 </button>
               </div>
             </form>
