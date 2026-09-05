@@ -23,6 +23,7 @@ interface Props {
 
 export function SearchableSelect({ options, value, onChange, placeholder, className, style, disabled, menuPortalTarget, onCreateClick }: Props) {
   const selectedObj = options.find(o => String(o.value) === String(value)) || null;
+  const portalTarget = menuPortalTarget ?? (typeof document !== "undefined" ? document.body : null);
 
   return (
     <div style={{ ...style, width: style?.width || '100%' }} className={className}>
@@ -33,7 +34,7 @@ export function SearchableSelect({ options, value, onChange, placeholder, classN
         onChange={(val: any) => onChange(val ? val.value : "")}
         placeholder={placeholder || "-- Pilih --"}
         isClearable
-        menuPortalTarget={menuPortalTarget}
+        menuPortalTarget={portalTarget}
         noOptionsMessage={({ inputValue }) => {
           if (onCreateClick && inputValue.trim()) {
             return (
@@ -97,9 +98,9 @@ export function SearchableSelect({ options, value, onChange, placeholder, classN
           menu: (base) => ({
             ...base,
             fontSize: '13px',
-            zIndex: 9999
+            zIndex: 999999
           }),
-          menuPortal: base => ({ ...base, zIndex: 9999 }),
+          menuPortal: base => ({ ...base, zIndex: 999999 }),
           option: (base, { data }) => ({
             ...base,
             color: data.color || base.color,

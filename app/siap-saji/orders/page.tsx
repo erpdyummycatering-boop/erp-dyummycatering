@@ -1328,19 +1328,21 @@ export default function SiapSajiOrdersPage() {
         />
 
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-          <select
+          <SearchableSelect
+            options={[
+              { value: "today", label: "📅 Hari Ini" },
+              { value: "yesterday", label: "📅 Hari Kemarin" },
+              { value: "week", label: "📅 Pekan Ini" },
+              { value: "month", label: "📅 Bulan Ini" },
+              { value: "year", label: "📅 Tahun Ini" },
+              { value: "all", label: "📅 Semua Waktu" },
+              { value: "custom", label: "📅 Custom Tanggal" },
+            ]}
             value={timeShortcut}
-            onChange={(e) => handleTimeShortcutChange(e.target.value)}
-            style={{ width: 140, padding: "7px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, outline: "none", background: "white" }}
-          >
-            <option value="today">📅 Hari Ini</option>
-            <option value="yesterday">📅 Hari Kemarin</option>
-            <option value="week">📅 Pekan Ini</option>
-            <option value="month">📅 Bulan Ini</option>
-            <option value="year">📅 Tahun Ini</option>
-            <option value="all">📅 Semua Waktu</option>
-            <option value="custom">📅 Custom Tanggal</option>
-          </select>
+            onChange={(val) => handleTimeShortcutChange(val ? String(val) : "today")}
+            placeholder="Pilih Rentang Waktu"
+            style={{ width: 160 }}
+          />
 
           <input
             type="date"
@@ -1882,18 +1884,12 @@ export default function SiapSajiOrdersPage() {
                   <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 6 }}>
                     Channel Penjualan *
                   </label>
-                  <select
+                  <SearchableSelect
+                    options={masterChannels.map((ch) => ({ value: ch.id, label: ch.name }))}
                     value={selectedChannelId}
-                    onChange={(e) => setSelectedChannelId(Number(e.target.value))}
-                    required
-                    style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, outline: "none" }}
-                  >
-                    {masterChannels.map((ch) => (
-                      <option key={ch.id} value={ch.id}>
-                        {ch.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setSelectedChannelId(val ? Number(val) : 0)}
+                    placeholder="Pilih Channel"
+                  />
                 </div>
 
                 {/* 3. Driver Pengiriman */}
@@ -1901,18 +1897,15 @@ export default function SiapSajiOrdersPage() {
                   <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#5005A6", marginBottom: 6 }}>
                     Driver Pengemudi (Kurir)
                   </label>
-                  <select
+                  <SearchableSelect
+                    options={[
+                      { value: "", label: "-- Pilih Driver --" },
+                      ...masterDrivers.map((d) => ({ value: d.id, label: `🛵 ${d.name}` })),
+                    ]}
                     value={selectedDriverId}
-                    onChange={(e) => setSelectedDriverId(e.target.value ? Number(e.target.value) : "")}
-                    style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #5005A6", fontSize: 14, outline: "none", background: "#fdf4ff" }}
-                  >
-                    <option value="">-- Pilih Driver --</option>
-                    {masterDrivers.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        🛵 {d.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setSelectedDriverId(val ? Number(val) : "")}
+                    placeholder="-- Pilih Driver --"
+                  />
                 </div>
 
                 {/* 4. Rekening Pembayaran */}
@@ -1920,18 +1913,12 @@ export default function SiapSajiOrdersPage() {
                   <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 6 }}>
                     Rekening Pembayaran *
                   </label>
-                  <select
+                  <SearchableSelect
+                    options={masterKasBank.map((kb) => ({ value: kb.id, label: `${kb.nama_rekening} (${kb.no_rekening})` }))}
                     value={selectedBankId}
-                    onChange={(e) => setSelectedBankId(Number(e.target.value))}
-                    required
-                    style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, outline: "none" }}
-                  >
-                    {masterKasBank.map((kb) => (
-                      <option key={kb.id} value={kb.id}>
-                        {kb.nama_rekening} ({kb.no_rekening})
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setSelectedBankId(val ? Number(val) : 0)}
+                    placeholder="Pilih Rekening"
+                  />
                 </div>
               </div>
 
@@ -2314,7 +2301,7 @@ export default function SiapSajiOrdersPage() {
                     <select
                       value={discountType}
                       onChange={(e) => setDiscountType(e.target.value as "nominal" | "percent")}
-                      style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, background: "#f9fafb", outline: "none", fontWeight: 600 }}
+                      style={{ width: 150, flexShrink: 0, padding: "8px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, background: "#f9fafb", outline: "none", fontWeight: 600 }}
                     >
                       <option value="nominal">Nominal (Rp)</option>
                       <option value="percent">Persentase (%)</option>
