@@ -4,7 +4,7 @@ import pool from "@/lib/db";
 export async function GET() {
   const client = await pool.connect();
   try {
-    const res = await client.query("SELECT * FROM product_categories ORDER BY name ASC");
+    const res = await client.query("SELECT * FROM product_categories WHERE COALESCE(lini, 'catering') = 'catering' ORDER BY name ASC");
     return NextResponse.json(res.rows);
   } finally {
     client.release();

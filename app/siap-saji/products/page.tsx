@@ -21,6 +21,7 @@ import {
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { Pagination } from "@/components/ui/Pagination";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
 
 interface Category {
   id: number;
@@ -699,28 +700,28 @@ export default function SiapSajiProductsPage() {
           />
         </div>
 
-        <select
+        <SearchableSelect
+          options={[
+            { value: "", label: "Semua Kategori" },
+            ...categories.map((cat) => ({ value: cat.id, label: cat.name })),
+          ]}
           value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
-          style={{ width: 160, padding: "7px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, outline: "none", background: "white", flexShrink: 0 }}
-        >
-          <option value="">Semua Kategori</option>
-          {categories.map((cat) => (
-            <option key={cat.id} value={cat.id}>
-              {cat.name}
-            </option>
-          ))}
-        </select>
+          onChange={(val) => setCategoryFilter(val ? String(val) : "")}
+          placeholder="Semua Kategori"
+          style={{ width: 180, flexShrink: 0 }}
+        />
 
-        <select
+        <SearchableSelect
+          options={[
+            { value: "", label: "Semua Varian Porsi" },
+            { value: "false", label: "Porsi Penuh" },
+            { value: "true", label: "½ Porsi" },
+          ]}
           value={porsiFilter}
-          onChange={(e) => setPorsiFilter(e.target.value)}
-          style={{ width: 160, padding: "7px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, outline: "none", background: "white", flexShrink: 0 }}
-        >
-          <option value="">Semua Varian Porsi</option>
-          <option value="false">Porsi Penuh</option>
-          <option value="true">½ Porsi</option>
-        </select>
+          onChange={(val) => setPorsiFilter(val ? String(val) : "")}
+          placeholder="Semua Varian Porsi"
+          style={{ width: 180, flexShrink: 0 }}
+        />
       </div>
 
       {/* Products Table */}
@@ -1140,18 +1141,12 @@ export default function SiapSajiProductsPage() {
                   <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
                     Kategori Produk
                   </label>
-                  <select
+                  <SearchableSelect
+                    options={categories.map((c) => ({ value: c.id, label: c.name }))}
                     value={categoryId}
-                    onChange={(e) => setCategoryId(Number(e.target.value))}
-                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
-                  >
-                    <option value="">-- Pilih Kategori --</option>
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setCategoryId(val ? Number(val) : "")}
+                    placeholder="-- Pilih Kategori --"
+                  />
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>

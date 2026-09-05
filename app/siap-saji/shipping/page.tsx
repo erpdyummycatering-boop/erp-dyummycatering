@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { MapPin, Search, Filter, Edit3, CheckCircle, RefreshCw, X, AlertCircle, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/ui/Pagination";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
 
 interface MatrixRow {
   area_id: number;
@@ -263,28 +264,28 @@ export default function SiapSajiShippingPage() {
           />
         </div>
 
-        <select
+        <SearchableSelect
+          options={[
+            { value: "", label: "Semua Zona" },
+            { value: "dalam_kota", label: "Dalam Kota" },
+            { value: "luar_kota", label: "Luar Kota" },
+          ]}
           value={zoneFilter}
-          onChange={(e) => setZoneFilter(e.target.value)}
-          style={{ width: 140, padding: "7px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, outline: "none", background: "white", flexShrink: 0 }}
-        >
-          <option value="">Semua Zona</option>
-          <option value="dalam_kota">Dalam Kota</option>
-          <option value="luar_kota">Luar Kota</option>
-        </select>
+          onChange={(val) => setZoneFilter(val ? String(val) : "")}
+          placeholder="Semua Zona"
+          style={{ width: 150, flexShrink: 0 }}
+        />
 
-        <select
+        <SearchableSelect
+          options={[
+            { value: "", label: "Semua Channel" },
+            ...channels.map((ch) => ({ value: ch.id, label: ch.name })),
+          ]}
           value={channelFilter}
-          onChange={(e) => setChannelFilter(e.target.value)}
-          style={{ width: 150, padding: "7px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, outline: "none", background: "white", flexShrink: 0 }}
-        >
-          <option value="">Semua Channel</option>
-          {channels.map((ch) => (
-            <option key={ch.id} value={ch.id}>
-              {ch.name}
-            </option>
-          ))}
-        </select>
+          onChange={(val) => setChannelFilter(val ? String(val) : "")}
+          placeholder="Semua Channel"
+          style={{ width: 160, flexShrink: 0 }}
+        />
       </div>
 
       {/* ── SHIPPING MATRIX TABLE ────────────────────────────────── */}

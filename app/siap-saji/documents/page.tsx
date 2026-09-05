@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { ClipboardList, Printer, Calendar, Filter, Truck, ChefHat, FileText, CheckCircle, Search } from "lucide-react";
 import { toast } from "sonner";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { Pagination } from "@/components/ui/Pagination";
 import { formatDate } from "@/lib/utils";
 
@@ -185,18 +186,16 @@ export default function SiapSajiDocumentsPage() {
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
           <Filter size={16} color="#6b7280" />
           <label style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>Channel:</label>
-          <select
+          <SearchableSelect
+            options={[
+              { value: "", label: "Semua Channel" },
+              ...channels.map((ch) => ({ value: ch.name, label: ch.name })),
+            ]}
             value={channelFilter}
-            onChange={(e) => setChannelFilter(e.target.value)}
-            style={{ width: 160, padding: "6px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, background: "white" }}
-          >
-            <option value="">Semua Channel</option>
-            {channels.map((ch) => (
-              <option key={ch.id} value={ch.name}>
-                {ch.name}
-              </option>
-            ))}
-          </select>
+            onChange={(val) => setChannelFilter(val ? String(val) : "")}
+            placeholder="Semua Channel"
+            style={{ width: 170 }}
+          />
         </div>
       </div>
 

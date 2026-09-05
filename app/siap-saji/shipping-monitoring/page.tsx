@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Truck, Search, Filter, Calendar, CheckCircle2, Clock, MapPin, Phone, User, Edit3, Save, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { Pagination } from "@/components/ui/Pagination";
 import { formatDate } from "@/lib/utils";
 
@@ -244,31 +245,31 @@ export default function ShippingMonitoringPage() {
           />
         </div>
 
-        <select
+        <SearchableSelect
+          options={[
+            { value: "", label: "Semua Driver" },
+            { value: "unassigned", label: "Belum Ditugaskan" },
+            ...drivers.map((d) => ({ value: d.id, label: d.name })),
+          ]}
           value={driverFilter}
-          onChange={(e) => setDriverFilter(e.target.value)}
-          style={{ width: 160, padding: "7px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, outline: "none", background: "white" }}
-        >
-          <option value="">Semua Driver</option>
-          <option value="unassigned">Belum Ditugaskan</option>
-          {drivers.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.name}
-            </option>
-          ))}
-        </select>
+          onChange={(val) => setDriverFilter(val ? String(val) : "")}
+          placeholder="Semua Driver"
+          style={{ width: 170, flexShrink: 0 }}
+        />
 
-        <select
+        <SearchableSelect
+          options={[
+            { value: "", label: "Semua Status" },
+            { value: "Menunggu", label: "Menunggu" },
+            { value: "Diproses", label: "Diproses" },
+            { value: "Dalam Pengiriman", label: "Dalam Pengiriman" },
+            { value: "Selesai", label: "Selesai / Terkirim" },
+          ]}
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          style={{ width: 160, padding: "7px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, outline: "none", background: "white" }}
-        >
-          <option value="">Semua Status</option>
-          <option value="Menunggu">Menunggu</option>
-          <option value="Diproses">Diproses</option>
-          <option value="Dalam Pengiriman">Dalam Pengiriman</option>
-          <option value="Selesai">Selesai / Terkirim</option>
-        </select>
+          onChange={(val) => setStatusFilter(val ? String(val) : "")}
+          placeholder="Semua Status"
+          style={{ width: 170, flexShrink: 0 }}
+        />
       </div>
 
       {/* ── TABLE MONITORING ────────────────────────────────────────── */}
@@ -335,28 +336,17 @@ export default function ShippingMonitoringPage() {
                       {ord.kecamatan}
                     </td>
                     <td style={{ padding: "12px 10px", verticalAlign: "top" }}>
-                      <select
+                      <SearchableSelect
+                        options={[
+                          { value: "", label: "-- Pilih Driver --" },
+                          ...drivers.map((d) => ({ value: d.id, label: d.name })),
+                        ]}
                         value={ord.driver_id || ""}
                         disabled={updatingId === ord.id}
-                        onChange={(e) => handleUpdateDriver(ord.id, e.target.value)}
-                        style={{
-                          width: "100%",
-                          padding: "6px 8px",
-                          borderRadius: 6,
-                          border: "1px solid #d1d5db",
-                          fontSize: 12,
-                          fontWeight: 600,
-                          background: ord.driver_id ? "#f5f3ff" : "#fff",
-                          color: ord.driver_id ? "#5005A6" : "#6b7280",
-                        }}
-                      >
-                        <option value="">-- Pilih Driver --</option>
-                        {drivers.map((d) => (
-                          <option key={d.id} value={d.id}>
-                            {d.name}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(val) => handleUpdateDriver(ord.id, val ? String(val) : "")}
+                        placeholder="-- Pilih Driver --"
+                        style={{ width: 160 }}
+                      />
                     </td>
                     <td style={{ padding: "12px 10px", textAlign: "center", verticalAlign: "top" }}>
                       {getStatusBadge(currentStatus)}

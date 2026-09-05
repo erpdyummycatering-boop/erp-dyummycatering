@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/ui/Pagination";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { formatDate, getWhatsAppUrl } from "@/lib/utils";
 import { normalizePhoneNumber, isSamePhoneNumber, formatPhoneForDisplay } from "@/lib/phoneUtils";
 import * as XLSX from "xlsx";
@@ -1151,18 +1152,16 @@ export default function SiapSajiOrdersPage() {
           />
         </div>
 
-        <select
+        <SearchableSelect
+          options={[
+            { value: "", label: "Semua Channel" },
+            ...masterChannels.map((ch) => ({ value: ch.id, label: ch.name })),
+          ]}
           value={channelFilter}
-          onChange={(e) => setChannelFilter(e.target.value)}
-          style={{ width: 140, padding: "7px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, outline: "none", background: "white" }}
-        >
-          <option value="">Semua Channel</option>
-          {masterChannels.map((ch) => (
-            <option key={ch.id} value={ch.id}>
-              {ch.name}
-            </option>
-          ))}
-        </select>
+          onChange={(val) => setChannelFilter(val ? String(val) : "")}
+          placeholder="Semua Channel"
+          style={{ width: 160, flexShrink: 0 }}
+        />
 
         {/* Searchable Select2 Autocomplete Combobox for Menu Filter */}
         <div style={{ position: "relative", width: 210, flexShrink: 0 }}>
@@ -1316,15 +1315,17 @@ export default function SiapSajiOrdersPage() {
         )}
         </div>
 
-        <select
+        <SearchableSelect
+          options={[
+            { value: "", label: "Semua Status" },
+            { value: "Aktif", label: "Aktif" },
+            { value: "Dibatalkan", label: "Dibatalkan" },
+          ]}
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          style={{ width: 130, padding: "7px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, outline: "none", background: "white" }}
-        >
-          <option value="">Semua Status</option>
-          <option value="Aktif">Aktif</option>
-          <option value="Dibatalkan">Dibatalkan</option>
-        </select>
+          onChange={(val) => setStatusFilter(val ? String(val) : "")}
+          placeholder="Semua Status"
+          style={{ width: 140, flexShrink: 0 }}
+        />
 
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
           <select

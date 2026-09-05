@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     await client.query("BEGIN");
 
     // Fetch categories lookup for mapping category_name if category_id is null
-    const categoriesRes = await client.query("SELECT id, LOWER(name) AS name_lower FROM product_categories");
+    const categoriesRes = await client.query("SELECT id, LOWER(name) AS name_lower FROM product_categories WHERE lini = 'siap_saji'");
     const categoryMapByName = new Map<string, number>();
     categoriesRes.rows.forEach((row) => {
       categoryMapByName.set(row.name_lower.trim(), Number(row.id));

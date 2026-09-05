@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
         LIMIT $${idx} OFFSET $${idx + 1}`,
         [...vals, limit, offset]
       ),
-      client.query("SELECT * FROM product_categories ORDER BY name"),
+      client.query("SELECT * FROM product_categories WHERE lini = 'siap_saji' ORDER BY name"),
     ]);
 
     const total = Number(countRes.rows[0].count);

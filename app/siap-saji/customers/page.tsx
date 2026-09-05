@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Users, Plus, Search, Filter, Phone, MapPin, Edit3, Trash2, Eye, Award, ShoppingBag, X } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/ui/Pagination";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { formatDate, getWhatsAppUrl } from "@/lib/utils";
 
 interface Area {
@@ -320,19 +321,20 @@ export default function SiapSajiCustomersPage() {
           />
         </div>
 
-        <select
+        <SearchableSelect
+          options={[
+            { value: "", label: "Semua Segmen RFM" },
+            { value: "Champions", label: "Champions" },
+            { value: "Loyal Customers", label: "Loyal Customers" },
+            { value: "Potential Loyalists", label: "Potential Loyalists" },
+            { value: "At Risk", label: "At Risk" },
+            { value: "Hibernating / Lost", label: "Hibernating / Lost" },
+          ]}
           value={segmenFilter}
-          onChange={(e) => setSegmenFilter(e.target.value)}
-          style={{ width: 180, padding: "7px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, outline: "none", background: "white", flexShrink: 0 }}
-        >
-          <option value="">Semua Segmen RFM</option>
-          <option value="Champions">Champions</option>
-          <option value="Loyal Customers">Loyal Customers</option>
-          <option value="New Customers">New Customers</option>
-          <option value="Potential Loyalist">Potential Loyalist</option>
-          <option value="At Risk">At Risk</option>
-          <option value="Dormant">Dormant</option>
-        </select>
+          onChange={(val) => setSegmenFilter(val ? String(val) : "")}
+          placeholder="Semua Segmen RFM"
+          style={{ width: 200, flexShrink: 0 }}
+        />
       </div>
 
       {/* Customer Table */}
@@ -532,19 +534,12 @@ export default function SiapSajiCustomersPage() {
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
                   Kecamatan (Wilayah) *
                 </label>
-                <select
+                <SearchableSelect
+                  options={areas.map((a) => ({ value: a.id, label: `${a.kecamatan} (${a.kota})` }))}
                   value={areaId}
-                  onChange={(e) => setAreaId(Number(e.target.value))}
-                  required
-                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
-                >
-                  <option value="">-- Pilih Kecamatan --</option>
-                  {areas.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.kecamatan} ({a.kota})
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setAreaId(val ? Number(val) : "")}
+                  placeholder="-- Pilih Kecamatan --"
+                />
               </div>
 
               <div style={{ marginBottom: 14 }}>
