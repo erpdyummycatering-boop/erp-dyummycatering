@@ -7,7 +7,8 @@ import {
   LayoutDashboard, Users, ShoppingBag, BarChart2,
   CalendarDays, BookOpen, ClipboardList, TrendingUp, CreditCard,
   PieChart, Settings, Menu, X, Utensils, Target,
-  ShoppingCart, Layers, LogIn, LogOut, MapPin, Truck, ChevronRight
+  ShoppingCart, Layers, LogIn, LogOut, MapPin, Truck, ChevronRight,
+  UserCheck, DollarSign, UploadCloud, FileText, Clock, Building
 } from "lucide-react";
 import { useRole } from "@/contexts/RoleContext";
 import { getRoleConfig, ROLES } from "@/lib/roleConfig";
@@ -37,6 +38,38 @@ const RUMPUN_MENU: ModuleGroup[] = [
         section: "Dashboard Main",
         items: [
           { href: "/cs-performance", label: "Performa CS", icon: LayoutDashboard },
+        ],
+      },
+    ],
+  },
+  {
+    id: "hr",
+    label: "HR & PAYROLL",
+    icon: UserCheck,
+    sections: [
+      {
+        section: "Master Data HR",
+        items: [
+          { href: "/hr/karyawan", label: "Data Karyawan", icon: Users },
+          { href: "/hr/jabatan", label: "Jabatan & Dept", icon: Building },
+          { href: "/hr/struktur-gaji", label: "Struktur Gaji", icon: DollarSign },
+          { href: "/hr/shift", label: "Jadwal Shift", icon: Clock },
+          { href: "/hr/konfigurasi-aturan", label: "Aturan & Override", icon: Settings },
+        ],
+      },
+      {
+        section: "Presensi & Kehadiran",
+        items: [
+          { href: "/hr/presensi/upload", label: "Upload Presensi", icon: UploadCloud },
+          { href: "/hr/presensi/rekap", label: "Rekap Kehadiran", icon: CalendarDays },
+          { href: "/hr/presensi/koreksi", label: "Koreksi Presensi", icon: ClipboardList },
+        ],
+      },
+      {
+        section: "Penggajian & Slip",
+        items: [
+          { href: "/hr/payroll/proses", label: "Proses Payroll", icon: DollarSign },
+          { href: "/hr/payroll/riwayat", label: "Riwayat Payroll", icon: FileText },
         ],
       },
     ],
