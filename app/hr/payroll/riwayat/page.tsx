@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { FileText, Eye, Printer, FileSpreadsheet, ChevronLeft, ChevronRight } from "lucide-react";
+import { FileText, Eye, Printer, FileSpreadsheet, MessageSquare, ExternalLink } from "lucide-react";
 import * as XLSX from "xlsx";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Pagination } from "@/components/ui/Pagination";
@@ -208,12 +208,34 @@ export default function RiwayatPayrollPage() {
                       Rp {Number(d.gaji_bersih || 0).toLocaleString("id-ID")}
                     </td>
                     <td style={{ textAlign: "right" }}>
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => handleOpenSlip(d)}
-                      >
-                        <Printer size={14} /> Cetak Slip
-                      </button>
+                      <div style={{ display: "inline-flex", gap: 6 }}>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          style={{ color: "#25D366", borderColor: "#25D366", fontWeight: 700 }}
+                          onClick={() => {
+                            let rawPhone = d.no_telepon || "";
+                            if (!rawPhone) {
+                              const inputPhone = prompt(`Nomor WhatsApp ${d.snapshot_nama} belum terdaftar. Masukkan nomor WhatsApp (misal: 6281234567890):`);
+                              if (!inputPhone) return;
+                              rawPhone = inputPhone;
+                            }
+                            const phone = rawPhone.replace(/\D/g, "");
+                            const slipUrl = `${window.location.origin}/slip/${d.id}`;
+                            const caption = `Halo ${d.snapshot_nama},\n\nBerikut adalah Slip Gaji Anda untuk periode ${selectedPayroll?.nama_periode}:\nTotal Gaji Bersih: Rp ${Number(d.gaji_bersih || 0).toLocaleString("id-ID")}\n\nAnda dapat melihat dan mengunduh slip PDF secara langsung melalui tautan resmi berikut:\n${slipUrl}\n\nTerima Kasih,\nHRD Dyummy Catering`;
+                            const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(caption)}`;
+                            window.open(waUrl, "_blank");
+                          }}
+                          title="Kirim Slip ke WhatsApp Karyawan"
+                        >
+                          <MessageSquare size={14} /> Kirim WA
+                        </button>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => handleOpenSlip(d)}
+                        >
+                          <Printer size={14} /> Slip PDF
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -246,7 +268,7 @@ export default function RiwayatPayrollPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {/* Header Slip */}
             <div style={{ textAlign: "center", borderBottom: "1px solid #e5e7eb", paddingBottom: 12 }}>
-              <h2 style={{ fontSize: 20, fontWeight: 900, color: "#5005A6", letterSpacing: "0.04em", textTransform: "uppercase" }}>CATERING ERP</h2>
+              <h2 style={{ fontSize: 20, fontWeight: 900, color: "#5005A6", letterSpacing: "0.04em" }}>Dyummy Catering</h2>
               <div style={{ fontSize: 12, color: "#6b7280" }}>SLIP GAJI KARYAWAN</div>
               <div style={{ fontSize: 14, fontWeight: 700, color: "#111827", marginTop: 4 }}>{selectedPayroll?.nama_periode}</div>
             </div>
@@ -328,6 +350,19 @@ export default function RiwayatPayrollPage() {
               </div>
             </div>
 
+            {/* Public Link Banner */}
+            <div style={{ background: "#f5f3ff", border: "1px solid #ddd6fe", padding: "10px 12px", borderRadius: 8, fontSize: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ color: "#5005A6", fontWeight: 600 }}>Public Link Stream:</span>
+              <a
+                href={`/slip/${selectedSlip.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: "#5005A6", fontWeight: 700, textDecoration: "underline", display: "inline-flex", alignItems: "center", gap: 4 }}
+              >
+                /slip/{selectedSlip.id} <ExternalLink size={12} />
+              </a>
+            </div>
+
             {/* Action buttons */}
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, paddingTop: 12, borderTop: "1px solid #e5e7eb" }}>
               <button
@@ -337,7 +372,25 @@ export default function RiwayatPayrollPage() {
                 Tutup
               </button>
               <button
-                onClick={() => window.print()}
+                onClick={() => {
+                  let rawPhone = selectedSlip.no_telepon || "";
+                  if (!rawPhone) {
+                    const inputPhone = prompt("Nomor WhatsApp karyawan belum terdaftar. Masukkan nomor WhatsApp karyawan (misal: 6281234567890):");
+                    if (!inputPhone) return;
+                    rawPhone = inputPhone;
+                  }
+                  const phone = rawPhone.replace(/\D/g, "");
+                  const slipUrl = `${window.location.origin}/slip/${selectedSlip.id}`;
+                  const caption = `Halo ${selectedSlip.snapshot_nama},\n\nBerikut adalah Slip Gaji Anda untuk periode ${selectedPayroll?.nama_periode}:\nTotal Gaji Bersih: Rp ${Number(selectedSlip.gaji_bersih || 0).toLocaleString("id-ID")}\n\nAnda dapat melihat dan mengunduh slip PDF secara langsung melalui tautan resmi berikut:\n${slipUrl}\n\nTerima Kasih,\nHRD Dyummy Catering`;
+                  const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(caption)}`;
+                  window.open(waUrl, "_blank");
+                }}
+                style={{ background: "#25D366", color: "white", border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: 13, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}
+              >
+                <MessageSquare size={14} /> Kirim Slip via WA
+              </button>
+              <button
+                onClick={() => window.open(`/slip/${selectedSlip.id}`, "_blank")}
                 className="btn btn-primary"
               >
                 <Printer size={14} /> Cetak Slip PDF

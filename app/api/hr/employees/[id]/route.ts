@@ -27,9 +27,20 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       [id]
     );
 
+    // Fetch payroll history (slips) for this employee
+    const slipsRes = await pool.query(
+      `SELECT pd.*, p.nama_periode, p.periode_tahun, p.periode_bulan, p.status as payroll_status
+       FROM hr_payroll_details pd
+       JOIN hr_payrolls p ON p.id = pd.payroll_id
+       WHERE pd.employee_id = $1
+       ORDER BY p.created_at DESC`,
+      [id]
+    );
+
     return NextResponse.json({
       ...employee,
       salary_history: salaryRes.rows,
+      payroll_history: slipsRes.rows,
       active_salary: salaryRes.rows[0] || null,
     });
   } catch (error: any) {

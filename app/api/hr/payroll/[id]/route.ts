@@ -19,7 +19,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     const detailsRes = await pool.query(
-      `SELECT pd.*, e.kode_karyawan
+      `SELECT pd.*, e.kode_karyawan, e.no_telepon
        FROM hr_payroll_details pd
        JOIN hr_employees e ON e.id = pd.employee_id
        WHERE pd.payroll_id = $1

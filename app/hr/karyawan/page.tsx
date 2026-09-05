@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Users, Plus, Search, Edit, Trash2, CheckCircle, XCircle, FileSpreadsheet, ChevronLeft, ChevronRight } from "lucide-react";
+import { Users, Plus, Search, Edit, Trash2, CheckCircle, XCircle, FileSpreadsheet, Eye, FileText, ExternalLink } from "lucide-react";
 import * as XLSX from "xlsx";
 import { PageHeader, FormRow, FormField } from "@/components/ui/PageHeader";
 import { Pagination } from "@/components/ui/Pagination";
@@ -19,6 +19,13 @@ export default function KaryawanPage() {
 
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+
+  // Detail Modal State
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [detailEmp, setDetailEmp] = useState<any>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailSlipPage, setDetailSlipPage] = useState(1);
+  const [detailSlipLimit, setDetailSlipLimit] = useState(5);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEmp, setEditingEmp] = useState<any>(null);
@@ -113,6 +120,23 @@ export default function KaryawanPage() {
     setIsModalOpen(true);
   };
 
+  const handleViewDetail = async (empId: number) => {
+    setDetailLoading(true);
+    setIsDetailModalOpen(true);
+    setDetailSlipPage(1);
+    try {
+      const res = await fetch(`/api/hr/employees/${empId}`);
+      const data = await res.json();
+      if (res.ok) {
+        setDetailEmp(data);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -157,6 +181,7 @@ export default function KaryawanPage() {
       "No": idx + 1,
       "Kode Karyawan": e.kode_karyawan,
       "Nama Lengkap": e.nama_lengkap,
+      "No WhatsApp": e.no_telepon || "-",
       "Nama Fingerprint": e.nama_fingerprint,
       "Departemen": e.department_nama,
       "Jabatan": e.position_nama,
@@ -271,6 +296,7 @@ export default function KaryawanPage() {
                     <th style={{ width: 48, textAlign: "center" }}>No.</th>
                     <th>Kode / ID</th>
                     <th>Nama Lengkap</th>
+                    <th>No. WhatsApp</th>
                     <th>Nama Fingerprint</th>
                     <th>Dept / Jabatan</th>
                     <th>Tipe Karyawan</th>
@@ -290,6 +316,20 @@ export default function KaryawanPage() {
                         )}
                       </td>
                       <td style={{ fontWeight: 600 }}>{emp.nama_lengkap}</td>
+                      <td>
+                        {emp.no_telepon ? (
+                          <a
+                            href={`https://wa.me/${emp.no_telepon.replace(/\D/g, "")}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ color: "#25D366", fontWeight: 600, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4 }}
+                          >
+                            <span>💬 {emp.no_telepon}</span>
+                          </a>
+                        ) : (
+                          <span style={{ color: "#9ca3af" }}>-</span>
+                        )}
+                      </td>
                       <td>{emp.nama_fingerprint}</td>
                       <td>
                         <div style={{ fontWeight: 500 }}>{emp.department_nama || "-"}</div>
@@ -308,6 +348,14 @@ export default function KaryawanPage() {
                       </td>
                       <td style={{ textAlign: "right" }}>
                         <div style={{ display: "inline-flex", gap: 6 }}>
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => handleViewDetail(emp.id)}
+                            title="Detail Karyawan & Slip Gaji"
+                            style={{ color: "#5005A6" }}
+                          >
+                            <Eye size={14} /> Detail
+                          </button>
                           <button
                             className="btn btn-secondary btn-sm"
                             onClick={() => handleOpenModal(emp)}
@@ -368,6 +416,25 @@ export default function KaryawanPage() {
                 required
                 value={formData.nama_lengkap}
                 onChange={(e) => setFormData({ ...formData, nama_lengkap: e.target.value })}
+              />
+            </FormField>
+          </FormRow>
+
+          <FormRow>
+            <FormField label="No. WhatsApp / Telepon">
+              <input
+                type="text"
+                value={formData.no_telepon}
+                onChange={(e) => setFormData({ ...formData, no_telepon: e.target.value })}
+                placeholder="misal: 6281234567890"
+              />
+            </FormField>
+            <FormField label="Email">
+              <input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="misal: nama@email.com"
               />
             </FormField>
           </FormRow>
@@ -499,6 +566,139 @@ export default function KaryawanPage() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Modal Detail Karyawan & History Slip Gaji */}
+      <Modal
+        show={isDetailModalOpen}
+        onClose={() => setIsDetailModalOpen(false)}
+        title="Detail Karyawan & Riwayat Slip Gaji"
+        width={720}
+      >
+        {detailLoading ? (
+          <div style={{ padding: 24, textAlign: "center", color: "#6b7280" }}>Memuat detail karyawan...</div>
+        ) : detailEmp ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {/* Header Profile */}
+            <div style={{ background: "#f9fafb", padding: 14, borderRadius: 10, border: "1px solid #e5e7eb", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: 13 }}>
+              <div>
+                <span style={{ color: "#6b7280", fontSize: 11, display: "block" }}>NAMA LENGKAP:</span>
+                <strong style={{ fontSize: 15, color: "#111827" }}>{detailEmp.nama_lengkap}</strong>
+                <span style={{ color: "#5005A6", fontSize: 12, fontWeight: 700, display: "block" }}>{detailEmp.kode_karyawan} (FP #{detailEmp.no_fingerprint || "-"})</span>
+              </div>
+              <div>
+                <span style={{ color: "#6b7280", fontSize: 11, display: "block" }}>DEPARTEMEN / JABATAN:</span>
+                <strong>{detailEmp.department_nama || "-"}</strong>
+                <div style={{ color: "#6b7280", fontSize: 12 }}>{detailEmp.position_nama || "-"}</div>
+              </div>
+              <div>
+                <span style={{ color: "#6b7280", fontSize: 11, display: "block" }}>NO. WHATSAPP:</span>
+                {detailEmp.no_telepon ? (
+                  <a
+                    href={`https://wa.me/${detailEmp.no_telepon.replace(/\D/g, "")}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: "#25D366", fontWeight: 700, textDecoration: "none" }}
+                  >
+                    💬 {detailEmp.no_telepon}
+                  </a>
+                ) : (
+                  <span>-</span>
+                )}
+              </div>
+              <div>
+                <span style={{ color: "#6b7280", fontSize: 11, display: "block" }}>STATUS / TIPE:</span>
+                <div style={{ display: "inline-flex", gap: 6, marginTop: 2 }}>
+                  <Badge color={detailEmp.status === "AKTIF" ? "green" : "red"}>{detailEmp.status}</Badge>
+                  <Badge color="purple">{detailEmp.tipe_karyawan}</Badge>
+                </div>
+              </div>
+            </div>
+
+            {/* Riwayat Slip Gaji Section */}
+            <div>
+              <h4 style={{ fontSize: 14, fontWeight: 700, color: "#5005A6", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+                <FileText size={16} /> Riwayat Slip Gaji Karyawan
+              </h4>
+
+              {(!detailEmp.payroll_history || detailEmp.payroll_history.length === 0) ? (
+                <div style={{ background: "#f3f4f6", padding: 16, borderRadius: 8, textAlign: "center", fontSize: 13, color: "#6b7280" }}>
+                  Belum ada riwayat slip gaji untuk karyawan ini.
+                </div>
+              ) : (
+                <>
+                  <div className="erp-card-flush" style={{ overflowX: "auto" }}>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th style={{ width: 40, textAlign: "center" }}>No.</th>
+                          <th>Periode Gaji</th>
+                          <th>Hari Hadir</th>
+                          <th>Gaji Pokok</th>
+                          <th>Lembur</th>
+                          <th style={{ color: "#5005A6" }}>Gaji Bersih</th>
+                          <th style={{ textAlign: "right" }}>Aksi PDF</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {detailEmp.payroll_history
+                          .slice((detailSlipPage - 1) * detailSlipLimit, detailSlipPage * detailSlipLimit)
+                          .map((slip: any, sIdx: number) => (
+                            <tr key={slip.id}>
+                              <td style={{ textAlign: "center", color: "#6b7280" }}>{(detailSlipPage - 1) * detailSlipLimit + sIdx + 1}</td>
+                              <td>
+                                <div style={{ fontWeight: 600, color: "#111827" }}>{slip.nama_periode}</div>
+                                <div style={{ fontSize: 11, color: "#6b7280" }}>Status: {slip.payroll_status}</div>
+                              </td>
+                              <td style={{ color: "#639922", fontWeight: 600 }}>{slip.hari_hadir} Hari</td>
+                              <td>Rp {Number(slip.subtotal_gaji_pokok || 0).toLocaleString("id-ID")}</td>
+                              <td>Rp {Number(slip.subtotal_lembur || 0).toLocaleString("id-ID")}</td>
+                              <td style={{ fontWeight: 700, color: "#5005A6" }}>
+                                Rp {Number(slip.gaji_bersih || 0).toLocaleString("id-ID")}
+                              </td>
+                              <td style={{ textAlign: "right" }}>
+                                <a
+                                  href={`/slip/${slip.id}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ textDecoration: "none", color: "#5005A6" }}
+                                >
+                                  <ExternalLink size={13} /> View PDF
+                                </a>
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <Pagination
+                    page={detailSlipPage}
+                    totalPages={Math.ceil((detailEmp.payroll_history?.length || 0) / detailSlipLimit)}
+                    total={detailEmp.payroll_history?.length || 0}
+                    limit={detailSlipLimit}
+                    onChange={(p) => setDetailSlipPage(p)}
+                    onLimitChange={(l) => {
+                      setDetailSlipLimit(l);
+                      setDetailSlipPage(1);
+                    }}
+                  />
+                </>
+              )}
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", paddingTop: 10, borderTop: "1px solid #e5e7eb" }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setIsDetailModalOpen(false)}
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        ) : null}
       </Modal>
     </div>
   );
