@@ -278,9 +278,12 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           top: 0,
           left: 0,
           zIndex: 99,
-          transition: "transform 0.22s ease",
-          transform: sidebarOpen ? "translateX(0)" : "translateX(-100%)",
+          width: sidebarOpen ? 288 : 0,
+          minWidth: sidebarOpen ? 288 : 0,
+          overflow: "hidden",
+          transition: "all 0.22s ease",
           boxShadow: isMobile && sidebarOpen ? "4px 0 20px rgba(0,0,0,0.2)" : "none",
+          flexShrink: 0,
         }}
       >
         {/* ── PRIMARY SLIM PANEL (RUMPUN MENU) ────────────────────── */}
@@ -589,7 +592,11 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         </header>
 
         {/* Page Content */}
-        <main style={{ flex: 1, overflowY: "auto" }}>{children}</main>
+        <main style={{ flex: 1, overflowY: "auto" }}>
+          <div style={{ padding: isMobile ? "16px 12px" : "24px 32px", maxWidth: "1600px", margin: "0 auto", width: "100%" }}>
+            {children}
+          </div>
+        </main>
       </div>
     </div>
   );
