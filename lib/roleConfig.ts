@@ -51,6 +51,7 @@ export const ROLES: RoleConfig[] = [
       "/orders",
       "/siap-saji/dashboard",
       "/siap-saji/orders",
+      "/siap-saji/shipping-monitoring",
       "/siap-saji/documents",
       "/siap-saji/analytics/products",
       "/siap-saji/analytics/customers",
@@ -78,6 +79,7 @@ export const ROLES: RoleConfig[] = [
       "/products",
       "/siap-saji/dashboard",
       "/siap-saji/orders",
+      "/siap-saji/shipping-monitoring",
       "/siap-saji/documents",
       "/siap-saji/analytics/products",
       "/siap-saji/analytics/customers",
@@ -126,6 +128,7 @@ export const ROLES: RoleConfig[] = [
       "/targets",
       "/siap-saji/dashboard",
       "/siap-saji/orders",
+      "/siap-saji/shipping-monitoring",
       "/siap-saji/documents",
       "/siap-saji/analytics/products",
       "/siap-saji/analytics/customers",
@@ -149,6 +152,7 @@ export const ROLES: RoleConfig[] = [
       "/cs-performance",
       "/customers",
       "/orders",
+      "/hr/driver-trips",
     ],
   },
   {
@@ -162,6 +166,7 @@ export const ROLES: RoleConfig[] = [
     allowedHrefs: [
       "/siap-saji/dashboard",
       "/siap-saji/orders",
+      "/siap-saji/shipping-monitoring",
       "/siap-saji/documents",
       "/siap-saji/analytics/products",
       "/siap-saji/analytics/customers",
@@ -181,6 +186,7 @@ export const ROLES: RoleConfig[] = [
     allowedHrefs: [
       "/siap-saji/dashboard",
       "/siap-saji/orders",
+      "/siap-saji/shipping-monitoring",
       "/siap-saji/documents",
       "/siap-saji/analytics/products",
       "/siap-saji/analytics/customers",
@@ -203,6 +209,7 @@ export const ROLES: RoleConfig[] = [
     allowedHrefs: [
       "/siap-saji/dashboard",
       "/siap-saji/orders",
+      "/siap-saji/shipping-monitoring",
       "/siap-saji/documents",
       "/siap-saji/analytics/products",
       "/siap-saji/analytics/customers",

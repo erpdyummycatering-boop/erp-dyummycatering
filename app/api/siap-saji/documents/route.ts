@@ -71,13 +71,16 @@ export async function GET(req: NextRequest) {
         const res = await client.query(
           `SELECT 
             o.id AS order_id,
-            c.name AS nama_customer,
-            c.phone AS no_hp,
-            o.no_struk,
+            o.no_struk AS order_number,
+            c.name AS customer_name,
+            c.phone AS customer_phone,
             COALESCE(a.kecamatan, '-') AS kecamatan,
-            COALESCE(o.shipping_address, c.address, '-') AS alamat,
+            COALESCE(c.address, '-') AS delivery_address,
             c.patokan,
+            o.driver_id,
             COALESCE(dr.name, 'Unassigned') AS driver_name,
+            COALESCE(o.shipping_status, 'Menunggu') AS shipping_status,
+            o.created_at,
             COALESCE(
               json_agg(
                 json_build_object(
@@ -95,7 +98,7 @@ export async function GET(req: NextRequest) {
           LEFT JOIN order_items oi ON oi.order_id = o.id
           LEFT JOIN products p ON p.id = oi.product_id
           ${whereSql}
-          GROUP BY o.id, c.id, c.name, c.phone, o.no_struk, a.kecamatan, o.shipping_address, c.address, c.patokan, dr.name, ch.name
+          GROUP BY o.id, c.id, c.name, c.phone, o.no_struk, a.kecamatan, c.address, c.patokan, o.driver_id, dr.name, o.shipping_status, o.created_at, ch.name
           ORDER BY COALESCE(dr.name, 'Z'), a.kecamatan, c.name`,
           vals
         );
@@ -117,7 +120,7 @@ export async function GET(req: NextRequest) {
           COALESCE(a.kecamatan, '-') AS kecamatan,
           COALESCE(a.shipping_zone, 'dalam_kota') AS shipping_zone,
           COALESCE(a.kota, 'Pekanbaru') AS kota,
-          COALESCE(o.shipping_address, c.address, '-') AS alamat,
+          COALESCE(c.address, '-') AS alamat,
           c.patokan,
           STRING_AGG(CONCAT(oi.quantity, 'x ', p.name), ', ') AS daftar_order,
           o.grand_total,
@@ -132,7 +135,7 @@ export async function GET(req: NextRequest) {
         LEFT JOIN order_items oi ON oi.order_id = o.id
         LEFT JOIN products p ON p.id = oi.product_id
         ${whereSql}
-        GROUP BY o.id, c.id, c.name, c.phone, o.no_struk, a.kecamatan, a.shipping_zone, a.kota, o.shipping_address, c.address, c.patokan, o.grand_total, o.payment_bank, ch.name, dr.name
+        GROUP BY o.id, c.id, c.name, c.phone, o.no_struk, a.kecamatan, a.shipping_zone, a.kota, c.address, c.patokan, o.grand_total, o.payment_bank, ch.name, dr.name
         ORDER BY ch.name, CASE COALESCE(a.shipping_zone, 'dalam_kota') WHEN 'dalam_kota' THEN 1 ELSE 2 END, a.kota, a.kecamatan, c.name`,
         vals
       );

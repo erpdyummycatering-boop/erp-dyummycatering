@@ -68,6 +68,7 @@ const RUMPUN_MENU: ModuleGroup[] = [
       {
         section: "Penggajian & Slip",
         items: [
+          { href: "/hr/driver-trips", label: "Trip & KM Driver", icon: Truck },
           { href: "/hr/payroll/proses", label: "Proses Payroll", icon: DollarSign },
           { href: "/hr/payroll/riwayat", label: "Riwayat Payroll", icon: FileText },
         ],
@@ -84,6 +85,7 @@ const RUMPUN_MENU: ModuleGroup[] = [
         items: [
           { href: "/siap-saji/dashboard", label: "Dashboard SS", icon: LayoutDashboard },
           { href: "/siap-saji/orders", label: "Order Siap Saji", icon: ShoppingCart },
+          { href: "/siap-saji/shipping-monitoring", label: "Monitoring Pengiriman", icon: Truck },
           { href: "/siap-saji/documents", label: "Dokumen Harian", icon: ClipboardList },
         ],
       },

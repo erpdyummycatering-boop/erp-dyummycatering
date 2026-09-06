@@ -23,6 +23,7 @@ import {
   FileText,
   ClipboardList,
   Edit2,
+  Truck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/ui/Pagination";
@@ -1392,6 +1393,33 @@ export default function SiapSajiOrdersPage() {
           <ClipboardList size={15} /> 🍳 Rekap Dapur A4
         </button>
 
+        <button
+          onClick={() => {
+            const q = new URLSearchParams();
+            if (dateFrom) q.append("date_from", dateFrom);
+            if (dateTo) q.append("date_to", dateTo);
+            const url = `/api/siap-saji/orders/recap-shipping-pdf?${q.toString()}`;
+            window.open(url, "_blank");
+          }}
+          style={{
+            padding: "7px 12px",
+            background: "#f0fdf4",
+            color: "#15803d",
+            border: "1px solid #bbf7d0",
+            borderRadius: 8,
+            fontSize: 13,
+            cursor: "pointer",
+            fontWeight: 700,
+            flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+          title="Cetak rekapitulasi pengiriman harian kurir A4"
+        >
+          <Truck size={15} /> 🚚 Rekap Pengiriman A4
+        </button>
+
         {(search || statusFilter || channelFilter || productFilter || timeShortcut !== "today" || dateFrom || dateTo) && (
           <button
             onClick={() => {
@@ -1502,6 +1530,30 @@ export default function SiapSajiOrdersPage() {
             >
               <Printer size={15} />
               PDF Roll Kontinu (Kassen BTP3100)
+            </button>
+
+            <button
+              onClick={() => {
+                const url = `/api/siap-saji/orders/recap-shipping-pdf?ids=${selectedOrderIds.join(",")}`;
+                window.open(url, "_blank");
+              }}
+              style={{
+                background: "#0284c7",
+                color: "white",
+                border: "none",
+                borderRadius: 10,
+                padding: "9px 16px",
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                boxShadow: "0 4px 12px rgba(2, 132, 199, 0.25)",
+              }}
+            >
+              <Truck size={15} />
+              🚚 Rekap Pengiriman A4 (Kurir)
             </button>
 
             <button

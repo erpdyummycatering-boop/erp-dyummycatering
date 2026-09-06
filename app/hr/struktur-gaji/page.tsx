@@ -12,12 +12,19 @@ export default function StrukturGajiPage() {
   const [employees, setEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Multi Advanced Filter State
+  const [search, setSearch] = useState("");
+  const [filterTipeGaji, setFilterTipeGaji] = useState("");
+  const [filterEmployeeId, setFilterEmployeeId] = useState("");
+
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState({
+    id: null as number | null,
     employee_id: "",
     effective_date: new Date().toISOString().substring(0, 10),
     gaji_pokok_harian: "60000",
@@ -52,7 +59,9 @@ export default function StrukturGajiPage() {
 
   const handleOpenModal = (s?: any) => {
     if (s) {
+      setEditingId(s.id);
       setFormData({
+        id: s.id,
         employee_id: String(s.employee_id),
         effective_date: s.effective_date ? s.effective_date.substring(0, 10) : new Date().toISOString().substring(0, 10),
         gaji_pokok_harian: String(s.gaji_pokok_harian || "0"),
@@ -64,7 +73,9 @@ export default function StrukturGajiPage() {
         catatan: s.catatan || "",
       });
     } else {
+      setEditingId(null);
       setFormData({
+        id: null,
         employee_id: employees[0]?.id ? String(employees[0].id) : "",
         effective_date: new Date().toISOString().substring(0, 10),
         gaji_pokok_harian: "60000",
@@ -90,6 +101,7 @@ export default function StrukturGajiPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...formData,
+          id: editingId,
           employee_id: parseInt(formData.employee_id, 10),
           gaji_pokok_harian: parseInt(formData.gaji_pokok_harian, 10) || 0,
           lembur_per_jam: parseInt(formData.lembur_per_jam, 10) || 0,
@@ -112,11 +124,22 @@ export default function StrukturGajiPage() {
     }
   };
 
+  // Filter Logic
+  const filteredSalaries = salaries.filter((s) => {
+    const matchSearch =
+      !search ||
+      s.nama_lengkap?.toLowerCase().includes(search.toLowerCase()) ||
+      s.kode_karyawan?.toLowerCase().includes(search.toLowerCase());
+    const matchTipe = !filterTipeGaji || s.tipe_gaji === filterTipeGaji;
+    const matchEmp = !filterEmployeeId || String(s.employee_id) === filterEmployeeId;
+    return matchSearch && matchTipe && matchEmp;
+  });
+
   // Pagination calculation
-  const totalItems = salaries.length;
+  const totalItems = filteredSalaries.length;
   const totalPages = Math.ceil(totalItems / pageSize) || 1;
   const startIndex = (currentPage - 1) * pageSize;
-  const paginatedSalaries = salaries.slice(startIndex, startIndex + pageSize);
+  const paginatedSalaries = filteredSalaries.slice(startIndex, startIndex + pageSize);
 
   return (
     <div>
@@ -129,6 +152,114 @@ export default function StrukturGajiPage() {
           </button>
         }
       />
+
+      {/* Multi Advanced Filter Bar */}
+      <div
+        style={{
+          background: "white",
+          borderRadius: 12,
+          padding: "14px 18px",
+          border: "1px solid #e5e7eb",
+          marginBottom: 16,
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          gap: 12,
+        }}
+      >
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <input
+            type="text"
+            placeholder="🔍 Cari nama karyawan / NIP..."
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setCurrentPage(1);
+            }}
+            style={{
+              width: "100%",
+              padding: "7px 12px",
+              borderRadius: 8,
+              border: "1px solid #d1d5db",
+              fontSize: 13,
+              outline: "none",
+            }}
+          />
+        </div>
+
+        <div style={{ width: 180 }}>
+          <select
+            value={filterTipeGaji}
+            onChange={(e) => {
+              setFilterTipeGaji(e.target.value);
+              setCurrentPage(1);
+            }}
+            style={{
+              width: "100%",
+              padding: "7px 12px",
+              borderRadius: 8,
+              border: "1px solid #d1d5db",
+              fontSize: 13,
+              outline: "none",
+              background: "white",
+            }}
+          >
+            <option value="">Semua Tipe Gaji</option>
+            <option value="HARIAN_PRODUKSI">Harian Produksi</option>
+            <option value="HARIAN_DRIVER">Harian Driver</option>
+            <option value="BULANAN">Bulanan</option>
+          </select>
+        </div>
+
+        <div style={{ width: 220 }}>
+          <select
+            value={filterEmployeeId}
+            onChange={(e) => {
+              setFilterEmployeeId(e.target.value);
+              setCurrentPage(1);
+            }}
+            style={{
+              width: "100%",
+              padding: "7px 12px",
+              borderRadius: 8,
+              border: "1px solid #d1d5db",
+              fontSize: 13,
+              outline: "none",
+              background: "white",
+            }}
+          >
+            <option value="">Semua Karyawan</option>
+            {employees.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.nama_lengkap} ({e.kode_karyawan})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {(search || filterTipeGaji || filterEmployeeId) && (
+          <button
+            onClick={() => {
+              setSearch("");
+              setFilterTipeGaji("");
+              setFilterEmployeeId("");
+              setCurrentPage(1);
+            }}
+            style={{
+              padding: "7px 12px",
+              background: "#f3f4f6",
+              border: "1px solid #d1d5db",
+              borderRadius: 8,
+              fontSize: 12,
+              fontWeight: 600,
+              color: "#374151",
+              cursor: "pointer",
+            }}
+          >
+            Reset Filter
+          </button>
+        )}
+      </div>
 
       {/* Salary List */}
       <div className="erp-card-flush">
@@ -257,6 +388,41 @@ export default function StrukturGajiPage() {
               />
             </FormField>
           </FormRow>
+
+          {/* Conditional KM Tiers for Drivers */}
+          {employees.find((emp) => String(emp.id) === formData.employee_id)?.tipe_gaji === "HARIAN_DRIVER" && (
+            <div style={{ borderTop: "1px dashed #e5e7eb", paddingTop: 10, marginTop: 4 }}>
+              <label style={{ fontSize: 13, fontWeight: 700, color: "#5005A6", display: "block", marginBottom: 8 }}>
+                🚚 Setting Tarif Tunjangan KM (Driver)
+              </label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                <FormField label="Tier 1 (1-5 KM)">
+                  <input
+                    type="number"
+                    value={formData.tunjangan_km_tier1}
+                    onChange={(e) => setFormData({ ...formData, tunjangan_km_tier1: e.target.value })}
+                    placeholder="10000"
+                  />
+                </FormField>
+                <FormField label="Tier 2 (6-15 KM)">
+                  <input
+                    type="number"
+                    value={formData.tunjangan_km_tier2}
+                    onChange={(e) => setFormData({ ...formData, tunjangan_km_tier2: e.target.value })}
+                    placeholder="15000"
+                  />
+                </FormField>
+                <FormField label="Tier 3 (>15 KM)">
+                  <input
+                    type="number"
+                    value={formData.tunjangan_km_tier3}
+                    onChange={(e) => setFormData({ ...formData, tunjangan_km_tier3: e.target.value })}
+                    placeholder="20000"
+                  />
+                </FormField>
+              </div>
+            </div>
+          )}
 
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
             <button type="button" onClick={() => setIsModalOpen(false)} className="btn btn-secondary">
