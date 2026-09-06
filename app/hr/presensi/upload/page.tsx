@@ -19,6 +19,40 @@ export default function UploadPresensiPage() {
     }
   };
 
+  const handleDownloadTemplate = async () => {
+    try {
+      const res = await fetch("/api/hr/employees");
+      const employees = await res.json();
+
+      const rows = Array.isArray(employees) && employees.length > 0
+        ? employees.map((emp: any) => ({
+            "No Fingerprint": emp.no_fingerprint || "",
+            "Nama Karyawan": emp.nama_fingerprint || emp.nama_lengkap,
+            "Tanggal": `${periodeTahun}-${String(periodeBulan).padStart(2, "0")}-01`,
+            "Jam Masuk": "08:00",
+            "Jam Keluar": "17:00",
+            "Keterangan": "Hadir",
+          }))
+        : [
+            {
+              "No Fingerprint": "40",
+              "Nama Karyawan": "Wiwi Sumiati",
+              "Tanggal": `${periodeTahun}-${String(periodeBulan).padStart(2, "0")}-01`,
+              "Jam Masuk": "08:00",
+              "Jam Keluar": "17:00",
+              "Keterangan": "Hadir",
+            },
+          ];
+
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Template_Presensi");
+      XLSX.writeFile(wb, `Template_Presensi_Manual_${periodeTahun}_${periodeBulan}.xlsx`);
+    } catch (err: any) {
+      alert("Gagal mengunduh template karyawan: " + err.message);
+    }
+  };
+
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!file) {
@@ -124,33 +158,10 @@ export default function UploadPresensiPage() {
           <div className="flex items-center justify-between pt-2">
             <button
               type="button"
-              onClick={() => {
-                const sampleData = [
-                  {
-                    "No Fingerprint": "40",
-                    "Nama Karyawan": "Wiwi Sumiati",
-                    "Tanggal": "2026-09-01",
-                    "Jam Masuk": "08:00",
-                    "Jam Keluar": "17:00",
-                    "Keterangan": "Hadir",
-                  },
-                  {
-                    "No Fingerprint": "41",
-                    "Nama Karyawan": "Susani",
-                    "Tanggal": "2026-09-01",
-                    "Jam Masuk": "08:05",
-                    "Jam Keluar": "17:00",
-                    "Keterangan": "Hadir",
-                  },
-                ];
-                const ws = XLSX.utils.json_to_sheet(sampleData);
-                const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, ws, "Template_Presensi");
-                XLSX.writeFile(wb, "Template_Presensi_Manual_HR.xlsx");
-              }}
+              onClick={handleDownloadTemplate}
               className="text-xs text-[#5005A6] font-semibold hover:underline flex items-center gap-1 bg-transparent border-0 cursor-pointer p-0"
             >
-              <Download size={14} /> Download Template Excel Manual
+              <Download size={14} /> Download Template Excel Manual (Semua Karyawan)
             </button>
             <button
               type="submit"
