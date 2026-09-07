@@ -15,7 +15,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   try {
     const upd = await client.query(
       `UPDATE product_categories
-       SET name = COALESCE($1, name), description = COALESCE($2, description), updated_at = NOW()
+       SET name = COALESCE($1, name), description = COALESCE($2, description)
        WHERE id = $3 AND lini = 'siap_saji'
        RETURNING *`,
       [name ? name.trim() : null, description !== undefined ? description : null, catId]

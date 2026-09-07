@@ -12,6 +12,7 @@ interface Area {
   provinsi: string;
   shipping_zone: string;
   is_active: boolean;
+  custom_fee?: number | string | null;
 }
 
 interface Channel {
@@ -138,10 +139,18 @@ export default function SiapSajiMasterDataPage() {
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kecamatan, kota, shipping_zone: shippingZone }),
+        body: JSON.stringify({
+          kecamatan,
+          kota,
+          shipping_zone: shippingZone,
+          custom_fee: shippingZone === "custom_manual" ? Number(customFee) : undefined,
+        }),
       });
 
-      if (!res.ok) throw new Error("Gagal menyimpan area");
+      if (!res.ok) {
+        const errJson = await res.json();
+        throw new Error(errJson.error || "Gagal menyimpan area");
+      }
 
       toast.success(editingArea ? "Area berhasil diperbarui!" : "Area baru berhasil ditambahkan!");
       setIsAreaModalOpen(false);
@@ -451,11 +460,25 @@ export default function SiapSajiMasterDataPage() {
                             borderRadius: 20,
                             fontSize: 12,
                             fontWeight: 700,
-                            background: a.shipping_zone === "dalam_kota" ? "#eff6ff" : "#fdf4ff",
-                            color: a.shipping_zone === "dalam_kota" ? "#1d4ed8" : "#b10fbd",
+                            background:
+                              a.shipping_zone === "dalam_kota"
+                                ? "#eff6ff"
+                                : a.shipping_zone === "luar_kota"
+                                ? "#fdf4ff"
+                                : "#fff7ed",
+                            color:
+                              a.shipping_zone === "dalam_kota"
+                                ? "#1d4ed8"
+                                : a.shipping_zone === "luar_kota"
+                                ? "#b10fbd"
+                                : "#c2410c",
                           }}
                         >
-                          {a.shipping_zone === "dalam_kota" ? "Dalam Kota (12k)" : "Luar Kota (14k)"}
+                          {a.shipping_zone === "dalam_kota"
+                            ? "Dalam Kota (12k)"
+                            : a.shipping_zone === "luar_kota"
+                            ? "Luar Kota (14k)"
+                            : `Custom (${a.custom_fee ? `Rp${Number(a.custom_fee).toLocaleString("id-ID")}` : "Manual"})`}
                         </span>
                       </td>
                       <td style={{ padding: "14px 16px" }}>
@@ -471,6 +494,7 @@ export default function SiapSajiMasterDataPage() {
                               setKecamatan(a.kecamatan);
                               setKota(a.kota);
                               setShippingZone(a.shipping_zone);
+                              setCustomFee(a.custom_fee ? Number(a.custom_fee) : "");
                               setIsAreaModalOpen(true);
                             }}
                             style={{ padding: "6px 12px", background: "#5005A6", color: "white", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}

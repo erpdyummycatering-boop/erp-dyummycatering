@@ -149,30 +149,64 @@ export async function PUT(
       );
     }
 
-    const cleanPhone = String(phone).trim().replace(/[^0-9]/g, "");
+    const cleanDigits = String(phone).trim().replace(/\D/g, "");
+    const normPhone08 = cleanDigits.startsWith("62") ? "0" + cleanDigits.slice(2) : (cleanDigits.startsWith("0") ? cleanDigits : "0" + cleanDigits);
+    const altPhone62 = "62" + normPhone08.slice(1);
 
-    // Check duplicate phone
+    // Check duplicate phone across customers table
     const checkRes = await client.query(
-      "SELECT id FROM customers WHERE phone = $1 AND id <> $2 LIMIT 1",
-      [cleanPhone, custId]
+      `SELECT id, name, lini, address, patokan, area_id 
+       FROM customers 
+       WHERE (phone = $1 OR phone = $2 OR regexp_replace(phone, '\\D', '', 'g') = $3 OR regexp_replace(phone, '\\D', '', 'g') = $4)
+         AND id <> $5
+       ORDER BY CASE WHEN lini = 'siap_saji' THEN 0 ELSE 1 END, id ASC
+       LIMIT 1`,
+      [normPhone08, altPhone62, normPhone08, altPhone62, custId]
     );
 
     if (checkRes.rows.length > 0) {
+      const dup = checkRes.rows[0];
+      const dupId = Number(dup.id);
+
+      // If the duplicate has the same name or is a duplicate catering record / empty shell, merge seamlessly!
+      const currentCustRes = await client.query("SELECT id, name, lini FROM customers WHERE id = $1", [custId]);
+      const currentCust = currentCustRes.rows[0];
+      const isSamePerson =
+        (currentCust && currentCust.name.trim().toLowerCase().replace(/\s+/g, "") === dup.name.trim().toLowerCase().replace(/\s+/g, "")) ||
+        dup.lini !== "siap_saji";
+
+      if (isSamePerson) {
+        // Merge records: transfer orders from dup to current custId (or keep custId valid)
+        await client.query("BEGIN");
+        await client.query("UPDATE orders SET customer_id = $1 WHERE customer_id = $2", [custId, dupId]);
+        // Update phone of the old duplicate or delete it
+        await client.query("DELETE FROM customers WHERE id = $1", [dupId]);
+        await client.query(
+          `UPDATE customers
+           SET name = $1, phone = $2, address = $3, patokan = $4, area_id = $5, lini = 'siap_saji'
+           WHERE id = $6`,
+          [name.trim(), normPhone08, address || "-", patokan || "", area_id || null, custId]
+        );
+        await client.query("COMMIT");
+        return NextResponse.json({ message: "Data pelanggan berhasil diperbarui dan digabungkan." });
+      }
+
       return NextResponse.json(
-        { error: "Nomor WhatsApp/HP ini sudah digunakan oleh pelanggan lain." },
+        { error: `Nomor WhatsApp/HP ini sudah digunakan oleh pelanggan "${dup.name}" (ID #${dup.id}).` },
         { status: 400 }
       );
     }
 
     await client.query(
       `UPDATE customers
-       SET name = $1, phone = $2, address = $3, patokan = $4, area_id = $5
+       SET name = $1, phone = $2, address = $3, patokan = $4, area_id = $5, lini = 'siap_saji'
        WHERE id = $6`,
-      [name, cleanPhone, address || "-", patokan || "", area_id || null, custId]
+      [name.trim(), normPhone08, address || "-", patokan || "", area_id || null, custId]
     );
 
     return NextResponse.json({ message: "Data pelanggan berhasil diperbarui." });
   } catch (error: any) {
+    if (client) await client.query("ROLLBACK").catch(() => {});
     console.error("Gagal update customer:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   } finally {

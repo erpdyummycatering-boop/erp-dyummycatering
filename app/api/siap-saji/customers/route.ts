@@ -116,9 +116,18 @@ export async function POST(req: NextRequest) {
 
   const client = await pool.connect();
   try {
-    const existRes = await client.query("SELECT id FROM customers WHERE phone = $1", [phone.trim()]);
+    const cleanDigits = String(phone).trim().replace(/\D/g, "");
+    const normPhone08 = cleanDigits.startsWith("62") ? "0" + cleanDigits.slice(2) : (cleanDigits.startsWith("0") ? cleanDigits : "0" + cleanDigits);
+    const altPhone62 = "62" + normPhone08.slice(1);
+
+    const existRes = await client.query(
+      `SELECT id, name FROM customers 
+       WHERE phone = $1 OR phone = $2 OR regexp_replace(phone, '\\D', '', 'g') = $3 OR regexp_replace(phone, '\\D', '', 'g') = $4
+       LIMIT 1`,
+      [normPhone08, altPhone62, normPhone08, altPhone62]
+    );
     if (existRes.rows.length > 0) {
-      return NextResponse.json({ error: "Nomor WhatsApp/Telepon ini sudah terdaftar." }, { status: 400 });
+      return NextResponse.json({ error: `Nomor WhatsApp/Telepon ini sudah terdaftar atas nama "${existRes.rows[0].name}".` }, { status: 400 });
     }
 
     const insRes = await client.query(
@@ -127,7 +136,7 @@ export async function POST(req: NextRequest) {
        RETURNING *`,
       [
         name.trim(),
-        phone.trim(),
+        normPhone08,
         type || "Personal",
         address || null,
         patokan || null,

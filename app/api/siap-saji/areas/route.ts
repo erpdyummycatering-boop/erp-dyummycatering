@@ -26,7 +26,13 @@ export async function GET(req: NextRequest) {
   const client = await pool.connect();
   try {
     const res = await client.query(
-      `SELECT * FROM areas ${whereSql} ORDER BY shipping_zone, kota, kecamatan`,
+      `SELECT a.*,
+              (SELECT acs.shipping_fee 
+               FROM area_channel_shipping acs 
+               WHERE acs.area_id = a.id AND acs.shipping_fee > 0 
+               ORDER BY acs.updated_at DESC LIMIT 1) AS custom_fee
+       FROM areas a ${whereSql} 
+       ORDER BY a.shipping_zone, a.kota, a.kecamatan`,
       vals
     );
     return NextResponse.json(res.rows);

@@ -2319,12 +2319,27 @@ export default function SiapSajiOrdersPage() {
                   </div>
 
                   <div>
-                    <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>
-                      Biaya Kirim (Ongkir Otomatis)
-                    </label>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                      <label style={{ fontSize: 12, fontWeight: 600, color: "#4b5563" }}>
+                        Biaya Kirim (Ongkir)
+                      </label>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 700,
+                          padding: "1px 6px",
+                          borderRadius: 4,
+                          background: isShippingAuto ? "#eff6ff" : "#fef3c7",
+                          color: isShippingAuto ? "#1d4ed8" : "#b45309",
+                        }}
+                      >
+                        {isShippingAuto ? "⚡ Otomatis" : "✏️ Manual"}
+                      </span>
+                    </div>
                     <div style={{ display: "flex", gap: 8 }}>
                       <input
                         type="number"
+                        placeholder="0"
                         value={shippingFee}
                         onChange={(e) => {
                           setShippingFee(Number(e.target.value));
@@ -2335,8 +2350,18 @@ export default function SiapSajiOrdersPage() {
                       <button
                         type="button"
                         onClick={() => setIsShippingAuto(true)}
-                        title="Hitung ulang otomatis dari matriks ongkir"
-                        style={{ padding: "8px 12px", background: "#e5e7eb", border: "none", borderRadius: 8, fontSize: 12, cursor: "pointer" }}
+                        title="Hitung ulang otomatis dari matriks ongkir wilayah"
+                        style={{
+                          padding: "8px 12px",
+                          background: isShippingAuto ? "#5005A6" : "#e5e7eb",
+                          color: isShippingAuto ? "white" : "#374151",
+                          border: "none",
+                          borderRadius: 8,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          transition: "all 0.15s",
+                        }}
                       >
                         Auto
                       </button>
