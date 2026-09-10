@@ -21,15 +21,12 @@ export async function PATCH(
     }
 
     if (driver_id !== undefined) {
-      // Fetch driver name if driver_id provided
       if (driver_id) {
-        const dRes = await pool.query(`SELECT name FROM drivers WHERE id = $1`, [driver_id]);
-        const dName = dRes.rows[0]?.name || null;
-        updates.push(`driver_id = $${idx}`, `driver_name = $${idx + 1}`);
-        values.push(driver_id, dName);
-        idx += 2;
+        updates.push(`driver_id = $${idx}`);
+        values.push(driver_id);
+        idx++;
       } else {
-        updates.push(`driver_id = NULL`, `driver_name = NULL`);
+        updates.push(`driver_id = NULL`);
       }
     }
 
@@ -39,10 +36,10 @@ export async function PATCH(
 
     values.push(id);
     const query = `
-      UPDATE siap_saji_orders
+      UPDATE orders
       SET ${updates.join(", ")}, updated_at = NOW()
-      WHERE id = $${idx}
-      RETURNING id, order_number, shipping_status, driver_id, driver_name
+      WHERE id = $${idx} AND lini = 'siap_saji'
+      RETURNING id, no_struk AS order_number, shipping_status, driver_id
     `;
 
     const res = await pool.query(query, values);

@@ -284,7 +284,9 @@ export default function ShippingMonitoringPage() {
               <th style={{ padding: "12px 10px", width: 120, textAlign: "center" }}>Kecamatan</th>
               <th style={{ padding: "12px 10px", width: 150 }}>Driver Bertugas</th>
               <th style={{ padding: "12px 10px", width: 140, textAlign: "center" }}>Status Pengiriman</th>
-              <th style={{ padding: "12px 10px", width: 140, textAlign: "right" }}>Aksi Update Status</th>
+              <th style={{ padding: "12px 10px", width: 130, textAlign: "center" }}>Aksi Kirim</th>
+              <th style={{ padding: "12px 10px", width: 130, textAlign: "center" }}>Aksi Selesai</th>
+              <th style={{ padding: "12px 10px", width: 100, textAlign: "center" }}>Aksi Reset</th>
             </tr>
           </thead>
           <tbody>
@@ -351,66 +353,67 @@ export default function ShippingMonitoringPage() {
                     <td style={{ padding: "12px 10px", textAlign: "center", verticalAlign: "top" }}>
                       {getStatusBadge(currentStatus)}
                     </td>
-                    <td style={{ padding: "12px 10px", textAlign: "right", verticalAlign: "top" }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
-                        {currentStatus !== "Dalam Pengiriman" && currentStatus !== "Selesai" && (
-                          <button
-                            disabled={updatingId === ord.id}
-                            onClick={() => handleUpdateStatus(ord.id, "Dalam Pengiriman")}
-                            style={{
-                              padding: "4px 8px",
-                              background: "#378ADD",
-                              color: "white",
-                              border: "none",
-                              borderRadius: 4,
-                              fontSize: 11,
-                              fontWeight: 600,
-                              cursor: "pointer",
-                              width: 120,
-                            }}
-                          >
-                            🚚 Kirimkan
-                          </button>
-                        )}
-                        {currentStatus !== "Selesai" && (
-                          <button
-                            disabled={updatingId === ord.id}
-                            onClick={() => handleUpdateStatus(ord.id, "Selesai")}
-                            style={{
-                              padding: "4px 8px",
-                              background: "#639922",
-                              color: "white",
-                              border: "none",
-                              borderRadius: 4,
-                              fontSize: 11,
-                              fontWeight: 600,
-                              cursor: "pointer",
-                              width: 120,
-                            }}
-                          >
-                            ✓ Set Selesai
-                          </button>
-                        )}
-                        {currentStatus !== "Menunggu" && (
-                          <button
-                            disabled={updatingId === ord.id}
-                            onClick={() => handleUpdateStatus(ord.id, "Menunggu")}
-                            style={{
-                              padding: "3px 6px",
-                              background: "#f3f4f6",
-                              color: "#6b7280",
-                              border: "1px solid #d1d5db",
-                              borderRadius: 4,
-                              fontSize: 10,
-                              cursor: "pointer",
-                              width: 120,
-                              marginTop: 2,
-                            }}
-                          >
-                            Reset Status
-                          </button>
-                        )}
-                      </div>
+                    <td style={{ padding: "12px 10px", textAlign: "center", verticalAlign: "top" }}>
+                      {currentStatus !== "Dalam Pengiriman" && currentStatus !== "Selesai" && (
+                        <button
+                          disabled={updatingId === ord.id}
+                          onClick={() => handleUpdateStatus(ord.id, "Dalam Pengiriman")}
+                          style={{
+                            padding: "8px 12px",
+                            background: "#378ADD",
+                            color: "white",
+                            border: "none",
+                            borderRadius: 6,
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            width: "100%",
+                          }}
+                        >
+                          🚚 Kirimkan
+                        </button>
+                      )}
+                    </td>
+                    <td style={{ padding: "12px 10px", textAlign: "center", verticalAlign: "top" }}>
+                      {currentStatus !== "Selesai" && (
+                        <button
+                          disabled={updatingId === ord.id}
+                          onClick={() => handleUpdateStatus(ord.id, "Selesai")}
+                          style={{
+                            padding: "8px 12px",
+                            background: "#639922",
+                            color: "white",
+                            border: "none",
+                            borderRadius: 6,
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            width: "100%",
+                          }}
+                        >
+                          ✓ Selesai
+                        </button>
+                      )}
+                    </td>
+                    <td style={{ padding: "12px 10px", textAlign: "center", verticalAlign: "top" }}>
+                      {currentStatus !== "Menunggu" && (
+                        <button
+                          disabled={updatingId === ord.id}
+                          onClick={() => handleUpdateStatus(ord.id, "Menunggu")}
+                          style={{
+                            padding: "6px 10px",
+                            background: "#f3f4f6",
+                            color: "#6b7280",
+                            border: "1px solid #d1d5db",
+                            borderRadius: 6,
+                            fontSize: 11,
+                            cursor: "pointer",
+                            width: "100%",
+                          }}
+                        >
+                          Reset
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );

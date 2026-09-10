@@ -204,6 +204,11 @@ export default function SiapSajiOrdersPage() {
   const [isLoadingBulk, setIsLoadingBulk] = useState(false);
   const [bulkPaperSize, setBulkPaperSize] = useState<"80mm" | "A4">("80mm");
 
+  // Bulk Assign Driver State
+  const [isBulkAssignModalOpen, setIsBulkAssignModalOpen] = useState(false);
+  const [bulkAssignDriverId, setBulkAssignDriverId] = useState<number | "">("");
+  const [isSubmittingBulkAssign, setIsSubmittingBulkAssign] = useState(false);
+
   // Master Data state for Form Order
   const [masterChannels, setMasterChannels] = useState<Channel[]>([]);
   const [masterAreas, setMasterAreas] = useState<Area[]>([]);
@@ -504,6 +509,32 @@ export default function SiapSajiOrdersPage() {
     } catch (err: any) {
       console.error("Preview error:", err);
       toast.error("Gagal membaca preview file excel");
+    }
+  };
+
+  // Bulk Assign Driver Process
+  const handleBulkAssignDriver = async () => {
+    if (!bulkAssignDriverId) return toast.error("Pilih driver terlebih dahulu");
+    setIsSubmittingBulkAssign(true);
+    try {
+      const res = await fetch("/api/siap-saji/orders/bulk-assign-driver", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderIds: selectedOrderIds, driver_id: bulkAssignDriverId }),
+      });
+      if (!res.ok) {
+        const errJson = await res.json();
+        throw new Error(errJson.error || "Gagal menetapkan driver secara massal");
+      }
+      toast.success(`Driver berhasil ditetapkan untuk ${selectedOrderIds.length} pesanan.`);
+      setIsBulkAssignModalOpen(false);
+      setBulkAssignDriverId("");
+      setSelectedOrderIds([]);
+      fetchOrders();
+    } catch (err: any) {
+      toast.error(err.message || "Gagal menetapkan driver");
+    } finally {
+      setIsSubmittingBulkAssign(false);
     }
   };
 
@@ -1599,6 +1630,26 @@ export default function SiapSajiOrdersPage() {
               <Printer size={15} />
               {isLoadingBulk ? "Memuat..." : "Preview Web Modal"}
             </button>
+            <button
+              onClick={() => setIsBulkAssignModalOpen(true)}
+              style={{
+                background: "#f59e0b",
+                color: "white",
+                border: "none",
+                borderRadius: 10,
+                padding: "9px 16px",
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                boxShadow: "0 4px 12px rgba(245, 158, 11, 0.25)",
+              }}
+            >
+              <Truck size={15} />
+              🛵 Assign Driver
+            </button>
           </div>
         </div>
       )}
@@ -1833,6 +1884,70 @@ export default function SiapSajiOrdersPage() {
           onLimitChange={(lim) => fetchOrders(1, lim)}
         />
       </div>
+
+      {/* ── MODAL: BULK ASSIGN DRIVER ────────────────────────────────── */}
+      {isBulkAssignModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 100,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              background: "white",
+              borderRadius: 12,
+              maxWidth: 400,
+              width: "100%",
+              padding: 24,
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 700, color: "#111827", margin: 0 }}>Assign Driver Massal</h2>
+              <button onClick={() => setIsBulkAssignModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af" }}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <p style={{ fontSize: 13, color: "#4b5563", marginBottom: 16 }}>
+              Pilih driver untuk <strong>{selectedOrderIds.length}</strong> pesanan yang dipilih:
+            </p>
+
+            <div style={{ marginBottom: 20 }}>
+              <SearchableSelect
+                options={masterDrivers.map((d) => ({ value: d.id, label: `🛵 ${d.name}` }))}
+                value={bulkAssignDriverId}
+                onChange={(val) => setBulkAssignDriverId(val ? Number(val) : "")}
+                placeholder="-- Cari/Pilih Driver --"
+              />
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+              <button
+                onClick={() => setIsBulkAssignModalOpen(false)}
+                style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "white", fontWeight: 600, color: "#374151", cursor: "pointer" }}
+                disabled={isSubmittingBulkAssign}
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleBulkAssignDriver}
+                disabled={!bulkAssignDriverId || isSubmittingBulkAssign}
+                style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: bulkAssignDriverId ? "#5005A6" : "#9ca3af", color: "white", fontWeight: 700, cursor: bulkAssignDriverId ? "pointer" : "not-allowed" }}
+              >
+                {isSubmittingBulkAssign ? "Menyimpan..." : "Simpan"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── MODAL: FORM ORDER BARU ────────────────────────────────── */}
       {isFormOpen && (

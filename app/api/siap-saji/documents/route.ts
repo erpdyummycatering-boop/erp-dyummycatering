@@ -70,6 +70,7 @@ export async function GET(req: NextRequest) {
         // Detailed row structure per order item for Rekap Pengiriman Kurir layout
         const res = await client.query(
           `SELECT 
+            o.id,
             o.id AS order_id,
             o.no_struk AS order_number,
             c.name AS customer_name,
@@ -113,6 +114,7 @@ export async function GET(req: NextRequest) {
 
       const res = await client.query(
         `SELECT 
+          o.id,
           o.id AS order_id,
           c.name AS nama_customer,
           c.phone AS no_hp,
