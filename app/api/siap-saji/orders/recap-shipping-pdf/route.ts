@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
         c.phone AS no_hp,
         o.no_struk,
         COALESCE(a.kecamatan, '-') AS kecamatan,
-        COALESCE(o.shipping_address, c.address, '-') AS alamat,
+        COALESCE(o.venue, c.address, '-') AS alamat,
         c.patokan,
         COALESCE(dr.name, 'Unassigned') AS driver_name,
         COALESCE(
@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
       LEFT JOIN products p ON p.id = oi.product_id
       WHERE o.lini = 'siap_saji' AND o.status_order <> 'Dibatalkan'
         AND (o.delivery_date::date >= $1::date AND o.delivery_date::date <= $2::date)
-      GROUP BY o.id, c.id, c.name, c.phone, o.no_struk, a.kecamatan, o.shipping_address, c.address, c.patokan, dr.name
+      GROUP BY o.id, c.id, c.name, c.phone, o.no_struk, a.kecamatan, o.venue, c.address, c.patokan, dr.name
       ORDER BY COALESCE(dr.name, 'Z'), a.kecamatan, c.name`,
       [dateFrom, dateTo]
     );
