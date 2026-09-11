@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     let kasCoaId = kasBank.coa_id;
     if (!kasCoaId) {
       const coaKasRes = await client.query(
-        "SELECT id FROM coa WHERE (kode_akun LIKE '1-100%' OR nama_akun ILIKE %kas%) AND lini = 'siap_saji' LIMIT 1"
+        "SELECT id FROM coa WHERE (kode_akun LIKE '1-100%' OR nama_akun ILIKE '%kas%') AND lini = 'siap_saji' LIMIT 1"
       );
       kasCoaId = coaKasRes.rows[0]?.id;
     }
