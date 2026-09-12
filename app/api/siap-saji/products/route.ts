@@ -95,6 +95,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `SKU '${sku}' sudah digunakan produk lain.` }, { status: 400 });
     }
 
+    // Option B Hard Block: Cegah produk dengan nama sama persis tapi beda SKU
+    const existNameRes = await client.query(
+      `SELECT id, sku, name, is_half_portion 
+       FROM products 
+       WHERE LOWER(TRIM(name)) = LOWER(TRIM($1)) 
+         AND lini = 'siap_saji' 
+         AND is_half_portion = $2`,
+      [name.trim(), Boolean(is_half_portion)]
+    );
+    if (existNameRes.rows.length > 0) {
+      const match = existNameRes.rows[0];
+      await client.query("ROLLBACK");
+      return NextResponse.json(
+        {
+          error: `Produk dengan nama "${name.trim()}" sudah ada di sistem dengan SKU: ${match.sku}. Dilarang membuat produk duplikat dengan SKU berbeda.`,
+        },
+        { status: 400 }
+      );
+    }
+
     const insRes = await client.query(
       `INSERT INTO products (sku, name, category_id, description, price, lini, status, is_half_portion, parent_sku)
        VALUES ($1, $2, $3, $4, $5, 'siap_saji', 'Aktif', $6, $7)

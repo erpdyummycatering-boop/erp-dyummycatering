@@ -244,8 +244,26 @@ export default function SiapSajiOrdersPage() {
   const [areaSearchQuery, setAreaSearchQuery] = useState("");
   const [isAreaDropdownOpen, setIsAreaDropdownOpen] = useState(false);
 
-  // Edit Order State
   const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
+
+  // Customer Multiple Addresses State (Poin 4)
+  const [customerAddresses, setCustomerAddresses] = useState<any[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<number | "custom">("custom");
+
+  const fetchCustomerAddresses = async (custId: number) => {
+    try {
+      const res = await fetch(`/api/siap-saji/customers/${custId}/addresses`);
+      if (res.ok) {
+        const json = await res.json();
+        setCustomerAddresses(json.data || []);
+      } else {
+        setCustomerAddresses([]);
+      }
+    } catch (e) {
+      console.error("Gagal mengambil alamat customer:", e);
+      setCustomerAddresses([]);
+    }
+  };
 
   // Multi-Draft Sales Order State & Engine
   const DRAFTS_KEY = "siap_saji_order_drafts_v2";
@@ -642,6 +660,7 @@ export default function SiapSajiOrdersPage() {
       const updated = [...cartItems];
       updated[existingIdx].quantity += 1;
       setCartItems(updated);
+      toast.info(`Produk "${prod.name}" sudah ada di keranjang. Kuantitas ditambahkan menjadi ${updated[existingIdx].quantity}.`);
     } else {
       setCartItems([
         ...cartItems,
@@ -656,6 +675,7 @@ export default function SiapSajiOrdersPage() {
           is_half_portion: prod.is_half_portion,
         },
       ]);
+      toast.success(`"${prod.name}" ditambahkan ke keranjang.`);
     }
   };
 
@@ -2028,7 +2048,7 @@ export default function SiapSajiOrdersPage() {
             )}
 
             <form onSubmit={handleSubmitOrder}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 14, marginBottom: 20 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 20 }}>
                 {/* 1. Tanggal Kirim / Order */}
                 <div>
                   <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 6 }}>
@@ -2072,19 +2092,6 @@ export default function SiapSajiOrdersPage() {
                     value={selectedDriverId}
                     onChange={(val) => setSelectedDriverId(val ? Number(val) : "")}
                     placeholder="-- Pilih Driver --"
-                  />
-                </div>
-
-                {/* 4. Rekening Pembayaran */}
-                <div>
-                  <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 6 }}>
-                    Rekening Pembayaran *
-                  </label>
-                  <SearchableSelect
-                    options={masterKasBank.map((kb) => ({ value: kb.id, label: `${kb.nama_rekening} (${kb.no_rekening})` }))}
-                    value={selectedBankId}
-                    onChange={(val) => setSelectedBankId(val ? Number(val) : 0)}
-                    placeholder="Pilih Rekening"
                   />
                 </div>
               </div>
@@ -2187,6 +2194,7 @@ export default function SiapSajiOrdersPage() {
                                   setSelectedCustomerId(c.id);
                                   setIsCustDropdownOpen(false);
                                   setDuplicatePhoneCust(null);
+                                  fetchCustomerAddresses(c.id);
                                 }}
                                 style={{
                                   padding: "8px 12px",
@@ -2274,6 +2282,7 @@ export default function SiapSajiOrdersPage() {
                             if (duplicatePhoneCust.area_id) setSelectedAreaId(duplicatePhoneCust.area_id);
                             setSelectedCustomerId(duplicatePhoneCust.id);
                             setDuplicatePhoneCust(null);
+                            fetchCustomerAddresses(duplicatePhoneCust.id);
                             toast.success(`Menggunakan data customer ${duplicatePhoneCust.name}`);
                           }}
                           style={{
@@ -2513,6 +2522,71 @@ export default function SiapSajiOrdersPage() {
                   )}
                 </div>
 
+                {/* Riwayat Alamat Tersimpan Pelanggan (Poin 4: 1 Customer Banyak Alamat) */}
+                {selectedCustomerId !== "new" && customerAddresses.length > 0 && (
+                  <div style={{ marginBottom: 12, padding: 10, background: "#f5f3ff", borderRadius: 8, border: "1px solid #ddd6fe" }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "#6d28d9", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+                      <span>📍 Alamat Tersimpan Pelanggan Ini ({customerAddresses.length}):</span>
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {customerAddresses.map((addr) => {
+                        const isChosen = selectedAddressId === addr.id;
+                        return (
+                          <button
+                            key={addr.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedAddressId(addr.id);
+                              setCustomerAddress(addr.address);
+                              if (addr.patokan) setCustomerPatokan(addr.patokan);
+                              if (addr.area_id) {
+                                setSelectedAreaId(addr.area_id);
+                                setIsShippingAuto(true);
+                              }
+                              toast.info(`Alamat "${addr.label || 'Tersimpan'}" dipilih`);
+                            }}
+                            style={{
+                              padding: "5px 10px",
+                              borderRadius: 6,
+                              border: isChosen ? "2px solid #7c3aed" : "1px solid #c4b5fd",
+                              background: isChosen ? "#7c3aed" : "white",
+                              color: isChosen ? "white" : "#4c1d95",
+                              fontSize: 12,
+                              fontWeight: isChosen ? 700 : 500,
+                              cursor: "pointer",
+                              textAlign: "left",
+                              transition: "all 0.15s",
+                            }}
+                          >
+                            <span style={{ fontWeight: 700 }}>{addr.label || "Alamat"}: </span>
+                            {addr.address.length > 35 ? `${addr.address.slice(0, 35)}...` : addr.address}
+                            {addr.area_kecamatan ? ` (Kec. ${addr.area_kecamatan})` : ""}
+                          </button>
+                        );
+                      })}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedAddressId("custom");
+                          toast.info("Silakan ketik alamat baru di bawah ini. Alamat ini akan otomatis tersimpan untuk customer ini.");
+                        }}
+                        style={{
+                          padding: "5px 10px",
+                          borderRadius: 6,
+                          border: selectedAddressId === "custom" ? "2px solid #5005A6" : "1px dashed #a855f7",
+                          background: selectedAddressId === "custom" ? "#ede9fe" : "white",
+                          color: "#5005A6",
+                          fontSize: 12,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                        }}
+                      >
+                        ➕ Input Alamat Baru / Berbeda
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div style={{ marginBottom: 12 }}>
                   <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>
                     Alamat Lengkap *
@@ -2521,7 +2595,10 @@ export default function SiapSajiOrdersPage() {
                     type="text"
                     placeholder="Jl Pluto I Blok C No 5 Kel Margasari"
                     value={customerAddress}
-                    onChange={(e) => setCustomerAddress(e.target.value)}
+                    onChange={(e) => {
+                      setCustomerAddress(e.target.value);
+                      if (selectedAddressId !== "custom") setSelectedAddressId("custom");
+                    }}
                     required
                     style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
                   />
@@ -2788,6 +2865,28 @@ export default function SiapSajiOrdersPage() {
                     </table>
                   </div>
                 )}
+              </div>
+
+              {/* Rekening Pembayaran (Poin 1: Posisi di bawah sebelum submit simpan) */}
+              <div style={{ background: "#faf5ff", border: "1px solid #e9d5ff", borderRadius: 12, padding: "12px 16px", marginBottom: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
+                  <div style={{ minWidth: 200 }}>
+                    <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#5005A6", marginBottom: 2 }}>
+                      💳 Rekening Pembayaran Masuk *
+                    </label>
+                    <span style={{ fontSize: 11, color: "#6b7280" }}>
+                      Pilih rekening penampung transaksi order ini
+                    </span>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 260 }}>
+                    <SearchableSelect
+                      options={masterKasBank.map((kb) => ({ value: kb.id, label: `${kb.nama_rekening} (${kb.no_rekening})` }))}
+                      value={selectedBankId}
+                      onChange={(val) => setSelectedBankId(val ? Number(val) : 0)}
+                      placeholder="-- Pilih Rekening Pembayaran --"
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Order Summary & Submit */}
@@ -3225,13 +3324,59 @@ export default function SiapSajiOrdersPage() {
 
             {/* Actions */}
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16 }}>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <button
+                  onClick={() => window.open(`/api/siap-saji/orders/${selectedStruk.id}/pdf?mode=exact`, "_blank")}
+                  style={{
+                    flex: 1,
+                    padding: "10px 14px",
+                    background: "linear-gradient(135deg, #5005A6 0%, #B10FBD 100%)",
+                    color: "white",
+                    border: "none",
+                    borderRadius: 8,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                    boxShadow: "0 4px 12px rgba(80, 5, 166, 0.25)",
+                  }}
+                >
+                  <FileText size={16} /> PDF Pas Ukuran
+                </button>
+
+                <button
+                  onClick={() => window.open(`/api/siap-saji/orders/${selectedStruk.id}/pdf?mode=roll`, "_blank")}
+                  style={{
+                    flex: 1,
+                    padding: "10px 14px",
+                    background: "#15803d",
+                    color: "white",
+                    border: "none",
+                    borderRadius: 8,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                    boxShadow: "0 4px 12px rgba(21, 128, 61, 0.25)",
+                  }}
+                >
+                  <Printer size={16} /> PDF Roll Kontinu (Kassen)
+                </button>
+              </div>
+
               <div style={{ display: "flex", gap: 10 }}>
                 <button
                   onClick={() => window.print()}
                   style={{
                     flex: 1,
                     padding: "10px",
-                    background: "#5005A6",
+                    background: "#4b5563",
                     color: "white",
                     border: "none",
                     borderRadius: 8,
@@ -3245,27 +3390,6 @@ export default function SiapSajiOrdersPage() {
                   }}
                 >
                   <Printer size={16} /> Cetak (POS Thermal 80mm)
-                </button>
-
-                <button
-                  onClick={() => window.open(`/api/siap-saji/orders/${selectedStruk.id}/pdf`, "_blank")}
-                  style={{
-                    flex: 1,
-                    padding: "10px",
-                    background: "#b10fbd",
-                    color: "white",
-                    border: "none",
-                    borderRadius: 8,
-                    fontSize: 13,
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 6,
-                  }}
-                >
-                  <FileText size={16} /> Live PDF Preview (Native)
                 </button>
               </div>
 

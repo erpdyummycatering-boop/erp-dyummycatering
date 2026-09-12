@@ -2,9 +2,22 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Phone, MapPin, Award, RefreshCw, MessageSquare, ExternalLink } from "lucide-react";
+import { ArrowLeft, Phone, MapPin, Award, RefreshCw, MessageSquare, ExternalLink, Plus, Trash2, Home, CheckCircle2, X } from "lucide-react";
 import { toast } from "sonner";
 import { formatDate, getWhatsAppUrl } from "@/lib/utils";
+
+interface CustomerAddress {
+  id: number;
+  customer_id: number;
+  label: string;
+  address: string;
+  patokan: string;
+  area_id: number;
+  area_kecamatan?: string;
+  area_kota?: string;
+  is_default: boolean;
+  created_at: string;
+}
 
 interface CustomerDetailData {
   customer: {
@@ -29,6 +42,7 @@ interface CustomerDetailData {
   };
   favorite_products: { product_name: string; total_qty: number }[];
   recent_orders: { id: number; no_struk: string; order_date: string; grand_total: number; item_names: string }[];
+  addresses?: CustomerAddress[];
 }
 
 export default function SiapSajiCustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -37,6 +51,30 @@ export default function SiapSajiCustomerDetailPage({ params }: { params: Promise
 
   const [data, setData] = useState<CustomerDetailData | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Add Address Modal state
+  const [isAddAddrOpen, setIsAddAddrOpen] = useState(false);
+  const [addrLabel, setAddrLabel] = useState("Rumah");
+  const [addrText, setAddrText] = useState("");
+  const [addrPatokan, setAddrPatokan] = useState("");
+  const [addrAreaId, setAddrAreaId] = useState<number | "">("");
+  const [isSavingAddr, setIsSavingAddr] = useState(false);
+  const [areas, setAreas] = useState<any[]>([]);
+
+  const fetchAreas = async () => {
+    try {
+      const res = await fetch("/api/siap-saji/master");
+      if (res.ok) {
+        const json = await res.json();
+        setAreas(json.areas || []);
+        if (json.areas?.length > 0 && !addrAreaId) {
+          setAddrAreaId(json.areas[0].id);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const fetchCustomerDetail = async () => {
     setLoading(true);
@@ -51,8 +89,58 @@ export default function SiapSajiCustomerDetailPage({ params }: { params: Promise
     }
   };
 
+  const handleAddAddress = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addrText.trim()) return toast.error("Alamat lengkap tidak boleh kosong");
+    if (!addrAreaId) return toast.error("Kecamatan / Area wajib dipilih");
+
+    setIsSavingAddr(true);
+    try {
+      const res = await fetch(`/api/siap-saji/customers/${id}/addresses`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          label: addrLabel.trim() || "Alamat",
+          address: addrText.trim(),
+          patokan: addrPatokan.trim(),
+          area_id: addrAreaId,
+          is_default: false,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Gagal menambahkan alamat");
+
+      toast.success("Alamat berhasil ditambahkan!");
+      setIsAddAddrOpen(false);
+      setAddrText("");
+      setAddrPatokan("");
+      fetchCustomerDetail();
+    } catch (err: any) {
+      toast.error(err.message || "Gagal menambahkan alamat");
+    } finally {
+      setIsSavingAddr(false);
+    }
+  };
+
+  const handleDeleteAddress = async (addrId: number, label: string) => {
+    if (!confirm(`Hapus variasi alamat "${label}"?`)) return;
+    try {
+      const res = await fetch(`/api/siap-saji/customers/${id}/addresses?address_id=${addrId}`, {
+        method: "DELETE",
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Gagal menghapus alamat");
+
+      toast.success("Alamat berhasil dihapus");
+      fetchCustomerDetail();
+    } catch (err: any) {
+      toast.error(err.message || "Gagal menghapus alamat");
+    }
+  };
+
   useEffect(() => {
     fetchCustomerDetail();
+    fetchAreas();
   }, [id]);
 
   const getSegmenBadgeStyle = (segmen: string) => {
@@ -346,6 +434,214 @@ export default function SiapSajiCustomerDetailPage({ params }: { params: Promise
           </div>
         </div>
       </div>
+
+      {/* E. DAFTAR ALAMAT PENGIRIMAN TERSIMPAN (MULTI-ADDRESS) */}
+      <div style={{ marginTop: 24, background: "white", borderRadius: 16, border: "1px solid #e5e7eb", padding: 24, boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
+          <div>
+            <div style={{ display: "inline-block", padding: "4px 12px", borderRadius: 6, background: "#5005A6", color: "white", fontSize: 11, fontWeight: 800, marginBottom: 6 }}>
+              E. DAFTAR ALAMAT PENGIRIMAN TERSIMPAN ({data.addresses?.length || 0})
+            </div>
+            <p style={{ margin: 0, fontSize: 13, color: "#6b7280" }}>
+              Kelola berbagai alamat kantor, rumah, atau cabang untuk pelanggan ini. Alamat ini akan otomatis muncul sebagai pilihan cepat di Form Order Siap Saji.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setAddrLabel("Rumah");
+              setAddrText("");
+              setAddrPatokan("");
+              setIsAddAddrOpen(true);
+            }}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              background: "#5005A6",
+              color: "white",
+              padding: "8px 16px",
+              borderRadius: 8,
+              fontSize: 13,
+              fontWeight: 700,
+              border: "none",
+              cursor: "pointer",
+            }}
+          >
+            <Plus size={16} /> + Tambah Alamat Baru
+          </button>
+        </div>
+
+        {(!data.addresses || data.addresses.length === 0) ? (
+          <div style={{ padding: "30px 20px", textAlign: "center", background: "#f9fafb", borderRadius: 12, border: "1px dashed #d1d5db", color: "#6b7280", fontSize: 13 }}>
+            Belum ada variasi alamat tersimpan. Tambahkan alamat baru di atas.
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 16 }}>
+            {data.addresses.map((addr) => (
+              <div
+                key={addr.id}
+                style={{
+                  padding: 16,
+                  borderRadius: 12,
+                  border: "1px solid #e5e7eb",
+                  background: "#faf5ff",
+                  position: "relative",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                }}
+              >
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                    <span style={{ fontSize: 11, fontWeight: 800, background: "#7c3aed", color: "white", padding: "2px 8px", borderRadius: 6 }}>
+                      🏷️ {addr.label || "Alamat"}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteAddress(addr.id, addr.label || addr.address)}
+                      title="Hapus alamat ini"
+                      style={{
+                        background: "#fee2e2",
+                        color: "#dc2626",
+                        border: "1px solid #fca5a5",
+                        borderRadius: 6,
+                        padding: "3px 6px",
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                      }}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                  <p style={{ margin: "0 0 6px", fontSize: 13, fontWeight: 700, color: "#111827", lineHeight: 1.4 }}>
+                    {addr.address}
+                  </p>
+                  <p style={{ margin: 0, fontSize: 12, color: "#6b7280" }}>
+                    🏢 Kec. {addr.area_kecamatan || "-"} ({addr.area_kota || "Bandung"})
+                  </p>
+                  {addr.patokan && (
+                    <p style={{ margin: "6px 0 0", fontSize: 12, color: "#b10fbd", fontWeight: 600 }}>
+                      📍 Patokan: {addr.patokan}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* MODAL TAMBAH ALAMAT BARU */}
+      {isAddAddrOpen && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 16 }}>
+          <div style={{ background: "white", borderRadius: 16, width: "100%", maxWidth: 500, padding: 24, boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#111827" }}>
+                Tambah Alamat Pengiriman
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsAddAddrOpen(false)}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280" }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddAddress}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#374151", marginBottom: 4 }}>
+                    Label Alamat (Contoh: Rumah, Kantor, Toko, Cabang Antapani)
+                  </label>
+                  <input
+                    type="text"
+                    value={addrLabel}
+                    onChange={(e) => setAddrLabel(e.target.value)}
+                    placeholder="Contoh: Kantor Utama"
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, boxSizing: "border-box" }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#374151", marginBottom: 4 }}>
+                    Kecamatan / Area (Untuk Ongkir Otomatis) *
+                  </label>
+                  <select
+                    value={addrAreaId}
+                    onChange={(e) => setAddrAreaId(Number(e.target.value))}
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, boxSizing: "border-box" }}
+                    required
+                  >
+                    <option value="">-- Pilih Kecamatan / Area --</option>
+                    {areas.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.kecamatan} ({a.kota})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#374151", marginBottom: 4 }}>
+                    Alamat Lengkap *
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={addrText}
+                    onChange={(e) => setAddrText(e.target.value)}
+                    placeholder="Nama jalan, nomor rumah, RT/RW, kelurahan..."
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, boxSizing: "border-box" }}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#374151", marginBottom: 4 }}>
+                    Patokan / Landmark Lokasi (Untuk Kurir)
+                  </label>
+                  <input
+                    type="text"
+                    value={addrPatokan}
+                    onChange={(e) => setAddrPatokan(e.target.value)}
+                    placeholder="Contoh: Sebelah Indomaret, pagar warna hitam..."
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, boxSizing: "border-box" }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 20 }}>
+                <button
+                  type="button"
+                  onClick={() => setIsAddAddrOpen(false)}
+                  style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "white", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingAddr}
+                  style={{
+                    padding: "8px 18px",
+                    borderRadius: 8,
+                    background: "#5005A6",
+                    color: "white",
+                    border: "none",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: isSavingAddr ? "not-allowed" : "pointer",
+                    opacity: isSavingAddr ? 0.7 : 1,
+                  }}
+                >
+                  {isSavingAddr ? "Menyimpan..." : "Simpan Alamat"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

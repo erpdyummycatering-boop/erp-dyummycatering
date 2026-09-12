@@ -104,6 +104,19 @@ export async function GET(
       [custId]
     );
 
+    // 5. Saved addresses
+    const addrRes = await client.query(
+      `SELECT 
+        ca.*,
+        a.kecamatan AS area_kecamatan,
+        a.kota AS area_kota
+       FROM customer_addresses ca
+       LEFT JOIN areas a ON ca.area_id = a.id
+       WHERE ca.customer_id = $1
+       ORDER BY ca.is_default DESC, ca.id DESC`,
+      [custId]
+    );
+
     return NextResponse.json({
       customer: custInfo,
       stats: {
@@ -118,6 +131,7 @@ export async function GET(
       },
       favorite_products: favRes.rows,
       recent_orders: ordersRes.rows,
+      addresses: addrRes.rows,
     });
   } catch (error: any) {
     console.error("Gagal mengambil detail customer:", error);

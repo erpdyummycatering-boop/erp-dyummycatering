@@ -72,7 +72,12 @@ export async function GET(req: NextRequest) {
             ), 0)::numeric
             FROM orders o 
             WHERE o.customer_id = c.id AND o.status_order <> 'Dibatalkan' AND o.lini = 'siap_saji'
-          ) AS loyalty_points
+          ) AS loyalty_points,
+          (
+            SELECT COUNT(*) 
+            FROM customer_addresses ca 
+            WHERE ca.customer_id = c.id
+          ) AS total_saved_addresses
         FROM customers c
         LEFT JOIN areas a ON c.area_id = a.id
         LEFT JOIN rfm_scores r ON r.customer_id = c.id

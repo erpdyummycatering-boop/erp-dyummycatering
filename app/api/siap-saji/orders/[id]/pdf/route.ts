@@ -29,6 +29,9 @@ export async function GET(
     return NextResponse.json({ error: "ID order tidak valid" }, { status: 400 });
   }
 
+  const { searchParams } = new URL(req.url);
+  const mode = searchParams.get("mode") || "exact"; // exact (dynamic page per order) | roll (continuous thermal roll)
+
   const client = await pool.connect();
   try {
     const orderRes = await client.query(

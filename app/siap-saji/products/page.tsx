@@ -103,6 +103,21 @@ export default function SiapSajiProductsPage() {
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [isNameDropdownOpen, setIsNameDropdownOpen] = useState(false);
+
+  const fetchAllProducts = async () => {
+    try {
+      const res = await fetch("/api/siap-saji/products?limit=1000");
+      if (res.ok) {
+        const json = await res.json();
+        setAllProducts(json.data || []);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const fetchProducts = async (page = meta.page, lim = meta.limit) => {
     setLoading(true);
     try {
@@ -159,6 +174,7 @@ export default function SiapSajiProductsPage() {
     fetchProducts();
     fetchChannels();
     fetchCategories();
+    fetchAllProducts();
   }, []);
 
   useEffect(() => {
@@ -1121,7 +1137,7 @@ export default function SiapSajiProductsPage() {
                     style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, fontFamily: "monospace" }}
                   />
                 </div>
-                <div>
+                <div style={{ position: "relative" }}>
                   <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
                     Nama Produk *
                   </label>
@@ -1129,10 +1145,120 @@ export default function SiapSajiProductsPage() {
                     type="text"
                     placeholder="Contoh: Ayam Goreng Terasi Jeruk"
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      setIsNameDropdownOpen(e.target.value.trim().length > 1);
+                    }}
+                    onFocus={() => {
+                      if (name.trim().length > 1) setIsNameDropdownOpen(true);
+                    }}
                     required
                     style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
                   />
+
+                  {/* Autotyping match dropdown to remind CS / Admin */}
+                  {isNameDropdownOpen && name.trim().length > 1 && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "100%",
+                        left: 0,
+                        right: 0,
+                        zIndex: 50,
+                        background: "white",
+                        borderRadius: 8,
+                        border: "1px solid #d1d5db",
+                        boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)",
+                        maxHeight: 180,
+                        overflowY: "auto",
+                        marginTop: 4,
+                      }}
+                    >
+                      {(() => {
+                        const matched = allProducts.filter(
+                          (p) =>
+                            p.name.toLowerCase().includes(name.toLowerCase().trim()) ||
+                            p.sku.toLowerCase().includes(name.toLowerCase().trim())
+                        );
+
+                        if (matched.length === 0) {
+                          return (
+                            <div style={{ padding: "8px 12px", fontSize: 12, color: "#059669", background: "#f0fdf4" }}>
+                              ✓ Nama produk belum pernah terdaftar. Aman digunakan.
+                            </div>
+                          );
+                        }
+
+                        return matched.slice(0, 6).map((p) => {
+                          const isExactMatch = p.name.toLowerCase().trim() === name.toLowerCase().trim();
+                          return (
+                            <div
+                              key={p.id}
+                              onClick={() => {
+                                setName(p.name);
+                                setIsNameDropdownOpen(false);
+                              }}
+                              style={{
+                                padding: "8px 12px",
+                                borderBottom: "1px solid #f3f4f6",
+                                cursor: "pointer",
+                                fontSize: 12,
+                                background: isExactMatch ? "#fef2f2" : "white",
+                              }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = isExactMatch ? "#fee2e2" : "#f9fafb")}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = isExactMatch ? "#fef2f2" : "white")}
+                            >
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <span style={{ fontWeight: 700, color: isExactMatch ? "#dc2626" : "#111827" }}>
+                                  {p.name}
+                                </span>
+                                <span style={{ fontFamily: "monospace", fontSize: 11, background: "#f3f4f6", padding: "1px 6px", borderRadius: 4, color: "#5005A6", fontWeight: 700 }}>
+                                  SKU: {p.sku}
+                                </span>
+                              </div>
+                              <div style={{ fontSize: 11, color: isExactMatch ? "#b91c1c" : "#6b7280", marginTop: 2 }}>
+                                {isExactMatch ? "⚠️ SUDAH ADA DENGAN NAMA PERSIS SAMA!" : `Harga: Rp ${Number(p.price).toLocaleString("id-ID")}`}
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                  )}
+
+                  {/* Warning banner jika nama produk sama persis dengan produk eksisting */}
+                  {(() => {
+                    const exactMatch = allProducts.find(
+                      (p) =>
+                        p.name.toLowerCase().trim() === name.toLowerCase().trim() &&
+                        (!editingProd || p.id !== editingProd.id) &&
+                        p.is_half_portion === isHalfPortion
+                    );
+                    if (exactMatch) {
+                      return (
+                        <div
+                          style={{
+                            marginTop: 6,
+                            padding: "6px 10px",
+                            background: "#fee2e2",
+                            border: "1px solid #fca5a5",
+                            borderRadius: 6,
+                            fontSize: 12,
+                            color: "#b91c1c",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                          }}
+                        >
+                          <AlertCircle size={14} />
+                          <span>
+                            Produk ini sudah ada dengan SKU: <strong>{exactMatch.sku}</strong>. Sistem akan menolak duplikasi SKU liar.
+                          </span>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
               </div>
 

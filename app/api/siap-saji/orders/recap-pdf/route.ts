@@ -114,8 +114,23 @@ export async function GET(req: NextRequest) {
     });
 
     // Separate Full Portion items vs Half Portion (1/2) items
-    const fullPortionRows = rowsData.filter((r) => !r.is_half_portion && !String(r.product_name || "").includes("1/2"));
-    const halfPortionRows = rowsData.filter((r) => r.is_half_portion || String(r.product_name || "").includes("1/2"));
+    const fullPortionRows = rowsData
+      .filter((r) => !r.is_half_portion && !String(r.product_name || "").includes("1/2") && !String(r.product_name || "").includes("½"))
+      .map((r) => ({ ...r, product_name: String(r.product_name || "").trim() }));
+
+    const halfPortionRows = rowsData
+      .filter((r) => r.is_half_portion || String(r.product_name || "").includes("1/2") || String(r.product_name || "").includes("½"))
+      .map((r) => {
+        let pName = String(r.product_name || "").trim();
+        // Append " 1/2" if not already ending or containing "1/2" or "½"
+        if (!pName.includes("1/2") && !pName.includes("½")) {
+          pName = `${pName} 1/2`;
+        }
+        return {
+          ...r,
+          product_name: pName,
+        };
+      });
 
     // Standard A4 dimensions: 595.28 pt x 841.89 pt
     const width = 595.28;
@@ -289,7 +304,7 @@ export async function GET(req: NextRequest) {
         y: rowY - blankRowHeight,
         width: contentWidth,
         height: blankRowHeight,
-        color: rgb(1, 1, 1),
+        color: rgb(0.92, 0.93, 0.94), // Shading fill color for blank row separator (#EAECEE)
         borderColor: rgb(0.3, 0.3, 0.3),
         borderWidth: 0.7,
       });

@@ -230,26 +230,65 @@ export async function POST(req: NextRequest) {
         );
         finalCustomerId = insCustRes.rows[0].id;
       }
-    } else {
-      // Update existing customer patokan/address if provided
-      if (address || patokan || area_id) {
+    }
+
+    // Ensure customer_addresses table exists safely (without wipeout)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS customer_addresses (
+        id BIGSERIAL PRIMARY KEY,
+        customer_id BIGINT REFERENCES customers(id) ON DELETE CASCADE,
+        label VARCHAR(100) DEFAULT 'Alamat',
+        address TEXT NOT NULL,
+        patokan TEXT,
+        area_id BIGINT REFERENCES areas(id) ON DELETE SET NULL,
+        is_default BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Safely record address to customer_addresses if provided, without duplicates
+    if (address && address.trim()) {
+      const existAddrRes = await client.query(
+        `SELECT id FROM customer_addresses 
+         WHERE customer_id = $1 AND LOWER(TRIM(address)) = LOWER(TRIM($2))
+         LIMIT 1`,
+        [finalCustomerId, address.trim()]
+      );
+
+      if (existAddrRes.rows.length === 0) {
         await client.query(
-          `UPDATE customers 
-           SET address = COALESCE($1, address), patokan = COALESCE($2, patokan), area_id = COALESCE($3, area_id)
-           WHERE id = $4`,
-          [address || null, patokan || null, area_id ? Number(area_id) : null, finalCustomerId]
+          `INSERT INTO customer_addresses (customer_id, label, address, patokan, area_id, is_default)
+           VALUES ($1, 'Alamat', $2, $3, $4, true)`,
+          [finalCustomerId, address.trim(), patokan || null, area_id ? Number(area_id) : null]
         );
       }
+
+      // Update customer latest active address & area
+      await client.query(
+        `UPDATE customers 
+         SET address = $1, patokan = COALESCE($2, patokan), area_id = COALESCE($3, area_id)
+         WHERE id = $4`,
+        [address.trim(), patokan || null, area_id ? Number(area_id) : null, finalCustomerId]
+      );
     }
 
     // 2. Lookup Area Snapshot for Zone
     let snapshotZone = "dalam_kota";
     const areaRes = await client.query(
-      "SELECT a.id, a.shipping_zone FROM customers c JOIN areas a ON c.area_id = a.id WHERE c.id = $1",
-      [finalCustomerId]
+      "SELECT a.id, a.shipping_zone FROM areas a WHERE a.id = $1",
+      [area_id ? Number(area_id) : 0]
     );
     if (areaRes.rows.length > 0) {
       snapshotZone = areaRes.rows[0].shipping_zone;
+    } else {
+      const custAreaRes = await client.query(
+        "SELECT a.id, a.shipping_zone FROM customers c JOIN areas a ON c.area_id = a.id WHERE c.id = $1",
+        [finalCustomerId]
+      );
+      if (custAreaRes.rows.length > 0) {
+        snapshotZone = custAreaRes.rows[0].shipping_zone;
+      }
     }
 
     // 3. Resolve Shipping Fee & Auto-Save History
