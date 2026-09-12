@@ -6,6 +6,14 @@ export async function GET(req: NextRequest) {
   const period = p.get("period") || "week"; // week | month | all | custom
   const dateFrom = p.get("date_from");
   const dateTo = p.get("date_to");
+  const limitParam = p.get("limit") || "all";
+
+  let limitClause = "";
+  if (limitParam === "10") limitClause = "LIMIT 10";
+  else if (limitParam === "20") limitClause = "LIMIT 20";
+  else if (limitParam === "50") limitClause = "LIMIT 50";
+  else if (limitParam === "all") limitClause = "";
+  else limitClause = "";
 
   let dateFilter = "";
   if (dateFrom && dateTo) {
@@ -18,13 +26,17 @@ export async function GET(req: NextRequest) {
     dateFilter = "AND o.delivery_date >= CURRENT_DATE - INTERVAL '7 days'";
   } else if (period === "month") {
     dateFilter = "AND o.delivery_date >= date_trunc('month', CURRENT_DATE)";
+  } else if (period === "year") {
+    dateFilter = "AND o.delivery_date >= date_trunc('year', CURRENT_DATE)";
   }
 
   const client = await pool.connect();
   try {
-    // Top 10 Best Selling Products by Quantity
-    const top10QtyRes = await client.query(
+    // Query for Chart: Top Products (based on limitParam)
+    const topQtyRes = await client.query(
       `SELECT 
+        p.id AS product_id,
+        p.sku,
         p.name AS name,
         p.is_half_portion,
         SUM(oi.quantity)::int AS total_qty,
@@ -34,13 +46,15 @@ export async function GET(req: NextRequest) {
        JOIN orders o ON oi.order_id = o.id
        JOIN products p ON oi.product_id = p.id
        WHERE o.lini = 'siap_saji' AND o.status_order <> 'Dibatalkan' ${dateFilter}
-       GROUP BY p.id, p.name, p.is_half_portion
-       ORDER BY total_qty DESC LIMIT 10`
+       GROUP BY p.id, p.sku, p.name, p.is_half_portion
+       ORDER BY total_qty DESC ${limitClause}`
     );
 
-    // Top 10 Best Selling Products by Omset (Revenue)
-    const top10OmsetRes = await client.query(
+    // Query for Chart: Top Omset (based on limitParam)
+    const topOmsetRes = await client.query(
       `SELECT 
+        p.id AS product_id,
+        p.sku,
         p.name AS name,
         p.is_half_portion,
         SUM(oi.quantity)::int AS total_qty,
@@ -50,8 +64,28 @@ export async function GET(req: NextRequest) {
        JOIN orders o ON oi.order_id = o.id
        JOIN products p ON oi.product_id = p.id
        WHERE o.lini = 'siap_saji' AND o.status_order <> 'Dibatalkan' ${dateFilter}
-       GROUP BY p.id, p.name, p.is_half_portion
-       ORDER BY total_omset DESC LIMIT 10`
+       GROUP BY p.id, p.sku, p.name, p.is_half_portion
+       ORDER BY total_omset DESC ${limitClause}`
+    );
+
+    // Query for Table: ALL Products (no limit) with Category
+    const allProductsRes = await client.query(
+      `SELECT 
+        p.id AS product_id,
+        p.sku,
+        p.name AS name,
+        p.is_half_portion,
+        c.name AS category_name,
+        SUM(oi.quantity)::int AS total_qty,
+        SUM(oi.subtotal)::numeric AS total_omset,
+        ROUND(AVG(oi.price)) AS avg_price
+       FROM order_items oi
+       JOIN orders o ON oi.order_id = o.id
+       JOIN products p ON oi.product_id = p.id
+       LEFT JOIN product_categories c ON p.category_id = c.id
+       WHERE o.lini = 'siap_saji' AND o.status_order <> 'Dibatalkan' ${dateFilter}
+       GROUP BY p.id, p.sku, p.name, p.is_half_portion, c.name
+       ORDER BY total_qty DESC`
     );
 
     // Metric Summary Cards
@@ -66,9 +100,10 @@ export async function GET(req: NextRequest) {
     );
 
     return NextResponse.json({
-      top_10: top10QtyRes.rows,
-      top_10_qty: top10QtyRes.rows,
-      top_10_omset: top10OmsetRes.rows,
+      top_10: topQtyRes.rows,
+      top_10_qty: topQtyRes.rows,
+      top_10_omset: topOmsetRes.rows,
+      all_products: allProductsRes.rows,
       summary: {
         total_pcs_terjual: Number(summaryRes.rows[0]?.total_pcs_terjual || 0),
         total_penjualan: Number(summaryRes.rows[0]?.total_penjualan || 0),

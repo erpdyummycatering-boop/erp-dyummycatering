@@ -196,13 +196,13 @@ export default function SiapSajiDashboardPage() {
           </div>
         </div>
 
-        <div style={{ height: 260, width: "100%" }}>
+        <div style={{ height: 260, width: "100%", minWidth: 0 }}>
           {loading ? (
             <div style={{ display: "flex", height: "100%", alignItems: "center", justifyContent: "center", color: "#9ca3af" }}>
               Memuat grafik penjualan...
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
               <LineChart data={data?.trend || []}>
                 <XAxis dataKey="date_label" stroke="#9ca3af" fontSize={12} tickLine={false} />
                 <YAxis stroke="#9ca3af" fontSize={12} tickLine={false} tickFormatter={(v) => `Rp${v / 1000}k`} />

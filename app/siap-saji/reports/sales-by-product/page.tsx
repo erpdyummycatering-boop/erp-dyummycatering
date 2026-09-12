@@ -10,6 +10,7 @@ import {
   FileSpreadsheet,
   TrendingUp,
   ShoppingBag,
+  PieChart as PieIcon,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -20,15 +21,40 @@ import {
   Tooltip,
   CartesianGrid,
   Legend,
+  PieChart,
+  Pie,
+  Cell,
 } from "recharts";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
+import { Pagination } from "@/components/ui/Pagination";
+
+const PIE_COLORS = [
+  "#5005A6",
+  "#378ADD",
+  "#15803d",
+  "#b10fbd",
+  "#f59e0b",
+  "#ef4444",
+  "#06b6d4",
+  "#8b5cf6",
+  "#ec4899",
+  "#64748b",
+];
 
 export default function SalesByProductReportPage() {
   const [timeUnit, setTimeUnit] = useState<"date" | "week" | "month" | "year">("month");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [search, setSearch] = useState("");
+
+  // Pie Chart Metric: "omset" or "qty"
+  const [pieMetric, setPieMetric] = useState<"omset" | "qty">("omset");
+
+  // Pagination & Table Search State
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [tableSearch, setTableSearch] = useState("");
 
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -286,121 +312,307 @@ export default function SalesByProductReportPage() {
         </div>
       </div>
 
-      {/* Chart: Metrik Horizontal Waktu */}
-      <div style={{ background: "white", borderRadius: 16, padding: 20, border: "1px solid #e5e7eb", marginBottom: 24 }}>
-        <h3 style={{ fontSize: 15, fontWeight: 800, color: "#111827", margin: "0 0 4px" }}>
-          Grafik Penjualan Produk terhadap Waktu ({timeUnit.toUpperCase()})
-        </h3>
-        <p style={{ fontSize: 12, color: "#6b7280", margin: "0 0 16px" }}>
-          Metrik horizontal: {timeUnit === "date" ? "Tanggal" : timeUnit === "week" ? "Pekan (Mingguan)" : timeUnit === "month" ? "Bulan" : "Tahun"}
-        </p>
+      {/* Charts Grid: Bar Chart Waktu & Pie Chart Produk */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))", gap: 20, marginBottom: 24 }}>
+        {/* Chart 1: Bar Chart Metrik Horizontal Waktu */}
+        <div style={{ background: "white", borderRadius: 16, padding: 20, border: "1px solid #e5e7eb" }}>
+          <h3 style={{ fontSize: 15, fontWeight: 800, color: "#111827", margin: "0 0 4px" }}>
+            Grafik Penjualan terhadap Waktu ({timeUnit.toUpperCase()})
+          </h3>
+          <p style={{ fontSize: 12, color: "#6b7280", margin: "0 0 16px" }}>
+            Metrik horizontal: {timeUnit === "date" ? "Tanggal" : timeUnit === "week" ? "Pekan (Mingguan)" : timeUnit === "month" ? "Bulan" : "Tahun"}
+          </p>
 
-        <div style={{ height: 280, width: "100%" }}>
-          {loading ? (
-            <div style={{ display: "flex", height: "100%", alignItems: "center", justifyContent: "center", color: "#9ca3af" }}>
-              Memuat grafik tren...
+          <div style={{ height: 280, width: "100%", minWidth: 0 }}>
+            {loading ? (
+              <div style={{ display: "flex", height: "100%", alignItems: "center", justifyContent: "center", color: "#9ca3af" }}>
+                Memuat grafik tren...
+              </div>
+            ) : (data?.time_series || []).length === 0 ? (
+              <div style={{ display: "flex", height: "100%", alignItems: "center", justifyContent: "center", color: "#9ca3af" }}>
+                Tidak ada data penjualan pada periode ini.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={260}>
+                <BarChart data={data?.time_series || []}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                  <XAxis dataKey="time_label" stroke="#9ca3af" fontSize={11} tickLine={false} />
+                  <YAxis yAxisId="left" stroke="#5005A6" fontSize={11} tickLine={false} tickFormatter={(v) => `Rp${v / 1000}k`} />
+                  <YAxis yAxisId="right" orientation="right" stroke="#15803d" fontSize={11} tickLine={false} />
+                  <Tooltip
+                    formatter={(val: any, name: any) =>
+                      name === "Omset (Rp)"
+                        ? [`Rp ${Number(val).toLocaleString("id-ID")}`, name]
+                        : [`${Number(val).toLocaleString("id-ID")} pcs`, name]
+                    }
+                    contentStyle={{ borderRadius: 8, border: "1px solid #e5e7eb", fontWeight: 700 }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 12, fontWeight: 600 }} />
+                  <Bar yAxisId="left" dataKey="total_omset" name="Omset (Rp)" fill="#5005A6" radius={[4, 4, 0, 0]} />
+                  <Bar yAxisId="right" dataKey="total_qty" name="Qty (Pcs)" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+
+        {/* Chart 2: Pie Chart Pangsa Penjualan by Produk */}
+        <div style={{ background: "white", borderRadius: 16, padding: 20, border: "1px solid #e5e7eb" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, flexWrap: "wrap", gap: 8 }}>
+            <div>
+              <h3 style={{ fontSize: 15, fontWeight: 800, color: "#111827", margin: 0, display: "flex", alignItems: "center", gap: 6 }}>
+                <PieIcon size={18} color="#5005A6" /> Proporsi Penjualan per Produk
+              </h3>
+              <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>
+                Pangsa kontribusi produk berdasarkan {pieMetric === "omset" ? "Angka Rupiah (Omset)" : "Total Kuantitas (Qty)"}
+              </p>
             </div>
-          ) : (data?.time_series || []).length === 0 ? (
-            <div style={{ display: "flex", height: "100%", alignItems: "center", justifyContent: "center", color: "#9ca3af" }}>
-              Tidak ada data penjualan pada periode ini.
+
+            {/* Switcher: Omset vs Qty */}
+            <div style={{ background: "#f3f4f6", borderRadius: 8, padding: 3, display: "flex", gap: 4 }}>
+              <button
+                onClick={() => setPieMetric("omset")}
+                style={{
+                  padding: "4px 10px",
+                  borderRadius: 6,
+                  border: "none",
+                  background: pieMetric === "omset" ? "#5005A6" : "transparent",
+                  color: pieMetric === "omset" ? "white" : "#4b5563",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Omset (Rp)
+              </button>
+              <button
+                onClick={() => setPieMetric("qty")}
+                style={{
+                  padding: "4px 10px",
+                  borderRadius: 6,
+                  border: "none",
+                  background: pieMetric === "qty" ? "#15803d" : "transparent",
+                  color: pieMetric === "qty" ? "white" : "#4b5563",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Kuantitas (Pcs)
+              </button>
             </div>
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data?.time_series || []}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                <XAxis dataKey="time_label" stroke="#9ca3af" fontSize={11} tickLine={false} />
-                <YAxis yAxisId="left" stroke="#5005A6" fontSize={11} tickLine={false} tickFormatter={(v) => `Rp${v / 1000}k`} />
-                <YAxis yAxisId="right" orientation="right" stroke="#15803d" fontSize={11} tickLine={false} />
-                <Tooltip
-                  formatter={(val: any, name: any) =>
-                    name === "Omset (Rp)"
-                      ? [`Rp ${Number(val).toLocaleString("id-ID")}`, name]
-                      : [`${Number(val).toLocaleString("id-ID")} pcs`, name]
-                  }
-                  contentStyle={{ borderRadius: 8, border: "1px solid #e5e7eb", fontWeight: 700 }}
-                />
-                <Legend wrapperStyle={{ fontSize: 12, fontWeight: 600 }} />
-                <Bar yAxisId="left" dataKey="total_omset" name="Omset (Rp)" fill="#5005A6" radius={[4, 4, 0, 0]} />
-                <Bar yAxisId="right" dataKey="total_qty" name="Qty (Pcs)" fill="#22c55e" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
+          </div>
+
+          <div style={{ height: 280, width: "100%", minWidth: 0 }}>
+            {loading ? (
+              <div style={{ display: "flex", height: "100%", alignItems: "center", justifyContent: "center", color: "#9ca3af" }}>
+                Memuat pie chart...
+              </div>
+            ) : (() => {
+                const prods = data?.products || [];
+                if (prods.length === 0) {
+                  return (
+                    <div style={{ display: "flex", height: "100%", alignItems: "center", justifyContent: "center", color: "#9ca3af" }}>
+                      Tidak ada data produk pada periode ini.
+                    </div>
+                  );
+                }
+
+                // Sort by chosen metric
+                const sorted = [...prods].sort((a: any, b: any) => {
+                  return pieMetric === "omset"
+                    ? Number(b.total_omset || 0) - Number(a.total_omset || 0)
+                    : Number(b.total_qty || 0) - Number(a.total_qty || 0);
+                });
+
+                // Top 7 items + "Lainnya"
+                const topItems = sorted.slice(0, 7).map((p: any) => ({
+                  name: p.product_name + (p.is_half_portion ? " (½)" : ""),
+                  value: pieMetric === "omset" ? Number(p.total_omset || 0) : Number(p.total_qty || 0),
+                }));
+
+                const otherItems = sorted.slice(7);
+                if (otherItems.length > 0) {
+                  const otherTotal = otherItems.reduce((acc: number, cur: any) => {
+                    return acc + (pieMetric === "omset" ? Number(cur.total_omset || 0) : Number(cur.total_qty || 0));
+                  }, 0);
+                  topItems.push({
+                    name: `Lainnya (${otherItems.length} produk)`,
+                    value: otherTotal,
+                  });
+                }
+
+                return (
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={260}>
+                    <PieChart>
+                      <Pie
+                        data={topItems}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={85}
+                        paddingAngle={3}
+                        dataKey="value"
+                        label={({ percent }: any) => ((percent || 0) >= 0.04 ? `${((percent || 0) * 100).toFixed(0)}%` : "")}
+                        labelLine={false}
+                      >
+                        {topItems.map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(val: any, name: any, item: any) => {
+                          const total = topItems.reduce((acc, it) => acc + it.value, 0);
+                          const pct = total > 0 ? ((Number(val) / total) * 100).toFixed(1) : "0";
+                          const formattedVal =
+                            pieMetric === "omset"
+                              ? `Rp ${Number(val).toLocaleString("id-ID")} (${pct}%)`
+                              : `${Number(val).toLocaleString("id-ID")} pcs (${pct}%)`;
+                          return [formattedVal, `${item?.payload?.name || name}`];
+                        }}
+                        contentStyle={{
+                          borderRadius: 10,
+                          border: "1px solid #e5e7eb",
+                          fontWeight: 700,
+                          boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                          padding: "8px 12px",
+                        }}
+                      />
+                      <Legend wrapperStyle={{ fontSize: 11, fontWeight: 600 }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                );
+              })()}
+          </div>
         </div>
       </div>
 
       {/* Tabel Utama: No, Produk, Qty, Angka Rupiah */}
       <div style={{ background: "white", borderRadius: 14, border: "1px solid #e5e7eb", overflowX: "auto", maxWidth: "100%" }}>
-        <div style={{ padding: "16px 20px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
           <div>
             <h3 style={{ fontSize: 16, fontWeight: 800, color: "#111827", margin: 0 }}>
               Rincian Tabel Penjualan per Produk
             </h3>
             <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>
-              Daftar seluruh produk beserta kuantitas terjual dan akumulasi rupiah
+              Daftar seluruh produk beserta kuantitas terjual dan akumulasi rupiah (Paging 10 baris)
             </p>
           </div>
-          <span style={{ fontSize: 12, fontWeight: 700, color: "#5005A6", background: "#f3e8ff", padding: "4px 10px", borderRadius: 20 }}>
-            {data?.products?.length || 0} Produk
-          </span>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {/* Search terms khusus tabel */}
+            <div style={{ position: "relative" }}>
+              <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
+              <input
+                type="text"
+                placeholder="Cari di tabel..."
+                value={tableSearch}
+                onChange={(e) => {
+                  setTableSearch(e.target.value);
+                  setPage(1);
+                }}
+                style={{ padding: "6px 12px 6px 30px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 12, outline: "none", width: 180 }}
+              />
+            </div>
+
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#5005A6", background: "#f3e8ff", padding: "4px 10px", borderRadius: 20 }}>
+              {data?.products?.length || 0} Total Produk
+            </span>
+          </div>
         </div>
 
-        <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, textAlign: "left", fontSize: 13, whiteSpace: "nowrap" }}>
-          <thead>
-            <tr style={{ background: "#fafafa", color: "#6b7280", fontWeight: 700, fontSize: 11, textTransform: "uppercase" }}>
-              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", width: 50 }}>No.</th>
-              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", width: 110 }}>SKU</th>
-              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Nama Produk</th>
-              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Kategori</th>
-              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "right" }}>Harga Rata-Rata</th>
-              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "right" }}>Qty Terjual</th>
-              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "right" }}>Total Rupiah (Omset)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
-                  Memuat data produk...
-                </td>
-              </tr>
-            ) : (data?.products || []).length === 0 ? (
-              <tr>
-                <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
-                  Tidak ada data penjualan produk ditemukan.
-                </td>
-              </tr>
-            ) : (
-              data.products.map((p: any, idx: number) => (
-                <tr key={p.product_id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                  <td style={{ padding: "12px 14px", color: "#6b7280", borderBottom: "1px solid #f3f4f6" }}>{idx + 1}</td>
-                  <td style={{ padding: "12px 14px", fontFamily: "monospace", fontWeight: 700, color: "#5005A6", borderBottom: "1px solid #f3f4f6" }}>
-                    {p.sku || "-"}
-                  </td>
-                  <td style={{ padding: "12px 14px", fontWeight: 700, color: "#111827", borderBottom: "1px solid #f3f4f6" }}>
-                    {p.product_name}
-                    {p.is_half_portion && (
-                      <span style={{ marginLeft: 6, fontSize: 11, background: "#fef3c7", color: "#b45309", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>
-                        ½ Porsi
-                      </span>
-                    )}
-                  </td>
-                  <td style={{ padding: "12px 14px", color: "#4b5563", borderBottom: "1px solid #f3f4f6" }}>
-                    {p.category_name}
-                  </td>
-                  <td style={{ padding: "12px 14px", textAlign: "right", color: "#4b5563", borderBottom: "1px solid #f3f4f6" }}>
-                    Rp {Number(p.avg_price || 0).toLocaleString("id-ID")}
-                  </td>
-                  <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: "#15803d", borderBottom: "1px solid #f3f4f6" }}>
-                    {Number(p.total_qty || 0).toLocaleString("id-ID")} pcs
-                  </td>
-                  <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: "#5005A6", borderBottom: "1px solid #f3f4f6" }}>
-                    Rp {Number(p.total_omset || 0).toLocaleString("id-ID")}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+        {(() => {
+          const allProds = data?.products || [];
+          const filteredProds = allProds.filter((p: any) => {
+            if (!tableSearch.trim()) return true;
+            const q = tableSearch.toLowerCase().trim();
+            return (
+              (p.sku && p.sku.toLowerCase().includes(q)) ||
+              (p.product_name && p.product_name.toLowerCase().includes(q)) ||
+              (p.category_name && p.category_name.toLowerCase().includes(q))
+            );
+          });
+
+          const totalItems = filteredProds.length;
+          const totalPages = Math.max(1, Math.ceil(totalItems / limit));
+          const safePage = Math.min(page, totalPages);
+          const startIndex = (safePage - 1) * limit;
+          const pagedProducts = filteredProds.slice(startIndex, startIndex + limit);
+
+          return (
+            <>
+              <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, textAlign: "left", fontSize: 13, whiteSpace: "nowrap" }}>
+                <thead>
+                  <tr style={{ background: "#fafafa", color: "#6b7280", fontWeight: 700, fontSize: 11, textTransform: "uppercase" }}>
+                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", width: 50 }}>No.</th>
+                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", width: 110 }}>SKU</th>
+                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Nama Produk</th>
+                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Kategori</th>
+                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "right" }}>Harga Rata-Rata</th>
+                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "right" }}>Qty Terjual</th>
+                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "right" }}>Total Rupiah (Omset)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                        Memuat data produk...
+                      </td>
+                    </tr>
+                  ) : pagedProducts.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                        {tableSearch ? "Tidak ada produk yang sesuai dengan pencarian." : "Tidak ada data penjualan produk ditemukan."}
+                      </td>
+                    </tr>
+                  ) : (
+                    pagedProducts.map((p: any, idx: number) => (
+                      <tr key={p.product_id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                        <td style={{ padding: "12px 14px", color: "#6b7280", borderBottom: "1px solid #f3f4f6" }}>{startIndex + idx + 1}</td>
+                        <td style={{ padding: "12px 14px", fontFamily: "monospace", fontWeight: 700, color: "#5005A6", borderBottom: "1px solid #f3f4f6" }}>
+                          {p.sku || "-"}
+                        </td>
+                        <td style={{ padding: "12px 14px", fontWeight: 700, color: "#111827", borderBottom: "1px solid #f3f4f6" }}>
+                          {p.product_name}
+                          {p.is_half_portion && (
+                            <span style={{ marginLeft: 6, fontSize: 11, background: "#fef3c7", color: "#b45309", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>
+                              ½ Porsi
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: "12px 14px", color: "#4b5563", borderBottom: "1px solid #f3f4f6" }}>
+                          {p.category_name}
+                        </td>
+                        <td style={{ padding: "12px 14px", textAlign: "right", color: "#4b5563", borderBottom: "1px solid #f3f4f6" }}>
+                          Rp {Number(p.avg_price || 0).toLocaleString("id-ID")}
+                        </td>
+                        <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: "#15803d", borderBottom: "1px solid #f3f4f6" }}>
+                          {Number(p.total_qty || 0).toLocaleString("id-ID")} pcs
+                        </td>
+                        <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: "#5005A6", borderBottom: "1px solid #f3f4f6" }}>
+                          Rp {Number(p.total_omset || 0).toLocaleString("id-ID")}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+
+              <Pagination
+                page={safePage}
+                totalPages={totalPages}
+                total={totalItems}
+                limit={limit}
+                onChange={(p) => setPage(p)}
+                onLimitChange={(lim) => {
+                  setLimit(lim);
+                  setPage(1);
+                }}
+              />
+            </>
+          );
+        })()}
       </div>
     </div>
   );

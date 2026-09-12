@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
        FROM order_items oi
        JOIN orders o ON oi.order_id = o.id
        JOIN products pr ON oi.product_id = pr.id
-       LEFT JOIN categories cat ON pr.category_id = cat.id
+       LEFT JOIN product_categories cat ON pr.category_id = cat.id
        WHERE ${whereSql}
        GROUP BY pr.id, pr.sku, pr.name, pr.is_half_portion, cat.name
        ORDER BY total_omset DESC`,

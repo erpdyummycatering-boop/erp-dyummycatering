@@ -1,23 +1,32 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { BarChart2, Calendar, TrendingUp, ShoppingBag, Layers, Filter } from "lucide-react";
+import { BarChart2, Calendar, TrendingUp, ShoppingBag, Layers, Filter, FileSpreadsheet, Search } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, LabelList } from "recharts";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
+import { Pagination } from "@/components/ui/Pagination";
 
 export default function SiapSajiProductAnalyticsPage() {
-  const [period, setPeriod] = useState("all");
+  const [period, setPeriod] = useState("month");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [topLimit, setTopLimit] = useState("10");
   const [metric, setMetric] = useState<"qty" | "omset">("qty");
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
+  // Table State
+  const [tableSearch, setTableSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
 
   const fetchAnalytics = async () => {
     setLoading(true);
     try {
       const q = new URLSearchParams();
       q.append("period", period);
+      q.append("limit", topLimit);
       if (dateFrom) q.append("date_from", dateFrom);
       if (dateTo) q.append("date_to", dateTo);
 
@@ -31,9 +40,33 @@ export default function SiapSajiProductAnalyticsPage() {
     }
   };
 
+  const handleExportXLSX = () => {
+    const listToExport = data?.all_products || (metric === "qty" ? (data?.top_10_qty || []) : (data?.top_10_omset || []));
+    if (!listToExport.length) {
+      toast.error("Tidak ada data untuk diekspor");
+      return;
+    }
+
+    const rows = listToExport.map((item: any, idx: number) => ({
+      "No": idx + 1,
+      "SKU": item.sku || "-",
+      "Nama Produk": `${item.name}${item.is_half_portion ? " (½ Porsi)" : ""}`,
+      "Kategori": item.category_name || "-",
+      "Harga Rata-Rata": Number(item.avg_price || 0),
+      "Total Kuantitas (Pcs)": Number(item.total_qty || 0),
+      "Total Omset (Rp)": Number(item.total_omset || 0),
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Analisa Produk");
+    XLSX.writeFile(wb, `analisa_produk_${period}_${new Date().toISOString().split("T")[0]}.xlsx`);
+    toast.success("File Excel berhasil diunduh!");
+  };
+
   useEffect(() => {
     fetchAnalytics();
-  }, [period, dateFrom, dateTo]);
+  }, [period, dateFrom, dateTo, topLimit]);
 
   const chartData = metric === "qty" ? (data?.top_10_qty || data?.top_10 || []) : (data?.top_10_omset || []);
 
@@ -96,6 +129,25 @@ export default function SiapSajiProductAnalyticsPage() {
               onClick={() => {
                 setDateFrom("");
                 setDateTo("");
+                setPeriod("year");
+              }}
+              style={{
+                padding: "6px 14px",
+                borderRadius: 6,
+                border: "none",
+                background: period === "year" && !dateFrom && !dateTo ? "#5005A6" : "transparent",
+                color: period === "year" && !dateFrom && !dateTo ? "white" : "#4b5563",
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              Tahun Ini
+            </button>
+            <button
+              onClick={() => {
+                setDateFrom("");
+                setDateTo("");
                 setPeriod("all");
               }}
               style={{
@@ -153,68 +205,117 @@ export default function SiapSajiProductAnalyticsPage() {
         </div>
       </div>
 
-      {/* Horizontal Bar Chart (Top 10 Produk) */}
+      {/* Horizontal Bar Chart */}
       <div style={{ background: "white", borderRadius: 16, padding: 24, border: "1px solid #e5e7eb", marginBottom: 24 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
           <div>
             <h3 style={{ fontSize: 18, fontWeight: 800, color: "#111827", margin: 0 }}>
-              Top 10 Produk {metric === "qty" ? "Terlaris (Kuantitas Pcs)" : "Penghasil Omset Tertinggi (Rp)"}
+              Grafik Penjualan Produk {metric === "qty" ? "Terlaris (Kuantitas Pcs)" : "Penghasil Omset Tertinggi (Rp)"}
             </h3>
             <p style={{ fontSize: 13, color: "#6b7280", margin: "2px 0 0" }}>
-              Angka langsung terlihat pada grafik tanpa perlu meng-hover bar
+              {topLimit === "all" ? "Menampilkan SEMUA produk" : `Menampilkan Top ${topLimit} produk`} • Angka langsung terlihat pada grafik
             </p>
           </div>
 
-          {/* Metric Switcher: Top Qty vs Top Omset */}
-          <div style={{ background: "#f3f4f6", borderRadius: 10, padding: 4, display: "flex", gap: 4 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            {/* Limit Selector: 10, 20, 50, Semua */}
+            <div style={{ background: "#f3f4f6", borderRadius: 10, padding: 4, display: "flex", gap: 4 }}>
+              {[
+                { label: "Top 10", val: "10" },
+                { label: "Top 20", val: "20" },
+                { label: "Top 50", val: "50" },
+                { label: "Semua", val: "all" },
+              ].map((item) => (
+                <button
+                  key={item.val}
+                  onClick={() => setTopLimit(item.val)}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 6,
+                    border: "none",
+                    background: topLimit === item.val ? "#5005A6" : "transparent",
+                    color: topLimit === item.val ? "white" : "#4b5563",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Metric Switcher: Top Qty vs Top Omset */}
+            <div style={{ background: "#f3f4f6", borderRadius: 10, padding: 4, display: "flex", gap: 4 }}>
+              <button
+                onClick={() => setMetric("qty")}
+                style={{
+                  padding: "6px 14px",
+                  borderRadius: 6,
+                  border: "none",
+                  background: metric === "qty" ? "#5005A6" : "transparent",
+                  color: metric === "qty" ? "white" : "#4b5563",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  transition: "all 0.15s ease",
+                }}
+              >
+                <ShoppingBag size={14} /> Kuantitas
+              </button>
+              <button
+                onClick={() => setMetric("omset")}
+                style={{
+                  padding: "6px 14px",
+                  borderRadius: 6,
+                  border: "none",
+                  background: metric === "omset" ? "#15803d" : "transparent",
+                  color: metric === "omset" ? "white" : "#4b5563",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  transition: "all 0.15s ease",
+                }}
+              >
+                <TrendingUp size={14} /> Omset
+              </button>
+            </div>
+
+            {/* Export XLSX */}
             <button
-              onClick={() => setMetric("qty")}
+              onClick={handleExportXLSX}
               style={{
-                padding: "8px 16px",
+                padding: "8px 14px",
+                background: "#f0fdf4",
+                color: "#16a34a",
+                border: "1px solid #bbf7d0",
                 borderRadius: 8,
-                border: "none",
-                background: metric === "qty" ? "#5005A6" : "transparent",
-                color: metric === "qty" ? "white" : "#4b5563",
-                fontSize: 13,
+                fontSize: 12,
                 fontWeight: 700,
                 cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
                 gap: 6,
-                transition: "all 0.15s ease",
               }}
             >
-              <ShoppingBag size={15} /> Top Kuantitas (pcs)
-            </button>
-            <button
-              onClick={() => setMetric("omset")}
-              style={{
-                padding: "8px 16px",
-                borderRadius: 8,
-                border: "none",
-                background: metric === "omset" ? "#15803d" : "transparent",
-                color: metric === "omset" ? "white" : "#4b5563",
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                transition: "all 0.15s ease",
-              }}
-            >
-              <TrendingUp size={15} /> Top Omset (Rp)
+              <FileSpreadsheet size={15} /> Export XLSX
             </button>
           </div>
         </div>
 
-        <div style={{ height: 440, width: "100%" }}>
+        <div style={{ height: Math.max(380, (chartData?.length || 0) * 36), width: "100%", minWidth: 0 }}>
           {loading ? (
             <div style={{ display: "flex", height: "100%", alignItems: "center", justifyContent: "center", color: "#9ca3af" }}>
               Memuat grafik produk...
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <BarChart
                 layout="vertical"
                 data={chartData}
@@ -275,7 +376,7 @@ export default function SiapSajiProductAnalyticsPage() {
       </div>
 
       {/* 3 Summary Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16, marginBottom: 24 }}>
         <div style={{ background: "white", borderRadius: 14, padding: 20, border: "1px solid #e5e7eb" }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: "#6b7280", textTransform: "uppercase" }}>Total Produk Terjual</span>
           <p style={{ fontSize: 26, fontWeight: 900, color: "#5005A6", margin: "6px 0 0" }}>
@@ -297,6 +398,141 @@ export default function SiapSajiProductAnalyticsPage() {
             Rp {Number(data?.summary?.rata_rata_harga || 0).toLocaleString("id-ID")}
           </p>
         </div>
+      </div>
+
+      {/* Tabel Rincian Penjualan Produk Berpagiing & Search Terms */}
+      <div style={{ background: "white", borderRadius: 16, border: "1px solid #e5e7eb", overflowX: "auto", maxWidth: "100%" }}>
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+          <div>
+            <h3 style={{ fontSize: 16, fontWeight: 800, color: "#111827", margin: 0 }}>
+              Tabel Rincian Penjualan Produk
+            </h3>
+            <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>
+              Data lengkap seluruh produk berpaging 10 baris dengan fitur pencarian terms
+            </p>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {/* Search terms */}
+            <div style={{ position: "relative" }}>
+              <Search size={14} color="#9ca3af" style={{ position: "absolute", left: 10, top: 10 }} />
+              <input
+                type="text"
+                placeholder="Cari SKU, nama produk..."
+                value={tableSearch}
+                onChange={(e) => {
+                  setTableSearch(e.target.value);
+                  setPage(1);
+                }}
+                style={{
+                  padding: "6px 12px 6px 30px",
+                  borderRadius: 8,
+                  border: "1px solid #d1d5db",
+                  fontSize: 12,
+                  outline: "none",
+                  width: 200,
+                }}
+              />
+            </div>
+
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#5005A6", background: "#f3e8ff", padding: "4px 10px", borderRadius: 20 }}>
+              {data?.all_products?.length || 0} Total Produk
+            </span>
+          </div>
+        </div>
+
+        {(() => {
+          const allProds = data?.all_products || [];
+          const filtered = allProds.filter((p: any) => {
+            if (!tableSearch.trim()) return true;
+            const q = tableSearch.toLowerCase().trim();
+            return (
+              (p.name && p.name.toLowerCase().includes(q)) ||
+              (p.sku && p.sku.toLowerCase().includes(q)) ||
+              (p.category_name && p.category_name.toLowerCase().includes(q))
+            );
+          });
+
+          const totalItems = filtered.length;
+          const totalPages = Math.max(1, Math.ceil(totalItems / limit));
+          const safePage = Math.min(page, totalPages);
+          const startIndex = (safePage - 1) * limit;
+          const pagedProducts = filtered.slice(startIndex, startIndex + limit);
+
+          return (
+            <>
+              <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, textAlign: "left", fontSize: 13, whiteSpace: "nowrap" }}>
+                <thead>
+                  <tr style={{ background: "#fafafa", color: "#6b7280", fontWeight: 700, fontSize: 11, textTransform: "uppercase" }}>
+                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", width: 50 }}>No.</th>
+                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", width: 110 }}>SKU</th>
+                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Nama Produk</th>
+                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Kategori</th>
+                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "right" }}>Harga Rata-Rata</th>
+                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "right" }}>Qty Terjual</th>
+                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "right" }}>Total Rupiah (Omset)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                        Memuat data tabel produk...
+                      </td>
+                    </tr>
+                  ) : pagedProducts.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                        {tableSearch ? "Tidak ada produk yang sesuai pencarian." : "Tidak ada data produk ditemukan."}
+                      </td>
+                    </tr>
+                  ) : (
+                    pagedProducts.map((p: any, idx: number) => (
+                      <tr key={p.product_id || idx} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                        <td style={{ padding: "12px 14px", color: "#6b7280", borderBottom: "1px solid #f3f4f6" }}>{startIndex + idx + 1}</td>
+                        <td style={{ padding: "12px 14px", fontFamily: "monospace", fontWeight: 700, color: "#5005A6", borderBottom: "1px solid #f3f4f6" }}>
+                          {p.sku || "-"}
+                        </td>
+                        <td style={{ padding: "12px 14px", fontWeight: 700, color: "#111827", borderBottom: "1px solid #f3f4f6" }}>
+                          {p.name}
+                          {p.is_half_portion && (
+                            <span style={{ marginLeft: 6, fontSize: 11, background: "#fef3c7", color: "#b45309", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>
+                              ½ Porsi
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: "12px 14px", color: "#4b5563", borderBottom: "1px solid #f3f4f6" }}>
+                          {p.category_name || "-"}
+                        </td>
+                        <td style={{ padding: "12px 14px", textAlign: "right", color: "#4b5563", borderBottom: "1px solid #f3f4f6" }}>
+                          Rp {Number(p.avg_price || 0).toLocaleString("id-ID")}
+                        </td>
+                        <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: "#15803d", borderBottom: "1px solid #f3f4f6" }}>
+                          {Number(p.total_qty || 0).toLocaleString("id-ID")} pcs
+                        </td>
+                        <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: "#5005A6", borderBottom: "1px solid #f3f4f6" }}>
+                          Rp {Number(p.total_omset || 0).toLocaleString("id-ID")}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+
+              <Pagination
+                page={safePage}
+                totalPages={totalPages}
+                total={totalItems}
+                limit={limit}
+                onChange={(p) => setPage(p)}
+                onLimitChange={(lim) => {
+                  setLimit(lim);
+                  setPage(1);
+                }}
+              />
+            </>
+          );
+        })()}
       </div>
     </div>
   );

@@ -24,12 +24,18 @@ import {
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { getWhatsAppUrl, formatDate } from "@/lib/utils";
+import { Pagination } from "@/components/ui/Pagination";
 
 export default function SalesByCustomerReportPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [search, setSearch] = useState("");
   const [quickFilter, setQuickFilter] = useState<"all" | "today" | "month" | "year">("all");
+
+  // Pagination & Table Search State
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [tableSearch, setTableSearch] = useState("");
 
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -316,7 +322,7 @@ export default function SalesByCustomerReportPage() {
           Perbandingan performa pembelian pelanggan dengan angka rupiah omset dan total kuantitas produk
         </p>
 
-        <div style={{ height: 280, width: "100%" }}>
+        <div style={{ height: 280, width: "100%", minWidth: 0 }}>
           {loading ? (
             <div style={{ display: "flex", height: "100%", alignItems: "center", justifyContent: "center", color: "#9ca3af" }}>
               Memuat grafik penjualan customer...
@@ -326,7 +332,7 @@ export default function SalesByCustomerReportPage() {
               Tidak ada data penjualan customer pada filter ini.
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={260}>
               <BarChart data={data?.chart_data || []}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
                 <XAxis dataKey="customer_name" stroke="#9ca3af" fontSize={11} tickLine={false} />
@@ -351,96 +357,149 @@ export default function SalesByCustomerReportPage() {
 
       {/* Tabel Utama: No, Nama Customer, No HP, Kecamatan, Order, Qty, Angka Rupiah */}
       <div style={{ background: "white", borderRadius: 14, border: "1px solid #e5e7eb", overflowX: "auto", maxWidth: "100%" }}>
-        <div style={{ padding: "16px 20px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
           <div>
             <h3 style={{ fontSize: 16, fontWeight: 800, color: "#111827", margin: 0 }}>
               Tabel Rincian Penjualan per Customer
             </h3>
             <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>
-              Data terpisah: Nama Pelanggan, Kontak WA, Kecamatan, Frekuensi Transaksi, Total Qty, dan Angka Rupiah
+              Data terpisah: Nama Pelanggan, Kontak WA, Kecamatan, Frekuensi Transaksi, Total Qty, dan Angka Rupiah (Paging 10 baris)
             </p>
           </div>
-          <span style={{ fontSize: 12, fontWeight: 700, color: "#5005A6", background: "#f3e8ff", padding: "4px 10px", borderRadius: 20 }}>
-            {data?.customers?.length || 0} Pelanggan
-          </span>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {/* Search terms khusus tabel customer */}
+            <div style={{ position: "relative" }}>
+              <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
+              <input
+                type="text"
+                placeholder="Cari di tabel..."
+                value={tableSearch}
+                onChange={(e) => {
+                  setTableSearch(e.target.value);
+                  setPage(1);
+                }}
+                style={{ padding: "6px 12px 6px 30px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 12, outline: "none", width: 180 }}
+              />
+            </div>
+
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#5005A6", background: "#f3e8ff", padding: "4px 10px", borderRadius: 20 }}>
+              {data?.customers?.length || 0} Total Pelanggan
+            </span>
+          </div>
         </div>
 
-        <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, textAlign: "left", fontSize: 13, whiteSpace: "nowrap" }}>
-          <thead>
-            <tr style={{ background: "#fafafa", color: "#6b7280", fontWeight: 700, fontSize: 11, textTransform: "uppercase" }}>
-              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", width: 50 }}>No.</th>
-              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Nama Customer</th>
-              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>No. HP / WA</th>
-              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Kecamatan</th>
-              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "center" }}>Total Order</th>
-              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "right" }}>Qty (Pcs)</th>
-              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "right" }}>Angka Rupiah (Omset)</th>
-              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Order Terakhir</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={8} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
-                  Memuat data pelanggan...
-                </td>
-              </tr>
-            ) : (data?.customers || []).length === 0 ? (
-              <tr>
-                <td colSpan={8} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
-                  Tidak ada data penjualan customer ditemukan.
-                </td>
-              </tr>
-            ) : (
-              data.customers.map((c: any, idx: number) => (
-                <tr key={c.customer_id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                  <td style={{ padding: "12px 14px", color: "#6b7280", borderBottom: "1px solid #f3f4f6" }}>{idx + 1}</td>
-                  <td style={{ padding: "12px 14px", fontWeight: 700, color: "#111827", borderBottom: "1px solid #f3f4f6" }}>
-                    {c.customer_name}
-                  </td>
-                  <td style={{ padding: "12px 14px", borderBottom: "1px solid #f3f4f6" }}>
-                    {c.customer_phone ? (
-                      <a
-                        href={getWhatsAppUrl(c.customer_phone)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          fontSize: 12,
-                          color: "#16a34a",
-                          fontWeight: 700,
-                          textDecoration: "none",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 4,
-                        }}
-                        title="Chat WhatsApp"
-                      >
-                        💬 {c.customer_phone}
-                      </a>
-                    ) : (
-                      <span style={{ color: "#9ca3af" }}>-</span>
-                    )}
-                  </td>
-                  <td style={{ padding: "12px 14px", color: "#4b5563", borderBottom: "1px solid #f3f4f6" }}>
-                    {c.area_kecamatan || "-"}
-                  </td>
-                  <td style={{ padding: "12px 14px", textAlign: "center", fontWeight: 700, color: "#378ADD", borderBottom: "1px solid #f3f4f6" }}>
-                    {c.total_orders}
-                  </td>
-                  <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: "#15803d", borderBottom: "1px solid #f3f4f6" }}>
-                    {Number(c.total_qty || 0).toLocaleString("id-ID")} pcs
-                  </td>
-                  <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: "#5005A6", borderBottom: "1px solid #f3f4f6" }}>
-                    Rp {Number(c.total_omset || 0).toLocaleString("id-ID")}
-                  </td>
-                  <td style={{ padding: "12px 14px", color: "#6b7280", fontSize: 12, borderBottom: "1px solid #f3f4f6" }}>
-                    {c.last_order_date ? formatDate(c.last_order_date) : "-"}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+        {(() => {
+          const allCusts = data?.customers || [];
+          const filteredCusts = allCusts.filter((c: any) => {
+            if (!tableSearch.trim()) return true;
+            const q = tableSearch.toLowerCase().trim();
+            return (
+              (c.customer_name && c.customer_name.toLowerCase().includes(q)) ||
+              (c.customer_phone && c.customer_phone.toLowerCase().includes(q)) ||
+              (c.area_kecamatan && c.area_kecamatan.toLowerCase().includes(q))
+            );
+          });
+
+          const totalItems = filteredCusts.length;
+          const totalPages = Math.max(1, Math.ceil(totalItems / limit));
+          const safePage = Math.min(page, totalPages);
+          const startIndex = (safePage - 1) * limit;
+          const pagedCustomers = filteredCusts.slice(startIndex, startIndex + limit);
+
+          return (
+            <>
+              <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, textAlign: "left", fontSize: 13, whiteSpace: "nowrap" }}>
+                <thead>
+                  <tr style={{ background: "#fafafa", color: "#6b7280", fontWeight: 700, fontSize: 11, textTransform: "uppercase" }}>
+                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", width: 50 }}>No.</th>
+                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Nama Customer</th>
+                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>No. HP / WA</th>
+                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Kecamatan</th>
+                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "center" }}>Total Order</th>
+                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "right" }}>Qty (Pcs)</th>
+                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "right" }}>Angka Rupiah (Omset)</th>
+                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Order Terakhir</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={8} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                        Memuat data pelanggan...
+                      </td>
+                    </tr>
+                  ) : pagedCustomers.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                        {tableSearch ? "Tidak ada pelanggan yang sesuai dengan pencarian." : "Tidak ada data penjualan customer ditemukan."}
+                      </td>
+                    </tr>
+                  ) : (
+                    pagedCustomers.map((c: any, idx: number) => (
+                      <tr key={c.customer_id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                        <td style={{ padding: "12px 14px", color: "#6b7280", borderBottom: "1px solid #f3f4f6" }}>{startIndex + idx + 1}</td>
+                        <td style={{ padding: "12px 14px", fontWeight: 700, color: "#111827", borderBottom: "1px solid #f3f4f6" }}>
+                          {c.customer_name}
+                        </td>
+                        <td style={{ padding: "12px 14px", borderBottom: "1px solid #f3f4f6" }}>
+                          {c.customer_phone ? (
+                            <a
+                              href={getWhatsAppUrl(c.customer_phone)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                fontSize: 12,
+                                color: "#16a34a",
+                                fontWeight: 700,
+                                textDecoration: "none",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 4,
+                              }}
+                              title="Chat WhatsApp"
+                            >
+                              💬 {c.customer_phone}
+                            </a>
+                          ) : (
+                            <span style={{ color: "#9ca3af" }}>-</span>
+                          )}
+                        </td>
+                        <td style={{ padding: "12px 14px", color: "#4b5563", borderBottom: "1px solid #f3f4f6" }}>
+                          {c.area_kecamatan || "-"}
+                        </td>
+                        <td style={{ padding: "12px 14px", textAlign: "center", fontWeight: 700, color: "#378ADD", borderBottom: "1px solid #f3f4f6" }}>
+                          {c.total_orders}
+                        </td>
+                        <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: "#15803d", borderBottom: "1px solid #f3f4f6" }}>
+                          {Number(c.total_qty || 0).toLocaleString("id-ID")} pcs
+                        </td>
+                        <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: "#5005A6", borderBottom: "1px solid #f3f4f6" }}>
+                          Rp {Number(c.total_omset || 0).toLocaleString("id-ID")}
+                        </td>
+                        <td style={{ padding: "12px 14px", color: "#6b7280", fontSize: 12, borderBottom: "1px solid #f3f4f6" }}>
+                          {c.last_order_date ? formatDate(c.last_order_date) : "-"}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+
+              <Pagination
+                page={safePage}
+                totalPages={totalPages}
+                total={totalItems}
+                limit={limit}
+                onChange={(p) => setPage(p)}
+                onLimitChange={(lim) => {
+                  setLimit(lim);
+                  setPage(1);
+                }}
+              />
+            </>
+          );
+        })()}
       </div>
     </div>
   );
