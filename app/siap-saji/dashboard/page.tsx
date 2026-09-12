@@ -9,11 +9,12 @@ import { toast } from "sonner";
 export default function SiapSajiDashboardPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [trendPeriod, setTrendPeriod] = useState<"daily" | "monthly" | "yearly">("daily");
 
-  const fetchDashboard = async () => {
+  const fetchDashboard = async (p = trendPeriod) => {
     setLoading(true);
     try {
-      const res = await fetch("/api/siap-saji/dashboard");
+      const res = await fetch(`/api/siap-saji/dashboard?period=${p}`);
       if (!res.ok) throw new Error("Gagal memuat data dashboard");
       setData(await res.json());
     } catch (err: any) {
@@ -24,8 +25,25 @@ export default function SiapSajiDashboardPage() {
   };
 
   useEffect(() => {
-    fetchDashboard();
-  }, []);
+    fetchDashboard(trendPeriod);
+  }, [trendPeriod]);
+
+  const handleExportTrendXLSX = () => {
+    if (!data?.trend || data.trend.length === 0) return toast.error("Tidak ada data untuk diekspor");
+    import("xlsx").then((XLSX) => {
+      const rows = data.trend.map((t: any, idx: number) => ({
+        No: idx + 1,
+        Periode: t.date_label,
+        "Total Omset (Rp)": Number(t.omset || 0),
+        "Jumlah Order": Number(t.order_count || 0),
+      }));
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(rows);
+      XLSX.utils.book_append_sheet(wb, ws, "Tren Penjualan");
+      XLSX.writeFile(wb, `Laporan_Tren_Penjualan_${trendPeriod}.xlsx`);
+      toast.success("Laporan grafik penjualan berhasil diexport ke Excel!");
+    });
+  };
 
   return (
     <div style={{ maxWidth: 1280, margin: "0 auto", paddingBottom: 40 }}>
@@ -96,16 +114,85 @@ export default function SiapSajiDashboardPage() {
         </div>
       </div>
 
-      {/* Main Line Chart Card (Penjualan 7 Hari Terakhir) */}
+      {/* Main Line Chart Card (Penjualan Harian / Bulanan / Tahunan) */}
       <div style={{ background: "white", borderRadius: 16, padding: 24, border: "1px solid #e5e7eb", marginBottom: 24 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
           <div>
             <h3 style={{ fontSize: 16, fontWeight: 800, color: "#111827", margin: 0 }}>
-              Penjualan 7 Hari Terakhir
+              Grafik Tren Penjualan Siap Saji ({trendPeriod === "daily" ? "Harian" : trendPeriod === "monthly" ? "Bulanan" : "Tahunan"})
             </h3>
             <p style={{ fontSize: 13, color: "#6b7280", margin: "2px 0 0" }}>
-              Grafik tren omset harian Siap Saji
+              Menampilkan seluruh data riwayat penjualan tanpa batasan Top 10
             </p>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ background: "#f3f4f6", padding: 4, borderRadius: 10, display: "flex", gap: 4 }}>
+              <button
+                onClick={() => setTrendPeriod("daily")}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: 6,
+                  border: "none",
+                  background: trendPeriod === "daily" ? "#5005A6" : "transparent",
+                  color: trendPeriod === "daily" ? "white" : "#4b5563",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Harian
+              </button>
+              <button
+                onClick={() => setTrendPeriod("monthly")}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: 6,
+                  border: "none",
+                  background: trendPeriod === "monthly" ? "#5005A6" : "transparent",
+                  color: trendPeriod === "monthly" ? "white" : "#4b5563",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Bulanan
+              </button>
+              <button
+                onClick={() => setTrendPeriod("yearly")}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: 6,
+                  border: "none",
+                  background: trendPeriod === "yearly" ? "#5005A6" : "transparent",
+                  color: trendPeriod === "yearly" ? "white" : "#4b5563",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Tahunan
+              </button>
+            </div>
+
+            <button
+              onClick={handleExportTrendXLSX}
+              style={{
+                padding: "8px 14px",
+                background: "#f0fdf4",
+                color: "#16a34a",
+                border: "1px solid #bbf7d0",
+                borderRadius: 8,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              📊 Export XLSX
+            </button>
           </div>
         </div>
 

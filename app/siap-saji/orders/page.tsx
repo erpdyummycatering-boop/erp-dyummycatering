@@ -227,6 +227,7 @@ export default function SiapSajiOrdersPage() {
   const [isCustDropdownOpen, setIsCustDropdownOpen] = useState(false);
   const [duplicatePhoneCust, setDuplicatePhoneCust] = useState<any | null>(null);
   const [selectedAreaId, setSelectedAreaId] = useState<number | "">("");
+  const [selectedAreaName, setSelectedAreaName] = useState<string>("");
   const [customerAddress, setCustomerAddress] = useState("");
   const [customerPatokan, setCustomerPatokan] = useState("");
   const [orderDate, setOrderDate] = useState(new Date().toISOString().split("T")[0]);
@@ -1675,11 +1676,11 @@ export default function SiapSajiOrdersPage() {
       )}
 
       {/* ── TRANSACTIONS TABLE ────────────────────────────────── */}
-      <div style={{ background: "white", borderRadius: 12, border: "1px solid #e5e7eb", overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 14, whiteSpace: "nowrap" }}>
+      <div style={{ background: "white", borderRadius: 12, border: "1px solid #e5e7eb", overflowX: "auto", maxWidth: "100%" }}>
+        <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, textAlign: "left", fontSize: 13, whiteSpace: "nowrap" }}>
           <thead>
-            <tr style={{ background: "#fafafa", borderBottom: "1px solid #e5e7eb", color: "#6b7280", fontWeight: 700, fontSize: 12, textTransform: "uppercase" }}>
-              <th style={{ padding: "12px 10px", width: 40, textAlign: "center" }}>
+            <tr style={{ background: "#fafafa", color: "#6b7280", fontWeight: 700, fontSize: 12, textTransform: "uppercase" }}>
+              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 10px", width: 40, textAlign: "center" }}>
                 <input
                   type="checkbox"
                   checked={orders.length > 0 && orders.every((o) => selectedOrderIds.includes(o.id))}
@@ -1694,36 +1695,36 @@ export default function SiapSajiOrdersPage() {
                   style={{ cursor: "pointer", width: 16, height: 16, accentColor: "#5005A6" }}
                 />
               </th>
-              <th style={{ padding: "12px 16px", width: 50 }}>No.</th>
-              <th style={{ padding: "12px 16px" }}>No. Struk</th>
-              <th style={{ padding: "12px 16px" }}>Tanggal</th>
-              <th style={{ padding: "12px 16px" }}>Pelanggan</th>
-              <th style={{ padding: "12px 16px" }}>Kecamatan</th>
-              <th style={{ padding: "12px 16px" }}>Channel</th>
-              <th style={{ padding: "12px 16px" }}>Total</th>
-              <th style={{ padding: "12px 16px" }}>Rekening</th>
-              <th style={{ padding: "12px 16px" }}>Status Order</th>
-              <th style={{ padding: "12px 16px" }}>Status Pengiriman</th>
-              <th style={{ padding: "12px 16px", textAlign: "right" }}>Aksi</th>
+              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", width: 50 }}>No.</th>
+              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>No. Struk</th>
+              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Tanggal</th>
+              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Nama Pelanggan</th>
+              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>No. HP / WA</th>
+              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Kecamatan</th>
+              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Channel</th>
+              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Total</th>
+              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Rekening</th>
+              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Status Order</th>
+              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "right" }}>Aksi</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={11} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                <td colSpan={12} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
                   Memuat data penjualan...
                 </td>
               </tr>
             ) : orders.length === 0 ? (
               <tr>
-                <td colSpan={11} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                <td colSpan={12} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
                   Tidak ada transaksi Siap Saji ditemukan.
                 </td>
               </tr>
             ) : (
               orders.map((o, idx) => (
                 <tr key={o.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                  <td style={{ padding: "14px 10px", textAlign: "center" }}>
+                  <td style={{ padding: "12px 10px", textAlign: "center", borderBottom: "1px solid #f3f4f6" }}>
                     <input
                       type="checkbox"
                       checked={selectedOrderIds.includes(o.id)}
@@ -1737,34 +1738,39 @@ export default function SiapSajiOrdersPage() {
                       style={{ cursor: "pointer", width: 16, height: 16, accentColor: "#5005A6" }}
                     />
                   </td>
-                  <td style={{ padding: "14px 16px", color: "#6b7280" }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
-                  <td style={{ padding: "14px 16px", fontWeight: 700, color: "#5005A6" }}>{o.no_struk || "-"}</td>
-                  <td style={{ padding: "14px 16px", color: "#374151" }}>{formatDate(o.delivery_date)}</td>
-                  <td style={{ padding: "14px 16px" }}>
-                    <p style={{ fontWeight: 600, color: "#111827", margin: 0 }}>{o.customer_name}</p>
-                    <a
-                      href={getWhatsAppUrl(o.customer_phone)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        fontSize: 12,
-                        color: "#25D366",
-                        fontWeight: 700,
-                        margin: "2px 0 0",
-                        textDecoration: "none",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 4,
-                      }}
-                      title="Chat WhatsApp (Buka Tab Baru)"
-                    >
-                      💬 {o.customer_phone}
-                    </a>
+                  <td style={{ padding: "12px 14px", color: "#6b7280", borderBottom: "1px solid #f3f4f6" }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
+                  <td style={{ padding: "12px 14px", fontWeight: 700, color: "#5005A6", borderBottom: "1px solid #f3f4f6" }}>{o.no_struk || "-"}</td>
+                  <td style={{ padding: "12px 14px", color: "#374151", borderBottom: "1px solid #f3f4f6" }}>{formatDate(o.delivery_date)}</td>
+                  <td style={{ padding: "12px 14px", fontWeight: 600, color: "#111827", borderBottom: "1px solid #f3f4f6" }}>
+                    {o.customer_name}
                   </td>
-                  <td style={{ padding: "14px 16px", color: "#4b5563" }}>
+                  <td style={{ padding: "12px 14px", borderBottom: "1px solid #f3f4f6" }}>
+                    {o.customer_phone ? (
+                      <a
+                        href={getWhatsAppUrl(o.customer_phone)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          fontSize: 12,
+                          color: "#16a34a",
+                          fontWeight: 700,
+                          textDecoration: "none",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                        title="Chat WhatsApp (Buka Tab Baru)"
+                      >
+                        💬 {o.customer_phone}
+                      </a>
+                    ) : (
+                      <span style={{ color: "#9ca3af" }}>-</span>
+                    )}
+                  </td>
+                  <td style={{ padding: "12px 14px", color: "#4b5563", borderBottom: "1px solid #f3f4f6" }}>
                     {o.area_kecamatan ? `${o.area_kecamatan}` : "-"}
                   </td>
-                  <td style={{ padding: "14px 16px" }}>
+                  <td style={{ padding: "12px 14px", borderBottom: "1px solid #f3f4f6" }}>
                     <span
                       style={{
                         padding: "3px 8px",
@@ -1778,13 +1784,13 @@ export default function SiapSajiOrdersPage() {
                       {o.channel_name || "Gojek"}
                     </span>
                   </td>
-                  <td style={{ padding: "14px 16px", fontWeight: 700, color: "#111827" }}>
+                  <td style={{ padding: "12px 14px", fontWeight: 700, color: "#111827", borderBottom: "1px solid #f3f4f6" }}>
                     Rp {Number(o.grand_total).toLocaleString("id-ID")}
                   </td>
-                  <td style={{ padding: "14px 16px", color: "#4b5563", fontSize: 13 }}>
+                  <td style={{ padding: "12px 14px", color: "#4b5563", fontSize: 13, borderBottom: "1px solid #f3f4f6" }}>
                     {o.payment_bank} ({o.payment_account})
                   </td>
-                  <td style={{ padding: "14px 16px" }}>
+                  <td style={{ padding: "12px 14px", borderBottom: "1px solid #f3f4f6" }}>
                     <span
                       style={{
                         padding: "4px 10px",
@@ -1798,28 +1804,6 @@ export default function SiapSajiOrdersPage() {
                     >
                       {o.status_order}
                     </span>
-                  </td>
-                  <td style={{ padding: "14px 16px" }}>
-                    <div>
-                      {(() => {
-                        const st = o.shipping_status || "Menunggu";
-                        let bg = "#f3f4f6";
-                        let clr = "#4b5563";
-                        if (st === "Selesai" || st === "Terkirim") { bg = "#dcfce7"; clr = "#15803d"; }
-                        else if (st === "Dalam Pengiriman" || st === "Dikirim") { bg = "#dbeafe"; clr = "#1d4ed8"; }
-                        else if (st === "Diproses") { bg = "#fef3c7"; clr = "#b45309"; }
-                        return (
-                          <span style={{ padding: "3px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: bg, color: clr }}>
-                            {st}
-                          </span>
-                        );
-                      })()}
-                      {o.driver_name && (
-                        <p style={{ fontSize: 11, color: "#6b7280", margin: "2px 0 0", fontWeight: 600 }}>
-                          🛵 {o.driver_name}
-                        </p>
-                      )}
-                    </div>
                   </td>
                   <td style={{ padding: "14px 16px", textAlign: "right" }}>
                     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
@@ -2328,12 +2312,14 @@ export default function SiapSajiOrdersPage() {
                       }}
                     >
                       {(() => {
-                        const selArea = masterAreas.find((a) => a.id === Number(selectedAreaId));
+                        const selArea = masterAreas.find((a) => String(a.id) === String(selectedAreaId));
+                        const displayText = selArea
+                          ? `${selArea.kecamatan} (${selArea.kota}) — [${selArea.shipping_zone}]`
+                          : (selectedAreaName || "-- Cari & Pilih Kecamatan --");
+                        const hasVal = Boolean(selArea || selectedAreaName);
                         return (
-                          <span style={{ color: selArea ? "#111827" : "#9ca3af", fontWeight: selArea ? 600 : 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                            {selArea
-                              ? `${selArea.kecamatan} (${selArea.kota}) — [${selArea.shipping_zone}]`
-                              : "-- Cari & Pilih Kecamatan --"}
+                          <span style={{ color: hasVal ? "#111827" : "#9ca3af", fontWeight: hasVal ? 600 : 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {displayText}
                           </span>
                         );
                       })()}
@@ -2402,12 +2388,13 @@ export default function SiapSajiOrdersPage() {
                               }
 
                               return filtered.map((a) => {
-                                const isSelected = a.id === Number(selectedAreaId);
+                                const isSelected = String(a.id) === String(selectedAreaId);
                                 return (
                                   <div
                                     key={a.id}
                                     onClick={() => {
-                                      setSelectedAreaId(a.id);
+                                      setSelectedAreaId(Number(a.id));
+                                      setSelectedAreaName(`${a.kecamatan} (${a.kota}) — [${a.shipping_zone}]`);
                                       setIsShippingAuto(true);
                                       setIsAreaDropdownOpen(false);
                                       setAreaSearchQuery("");
@@ -3266,6 +3253,11 @@ export default function SiapSajiOrdersPage() {
 
               <div style={{ borderBottom: "1px dashed #9ca3af", paddingBottom: 8, marginBottom: 8 }}>
                 <p style={{ fontWeight: 700, margin: 0 }}>{selectedStruk.customer_name}</p>
+                {selectedStruk.customer_phone && (
+                  <p style={{ margin: "2px 0 0", fontWeight: 600, color: "#1f2937" }}>
+                    📞 {selectedStruk.customer_phone}
+                  </p>
+                )}
                 <p style={{ margin: "2px 0 0" }}>{selectedStruk.customer_address}</p>
                 {selectedStruk.customer_patokan && (
                   <p style={{ margin: "2px 0 0", color: "#4b5563" }}>
@@ -3727,6 +3719,11 @@ export default function SiapSajiOrdersPage() {
 
                     <div style={{ borderBottom: "1px dashed #9ca3af", paddingBottom: 8, marginBottom: 8 }}>
                       <p style={{ fontWeight: 700, margin: 0 }}>{order.customer_name}</p>
+                      {order.customer_phone && (
+                        <p style={{ margin: "2px 0 0", fontWeight: 600, color: "#1f2937" }}>
+                          📞 {order.customer_phone}
+                        </p>
+                      )}
                       <p style={{ margin: "2px 0 0" }}>{order.customer_address}</p>
                       {order.customer_patokan && (
                         <p style={{ margin: "2px 0 0", color: "#4b5563" }}>

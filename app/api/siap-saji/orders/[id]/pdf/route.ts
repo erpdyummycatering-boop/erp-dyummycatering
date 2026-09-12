@@ -85,8 +85,9 @@ export async function GET(
       // Header: D'Yummy Siap Saji (26), Jl Sindangsari (16), Kota Bandung (16), SI.Struk (18), line (15)
       h += 26 + 16 + 16 + 18 + 15;
 
-      // Customer info: Name (18), Address lines (lines * 16), Patokan lines (lines * 15), Kec (16), line (15)
+      // Customer info: Name (18), Phone (16), Address lines (lines * 16), Patokan lines (lines * 15), Kec (16), line (15)
       h += 18;
+      if (order.customer_phone) h += 16;
       const addrLines = wrapText(order.customer_address || "-", 29);
       h += addrLines.length * 16;
       if (order.customer_patokan) {
@@ -171,6 +172,11 @@ export async function GET(
     // Customer Info
     page.drawText(order.customer_name || "Pelanggan", { x: margin, y, size: 14, font: fontBold });
     y -= 18;
+
+    if (order.customer_phone) {
+      page.drawText(`Telp/WA: ${order.customer_phone}`, { x: margin, y, size: 12, font: fontBold, color: rgb(0.1, 0.1, 0.1) });
+      y -= 16;
+    }
 
     const addrLines = wrapText(order.customer_address || "-", 29);
     addrLines.forEach((line) => {

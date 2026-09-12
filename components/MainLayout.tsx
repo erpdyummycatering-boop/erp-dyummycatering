@@ -92,6 +92,8 @@ const RUMPUN_MENU: ModuleGroup[] = [
       {
         section: "Analisa & Laporan",
         items: [
+          { href: "/siap-saji/reports/sales-by-product", label: "Laporan per Produk", icon: Layers },
+          { href: "/siap-saji/reports/sales-by-customer", label: "Laporan per Customer", icon: Users },
           { href: "/siap-saji/analytics/products", label: "Analisa Produk", icon: BarChart2 },
           { href: "/siap-saji/analytics/customers", label: "Analisa Customer (RFM)", icon: PieChart },
           { href: "/siap-saji/finance", label: "Laporan Keuangan", icon: CreditCard },

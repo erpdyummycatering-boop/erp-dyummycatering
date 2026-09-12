@@ -35,8 +35,10 @@ export default function SiapSajiFinancePage() {
   const [jouPage, setJouPage] = useState(1);
   const [jouLimit, setJouLimit] = useState(10);
 
-  // Tab 1: P&L Data
+  // Tab 1: P&L Data & Filters
   const [plData, setPlData] = useState<any>(null);
+  const [plMonth, setPlMonth] = useState<string>("6"); // Default Juni
+  const [plYear, setPlYear] = useState<string>("2026");
 
   // Tab 2: Purchases Data & Filters
   const [purchases, setPurchases] = useState<any[]>([]);
@@ -151,7 +153,12 @@ export default function SiapSajiFinancePage() {
     setLoading(true);
     try {
       if (activeTab === "pl") {
-        const res = await fetch("/api/siap-saji/finance/reports?type=pl");
+        const q = new URLSearchParams({
+          type: "pl",
+          month: plMonth,
+          year: plYear,
+        }).toString();
+        const res = await fetch(`/api/siap-saji/finance/reports?${q}`);
         if (res.ok) setPlData(await res.json());
       } else if (activeTab === "purchases") {
         const q = new URLSearchParams({
@@ -288,6 +295,7 @@ export default function SiapSajiFinancePage() {
     fetchTabData();
   }, [
     activeTab,
+    plMonth, plYear,
     purPage, purLimit, purSearch, purDateFrom, purDateTo,
     expPage, expLimit, expSearch, expDateFrom, expDateTo,
     mutSearch, mutJenisFilter, mutDateFrom, mutDateTo,
@@ -730,8 +738,56 @@ export default function SiapSajiFinancePage() {
               </p>
             </div>
 
-            <div style={{ background: "#f3f4f6", padding: "6px 14px", borderRadius: 8, fontSize: 13, fontWeight: 700, color: "#374151" }}>
-              Periode: Juni 2026
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <select
+                value={plMonth}
+                onChange={(e) => setPlMonth(e.target.value)}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: 8,
+                  border: "1px solid #d1d5db",
+                  background: "#f9fafb",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: "#374151",
+                  outline: "none",
+                  cursor: "pointer",
+                }}
+              >
+                <option value="all">Semua Bulan (Setahun)</option>
+                <option value="1">Januari</option>
+                <option value="2">Februari</option>
+                <option value="3">Maret</option>
+                <option value="4">April</option>
+                <option value="5">Mei</option>
+                <option value="6">Juni</option>
+                <option value="7">Juli</option>
+                <option value="8">Agustus</option>
+                <option value="9">September</option>
+                <option value="10">Oktober</option>
+                <option value="11">November</option>
+                <option value="12">Desember</option>
+              </select>
+
+              <select
+                value={plYear}
+                onChange={(e) => setPlYear(e.target.value)}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: 8,
+                  border: "1px solid #d1d5db",
+                  background: "#f9fafb",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: "#374151",
+                  outline: "none",
+                  cursor: "pointer",
+                }}
+              >
+                <option value="2025">2025</option>
+                <option value="2026">2026</option>
+                <option value="2027">2027</option>
+              </select>
             </div>
           </div>
 

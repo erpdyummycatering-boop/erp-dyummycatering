@@ -741,18 +741,18 @@ export default function SiapSajiProductsPage() {
       </div>
 
       {/* Products Table */}
-      <div style={{ background: "white", borderRadius: 12, border: "1px solid #e5e7eb", overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 14, whiteSpace: "nowrap" }}>
+      <div style={{ background: "white", borderRadius: 12, border: "1px solid #e5e7eb", overflowX: "auto", maxWidth: "100%" }}>
+        <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, textAlign: "left", fontSize: 13, whiteSpace: "nowrap" }}>
           <thead>
-            <tr style={{ background: "#fafafa", borderBottom: "1px solid #e5e7eb", color: "#6b7280", fontWeight: 700, fontSize: 12, textTransform: "uppercase" }}>
-              <th style={{ padding: "12px 16px", width: 50 }}>No.</th>
-              <th style={{ padding: "12px 16px" }}>SKU</th>
-              <th style={{ padding: "12px 16px" }}>Nama Produk</th>
-              <th style={{ padding: "12px 16px" }}>Kategori</th>
-              <th style={{ padding: "12px 16px" }}>Varian Porsi</th>
-              <th style={{ padding: "12px 16px" }}>Harga Normal</th>
-              <th style={{ padding: "12px 16px" }}>Harga Channel</th>
-              <th style={{ padding: "12px 16px", textAlign: "right" }}>Aksi</th>
+            <tr style={{ background: "#fafafa", color: "#6b7280", fontWeight: 700, fontSize: 12, textTransform: "uppercase" }}>
+              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", width: 50 }}>No.</th>
+              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>SKU</th>
+              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Nama Produk</th>
+              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Kategori</th>
+              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Varian Porsi</th>
+              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Harga Normal</th>
+              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Harga Channel</th>
+              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "right" }}>Aksi</th>
             </tr>
           </thead>
           <tbody>

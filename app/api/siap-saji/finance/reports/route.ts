@@ -8,17 +8,36 @@ export async function GET(req: NextRequest) {
   const client = await pool.connect();
   try {
     if (type === "pl") {
+      const month = p.get("month"); // "1" .. "12" or "all"
+      const year = p.get("year") || "2026";
+
+      let dateFilter = `AND EXTRACT(YEAR FROM j.journal_date) = ${Number(year)}`;
+      if (month && month !== "all") {
+        dateFilter += ` AND EXTRACT(MONTH FROM j.journal_date) = ${Number(month)}`;
+      }
+
       const plRes = await client.query(
-        "SELECT * FROM v_pl_summary WHERE lini = 'siap_saji' ORDER BY bulan DESC"
+        `SELECT 
+          j.lini,
+          DATE_TRUNC('month', j.journal_date) AS bulan,
+          SUM(CASE WHEN c.kelompok = 'Pendapatan' THEN j.nominal ELSE 0 END) AS pendapatan,
+          SUM(CASE WHEN c.kelompok = 'Beban' AND c.sub_kelompok = 'Beban Pokok Penjualan' THEN j.nominal ELSE 0 END) AS hpp,
+          SUM(CASE WHEN c.kelompok = 'Beban' AND c.sub_kelompok = 'Beban Operasional' THEN j.nominal ELSE 0 END) AS biaya_operasional,
+          SUM(CASE WHEN c.kelompok = 'Pendapatan' THEN j.nominal ELSE 0 END) - SUM(CASE WHEN c.kelompok = 'Beban' THEN j.nominal ELSE 0 END) AS laba_bersih
+        FROM journals j
+        JOIN coa c ON c.id = j.akun_debit
+        WHERE j.lini = 'siap_saji' ${dateFilter}
+        GROUP BY j.lini, DATE_TRUNC('month', j.journal_date)
+        ORDER BY bulan DESC`
       );
 
-      // Detailed breakdown by CoA
+      // Detailed breakdown by CoA based on selected month & year
       const detailRes = await client.query(
         `SELECT 
           c.kelompok, c.sub_kelompok, c.kode_akun, c.nama_akun,
           COALESCE(SUM(j.nominal), 0) AS total_nominal
         FROM coa c
-        LEFT JOIN journals j ON (j.akun_debit = c.id OR j.akun_kredit = c.id) AND j.lini = 'siap_saji'
+        LEFT JOIN journals j ON (j.akun_debit = c.id OR j.akun_kredit = c.id) AND j.lini = 'siap_saji' ${dateFilter}
         WHERE c.lini = 'siap_saji'
         GROUP BY c.id, c.kelompok, c.sub_kelompok, c.kode_akun, c.nama_akun
         ORDER BY c.kode_akun`

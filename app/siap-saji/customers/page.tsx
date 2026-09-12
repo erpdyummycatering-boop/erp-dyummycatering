@@ -426,31 +426,33 @@ export default function SiapSajiCustomersPage() {
       </div>
 
       {/* Customer Table */}
-      <div style={{ background: "white", borderRadius: 12, border: "1px solid #e5e7eb", overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 13 }}>
+      <div style={{ background: "white", borderRadius: 12, border: "1px solid #e5e7eb", overflowX: "auto", maxWidth: "100%" }}>
+        <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, textAlign: "left", fontSize: 13, whiteSpace: "nowrap" }}>
           <thead>
-            <tr style={{ background: "#fafafa", borderBottom: "1px solid #e5e7eb", color: "#6b7280", fontWeight: 700, fontSize: 11, textTransform: "uppercase" }}>
-              <th style={{ padding: "10px 10px", width: 40 }}>No.</th>
-              <th style={{ padding: "10px 10px", width: 140 }}>Pelanggan</th>
-              <th style={{ padding: "10px 10px", width: 220 }}>Kecamatan & Alamat</th>
-              <th style={{ padding: "10px 10px", width: 170 }}>Patokan / Landmark</th>
-              <th style={{ padding: "10px 10px", width: 60, textAlign: "center" }}>Order</th>
-              <th style={{ padding: "10px 10px", width: 110 }}>Total Omset</th>
-              <th style={{ padding: "10px 10px", width: 100 }}>Poin Loyalty</th>
-              <th style={{ padding: "10px 10px", width: 130 }}>Segmen RFM</th>
-              <th style={{ padding: "10px 10px", width: 80, textAlign: "right" }}>Aksi</th>
+            <tr style={{ background: "#fafafa", color: "#6b7280", fontWeight: 700, fontSize: 11, textTransform: "uppercase" }}>
+              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 10px", width: 40 }}>No.</th>
+              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Nama Pelanggan</th>
+              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>No. HP / WA</th>
+              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Kecamatan</th>
+              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Alamat Lengkap</th>
+              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Patokan / Landmark</th>
+              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "center" }}>Order</th>
+              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Total Omset</th>
+              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Poin Loyalty</th>
+              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Segmen RFM</th>
+              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "right" }}>Aksi</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={9} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                <td colSpan={11} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
                   Memuat data pelanggan...
                 </td>
               </tr>
             ) : customers.length === 0 ? (
               <tr>
-                <td colSpan={9} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                <td colSpan={11} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
                   Tidak ada pelanggan Siap Saji ditemukan.
                 </td>
               </tr>
@@ -460,39 +462,45 @@ export default function SiapSajiCustomersPage() {
                 const sStyle = getSegmenBadgeStyle(segmenName);
                 return (
                   <tr key={c.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                    <td style={{ padding: "10px 10px", color: "#6b7280" }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
-                    <td style={{ padding: "10px 10px", whiteSpace: "nowrap" }}>
-                      <p
+                    <td style={{ padding: "12px 10px", color: "#6b7280", borderBottom: "1px solid #f3f4f6" }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
+                    <td style={{ padding: "12px 14px", borderBottom: "1px solid #f3f4f6" }}>
+                      <span
                         onClick={() => handleViewDetail(c.id)}
-                        style={{ fontWeight: 800, color: "#5005A6", margin: 0, cursor: "pointer" }}
+                        style={{ fontWeight: 700, color: "#5005A6", cursor: "pointer" }}
                         title="Klik untuk lihat detail brief pelanggan"
                       >
                         {c.name}
-                      </p>
-                      <a
-                        href={getWhatsAppUrl(c.phone)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          fontSize: 12,
-                          color: "#25D366",
-                          fontWeight: 700,
-                          margin: "2px 0 0",
-                          textDecoration: "none",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 4,
-                        }}
-                        title="Chat WhatsApp (Buka Tab Baru)"
-                      >
-                        💬 {c.phone}
-                      </a>
+                      </span>
                     </td>
-                    <td style={{ padding: "10px 10px", whiteSpace: "normal", maxWidth: 220, wordBreak: "break-word" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                        <span style={{ fontWeight: 700, color: "#374151" }}>
-                          {c.area_kecamatan ? `${c.area_kecamatan}` : "-"}
-                        </span>
+                    <td style={{ padding: "12px 14px", borderBottom: "1px solid #f3f4f6" }}>
+                      {c.phone ? (
+                        <a
+                          href={getWhatsAppUrl(c.phone)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            fontSize: 12,
+                            color: "#16a34a",
+                            fontWeight: 700,
+                            textDecoration: "none",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                          title="Chat WhatsApp (Buka Tab Baru)"
+                        >
+                          💬 {c.phone}
+                        </a>
+                      ) : (
+                        <span style={{ color: "#9ca3af" }}>-</span>
+                      )}
+                    </td>
+                    <td style={{ padding: "12px 14px", borderBottom: "1px solid #f3f4f6", fontWeight: 600, color: "#374151" }}>
+                      {c.area_kecamatan ? `${c.area_kecamatan}` : "-"}
+                    </td>
+                    <td style={{ padding: "12px 14px", borderBottom: "1px solid #f3f4f6", color: "#4b5563" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span>{c.address || "-"}</span>
                         {Number(c.total_saved_addresses || 0) > 1 && (
                           <span
                             onClick={() => handleViewDetail(c.id)}
@@ -505,7 +513,6 @@ export default function SiapSajiCustomersPage() {
                               borderRadius: 12,
                               border: "1px solid #ddd6fe",
                               cursor: "pointer",
-                              whiteSpace: "nowrap",
                             }}
                             title="Klik untuk melihat semua daftar alamat pelanggan ini"
                           >
@@ -513,21 +520,20 @@ export default function SiapSajiCustomersPage() {
                           </span>
                         )}
                       </div>
-                      <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0", lineHeight: 1.3 }}>{c.address || "-"}</p>
                     </td>
-                    <td style={{ padding: "10px 10px", color: "#b10fbd", fontWeight: 600, fontSize: 12, whiteSpace: "normal", maxWidth: 170, wordBreak: "break-word", lineHeight: 1.3 }}>
+                    <td style={{ padding: "12px 14px", borderBottom: "1px solid #f3f4f6", color: "#b10fbd", fontWeight: 600 }}>
                       {c.patokan ? `📍 ${c.patokan}` : "-"}
                     </td>
-                    <td style={{ padding: "10px 10px", textAlign: "center", fontWeight: 700 }}>
+                    <td style={{ padding: "12px 14px", textAlign: "center", fontWeight: 700, borderBottom: "1px solid #f3f4f6" }}>
                       {c.total_orders || 0}
                     </td>
-                    <td style={{ padding: "10px 10px", fontWeight: 700, color: "#5005A6", whiteSpace: "nowrap" }}>
+                    <td style={{ padding: "12px 14px", fontWeight: 700, color: "#5005A6", borderBottom: "1px solid #f3f4f6" }}>
                       Rp {Number(c.total_omset || 0).toLocaleString("id-ID")}
                     </td>
-                    <td style={{ padding: "10px 10px", fontWeight: 800, color: "#15803d", whiteSpace: "nowrap" }}>
+                    <td style={{ padding: "12px 14px", fontWeight: 800, color: "#15803d", borderBottom: "1px solid #f3f4f6" }}>
                       ⭐ {Number(c.loyalty_points || 0).toLocaleString("id-ID")} Poin
                     </td>
-                    <td style={{ padding: "10px 10px" }}>
+                    <td style={{ padding: "12px 14px", borderBottom: "1px solid #f3f4f6" }}>
                       <span
                         style={{
                           padding: "3px 8px",

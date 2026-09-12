@@ -37,19 +37,43 @@ export async function GET(req: NextRequest) {
       ),
     ]);
 
-    // 3. 7-Day Sales Trend
-    const trendRes = await client.query(
-      `SELECT 
-        TO_CHAR(delivery_date, 'DD Mon') AS date_label,
-        delivery_date,
+    // 3. Sales Trend by Period (daily | monthly | yearly)
+    const { searchParams } = new URL(req.url);
+    const period = searchParams.get("period") || "daily";
+
+    let trendSql = "";
+    if (period === "yearly") {
+      trendSql = `SELECT 
+        TO_CHAR(delivery_date, 'YYYY') AS date_label,
+        TO_CHAR(delivery_date, 'YYYY') AS period_key,
+        COALESCE(SUM(grand_total), 0) AS omset,
+        COUNT(id) AS order_count
+       FROM orders
+       WHERE lini = 'siap_saji' AND status_order <> 'Dibatalkan'
+       GROUP BY TO_CHAR(delivery_date, 'YYYY')
+       ORDER BY period_key ASC`;
+    } else if (period === "monthly") {
+      trendSql = `SELECT 
+        TO_CHAR(delivery_date, 'Mon YYYY') AS date_label,
+        TO_CHAR(delivery_date, 'YYYY-MM') AS period_key,
+        COALESCE(SUM(grand_total), 0) AS omset,
+        COUNT(id) AS order_count
+       FROM orders
+       WHERE lini = 'siap_saji' AND status_order <> 'Dibatalkan'
+       GROUP BY TO_CHAR(delivery_date, 'Mon YYYY'), TO_CHAR(delivery_date, 'YYYY-MM')
+       ORDER BY period_key ASC`;
+    } else {
+      trendSql = `SELECT 
+        TO_CHAR(delivery_date, 'DD Mon YYYY') AS date_label,
+        delivery_date::text AS period_key,
         COALESCE(SUM(grand_total), 0) AS omset,
         COUNT(id) AS order_count
        FROM orders
        WHERE lini = 'siap_saji' AND status_order <> 'Dibatalkan'
        GROUP BY delivery_date
-       ORDER BY delivery_date ASC
-       LIMIT 7`
-    );
+       ORDER BY delivery_date ASC`;
+    }
+    const trendRes = await client.query(trendSql);
 
     // 4. Top 5 Products
     const topProductsRes = await client.query(
