@@ -97,6 +97,16 @@ thead th {
   white-space: nowrap;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.datagrid-sticky-container {
+  max-height: 70vh;
+  overflow-y: auto;
+  overflow-x: auto;
+  position: relative;
 }
 
 tbody td {

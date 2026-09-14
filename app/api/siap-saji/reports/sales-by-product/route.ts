@@ -91,9 +91,26 @@ export async function GET(req: NextRequest) {
       vals
     );
 
+    // 3. Product Sales Broken Down by Time Period for the Horizontal Pivot Table
+    const productTimePivotRes = await client.query(
+      `SELECT 
+        pr.id AS product_id,
+        ${timeLabelExpr} AS time_label,
+        SUM(oi.quantity)::int AS total_qty,
+        SUM(oi.subtotal)::numeric AS total_omset
+       FROM order_items oi
+       JOIN orders o ON oi.order_id = o.id
+       JOIN products pr ON oi.product_id = pr.id
+       WHERE ${whereSql}
+       GROUP BY pr.id, ${timeGroupExpr}
+       ORDER BY ${timeOrderExpr}`,
+      vals
+    );
+
     return NextResponse.json({
       products: productsRes.rows,
       time_series: timeSeriesRes.rows,
+      product_time_pivot: productTimePivotRes.rows,
       summary: {
         total_products: productsRes.rows.length,
         total_qty: productsRes.rows.reduce((sum, r) => sum + Number(r.total_qty || 0), 0),

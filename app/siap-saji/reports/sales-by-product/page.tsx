@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import {
   Layers,
   Calendar,
@@ -11,6 +11,8 @@ import {
   TrendingUp,
   ShoppingBag,
   PieChart as PieIcon,
+  Table,
+  BarChart3,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -43,13 +45,18 @@ const PIE_COLORS = [
 ];
 
 export default function SalesByProductReportPage() {
-  const [timeUnit, setTimeUnit] = useState<"date" | "week" | "month" | "year">("month");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const todayStr = new Date().toISOString().split("T")[0];
+  const [timeUnit, setTimeUnit] = useState<"date" | "week" | "month" | "year">("date");
+  const [dateFrom, setDateFrom] = useState(todayStr);
+  const [dateTo, setDateTo] = useState(todayStr);
   const [search, setSearch] = useState("");
 
   // Pie Chart Metric: "omset" or "qty"
   const [pieMetric, setPieMetric] = useState<"omset" | "qty">("omset");
+
+  // Table View Tab: "standard" (Rincian Tabel) vs "pivot" (Tabel Pivot Waktu Horizontal)
+  const [tableTab, setTableTab] = useState<"standard" | "pivot">("standard");
+  const [pivotMetric, setPivotMetric] = useState<"qty" | "omset" | "both">("both");
 
   // Pagination & Table Search State
   const [page, setPage] = useState(1);
@@ -120,6 +127,39 @@ export default function SalesByProductReportPage() {
       XLSX.utils.book_append_sheet(wb, wsTime, `Tren ${timeUnit.toUpperCase()}`);
     }
 
+    // Sheet 3: Pivot Waktu Horisontal
+    if (data.time_series && data.time_series.length > 0 && data.products && data.products.length > 0) {
+      const timeLabels: string[] = data.time_series.map((t: any) => t.time_label);
+      const pivotMap: Record<string, Record<string, { qty: number; omset: number }>> = {};
+      (data.product_time_pivot || []).forEach((row: any) => {
+        if (!pivotMap[row.product_id]) pivotMap[row.product_id] = {};
+        pivotMap[row.product_id][row.time_label] = {
+          qty: Number(row.total_qty || 0),
+          omset: Number(row.total_omset || 0),
+        };
+      });
+
+      const pivotRows = data.products.map((p: any, idx: number) => {
+        const rowObj: Record<string, any> = {
+          No: idx + 1,
+          SKU: p.sku || "-",
+          "Nama Produk": p.product_name + (p.is_half_portion ? " (½ Porsi)" : ""),
+          Kategori: p.category_name,
+        };
+        timeLabels.forEach((tl) => {
+          const val = pivotMap[p.product_id]?.[tl] || { qty: 0, omset: 0 };
+          rowObj[`${tl} (Qty)`] = val.qty;
+          rowObj[`${tl} (Rp)`] = val.omset;
+        });
+        rowObj["Total Qty"] = Number(p.total_qty || 0);
+        rowObj["Total Omset (Rp)"] = Number(p.total_omset || 0);
+        return rowObj;
+      });
+
+      const wsPivot = XLSX.utils.json_to_sheet(pivotRows);
+      XLSX.utils.book_append_sheet(wb, wsPivot, `Pivot ${timeUnit.toUpperCase()}`);
+    }
+
     XLSX.writeFile(wb, `Laporan_Penjualan_Produk_${timeUnit}.xlsx`);
     toast.success("Laporan penjualan produk berhasil diexport ke Excel!");
   };
@@ -178,7 +218,14 @@ export default function SalesByProductReportPage() {
           <span style={{ fontSize: 12, fontWeight: 700, color: "#4b5563" }}>Metrik Waktu:</span>
           <div style={{ background: "#f3f4f6", padding: 4, borderRadius: 10, display: "flex", gap: 4 }}>
             <button
-              onClick={() => setTimeUnit("date")}
+              onClick={() => {
+                setTimeUnit("date");
+                const today = new Date().toISOString().split("T")[0];
+                if (!dateFrom && !dateTo) {
+                  setDateFrom(today);
+                  setDateTo(today);
+                }
+              }}
               style={{
                 padding: "6px 12px",
                 borderRadius: 6,
@@ -242,7 +289,7 @@ export default function SalesByProductReportPage() {
 
         {/* Date Range Picker & Search */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#f9fafb", padding: "6px 12px", borderRadius: 8, border: "1px solid #d1d5db" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#f9fafb", padding: "5px 10px", borderRadius: 8, border: "1px solid #d1d5db" }}>
             <Calendar size={14} color="#6b7280" />
             <input
               type="date"
@@ -259,10 +306,33 @@ export default function SalesByProductReportPage() {
               title="Sampai Tanggal"
               style={{ border: "none", background: "transparent", outline: "none", fontSize: 12, color: "#374151" }}
             />
+            <button
+              type="button"
+              onClick={() => {
+                const today = new Date().toISOString().split("T")[0];
+                setDateFrom(today);
+                setDateTo(today);
+              }}
+              style={{
+                background: "#eef2ff",
+                color: "#4338ca",
+                border: "none",
+                borderRadius: 4,
+                padding: "2px 6px",
+                fontSize: 11,
+                cursor: "pointer",
+                fontWeight: 700,
+              }}
+              title="Set rentang tanggal ke Hari Ini"
+            >
+              Hari Ini
+            </button>
             {(dateFrom || dateTo) && (
               <button
+                type="button"
                 onClick={() => { setDateFrom(""); setDateTo(""); }}
-                style={{ background: "#e5e7eb", border: "none", borderRadius: 4, padding: "2px 6px", fontSize: 11, cursor: "pointer", fontWeight: 700 }}
+                style={{ background: "#e5e7eb", border: "none", borderRadius: 4, padding: "2px 6px", fontSize: 11, cursor: "pointer", fontWeight: 700, color: "#6b7280" }}
+                title="Hapus Filter Tanggal"
               >
                 ✕
               </button>
@@ -487,20 +557,109 @@ export default function SalesByProductReportPage() {
         </div>
       </div>
 
-      {/* Tabel Utama: No, Produk, Qty, Angka Rupiah */}
-      <div style={{ background: "white", borderRadius: 14, border: "1px solid #e5e7eb", overflowX: "auto", maxWidth: "100%" }}>
-        <div style={{ padding: "16px 20px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-          <div>
-            <h3 style={{ fontSize: 16, fontWeight: 800, color: "#111827", margin: 0 }}>
-              Rincian Tabel Penjualan per Produk
-            </h3>
-            <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>
-              Daftar seluruh produk beserta kuantitas terjual dan akumulasi rupiah (Paging 10 baris)
-            </p>
+      {/* Tabel Utama & Pivot Waktu Section */}
+      <div style={{ background: "white", borderRadius: 14, border: "1px solid #e5e7eb", maxWidth: "100%" }}>
+        {/* Header Section with Sub-Tabs */}
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 14 }}>
+          {/* Sub-Tabs: Rincian Tabel per Produk vs Tabel Pivot Waktu */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <div style={{ background: "#f3f4f6", padding: 4, borderRadius: 10, display: "flex", gap: 4 }}>
+              <button
+                type="button"
+                onClick={() => setTableTab("standard")}
+                style={{
+                  padding: "7px 14px",
+                  borderRadius: 7,
+                  border: "none",
+                  background: tableTab === "standard" ? "#5005A6" : "transparent",
+                  color: tableTab === "standard" ? "white" : "#4b5563",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <Table size={15} /> Rincian Tabel Penjualan
+              </button>
+              <button
+                type="button"
+                onClick={() => setTableTab("pivot")}
+                style={{
+                  padding: "7px 14px",
+                  borderRadius: 7,
+                  border: "none",
+                  background: tableTab === "pivot" ? "#5005A6" : "transparent",
+                  color: tableTab === "pivot" ? "white" : "#4b5563",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <BarChart3 size={15} /> Tabel Pivot Waktu ({timeUnit.toUpperCase()})
+              </button>
+            </div>
+
+            {tableTab === "pivot" && (
+              <div style={{ background: "#f3f4f6", padding: 3, borderRadius: 8, display: "flex", gap: 3, marginLeft: 6 }}>
+                <button
+                  type="button"
+                  onClick={() => setPivotMetric("both")}
+                  style={{
+                    padding: "4px 10px",
+                    borderRadius: 6,
+                    border: "none",
+                    background: pivotMetric === "both" ? "#5005A6" : "transparent",
+                    color: pivotMetric === "both" ? "white" : "#4b5563",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Qty & Omset
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPivotMetric("qty")}
+                  style={{
+                    padding: "4px 10px",
+                    borderRadius: 6,
+                    border: "none",
+                    background: pivotMetric === "qty" ? "#15803d" : "transparent",
+                    color: pivotMetric === "qty" ? "white" : "#4b5563",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Hanya Qty
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPivotMetric("omset")}
+                  style={{
+                    padding: "4px 10px",
+                    borderRadius: 6,
+                    border: "none",
+                    background: pivotMetric === "omset" ? "#5005A6" : "transparent",
+                    color: pivotMetric === "omset" ? "white" : "#4b5563",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Hanya Omset
+                </button>
+              </div>
+            )}
           </div>
 
+          {/* Right Toolbar */}
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {/* Search terms khusus tabel */}
             <div style={{ position: "relative" }}>
               <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
               <input
@@ -514,6 +673,28 @@ export default function SalesByProductReportPage() {
                 style={{ padding: "6px 12px 6px 30px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 12, outline: "none", width: 180 }}
               />
             </div>
+
+            <button
+              type="button"
+              onClick={handleExportXLSX}
+              style={{
+                padding: "6px 12px",
+                background: "#f0fdf4",
+                color: "#16a34a",
+                border: "1.5px solid #86efac",
+                borderRadius: 8,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                boxShadow: "0 1px 3px rgba(22, 163, 74, 0.1)",
+              }}
+              title="Download Excel (.xlsx) Lengkap beserta Sheet Pivot"
+            >
+              <FileSpreadsheet size={15} /> Export Excel
+            </button>
 
             <span style={{ fontSize: 12, fontWeight: 700, color: "#5005A6", background: "#f3e8ff", padding: "4px 10px", borderRadius: 20 }}>
               {data?.products?.length || 0} Total Produk
@@ -539,65 +720,239 @@ export default function SalesByProductReportPage() {
           const startIndex = (safePage - 1) * limit;
           const pagedProducts = filteredProds.slice(startIndex, startIndex + limit);
 
+          const timeSeries = data?.time_series || [];
+          const timeLabels: string[] = timeSeries.map((t: any) => t.time_label);
+
+          // Build pivot mapping: pivotMap[product_id][time_label] = { qty, omset }
+          const pivotMap: Record<string, Record<string, { qty: number; omset: number }>> = {};
+          (data?.product_time_pivot || []).forEach((row: any) => {
+            if (!pivotMap[row.product_id]) pivotMap[row.product_id] = {};
+            pivotMap[row.product_id][row.time_label] = {
+              qty: Number(row.total_qty || 0),
+              omset: Number(row.total_omset || 0),
+            };
+          });
+
+          if (tableTab === "pivot") {
+            return (
+              <>
+                <div className="datagrid-sticky-container" style={{ maxHeight: "68vh", overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, textAlign: "left", fontSize: 12, whiteSpace: "nowrap" }}>
+                    <thead>
+                      <tr style={{ background: "#f9fafb", color: "#374151", fontWeight: 700, fontSize: 11, textTransform: "uppercase" }}>
+                        <th style={{ position: "sticky", top: 0, left: 0, zIndex: 30, background: "#f9fafb", borderBottom: "2px solid #e5e7eb", padding: "12px 14px", minWidth: 45 }}>
+                          No
+                        </th>
+                        <th style={{ position: "sticky", top: 0, left: 45, zIndex: 30, background: "#f9fafb", borderBottom: "2px solid #e5e7eb", padding: "12px 14px", minWidth: 200, boxShadow: "2px 0 5px -2px rgba(0,0,0,0.1)" }}>
+                          Nama Produk
+                        </th>
+                        {timeLabels.map((tl) => (
+                          <th
+                            key={tl}
+                            colSpan={pivotMetric === "both" ? 2 : 1}
+                            style={{
+                              position: "sticky",
+                              top: 0,
+                              zIndex: 10,
+                              background: "#f9fafb",
+                              borderBottom: "2px solid #e5e7eb",
+                              padding: "10px 14px",
+                              textAlign: "center",
+                              borderLeft: "1px solid #e5e7eb",
+                            }}
+                          >
+                            {tl}
+                          </th>
+                        ))}
+                        <th
+                          colSpan={pivotMetric === "both" ? 2 : 1}
+                          style={{
+                            position: "sticky",
+                            top: 0,
+                            zIndex: 10,
+                            background: "#f3e8ff",
+                            color: "#5005A6",
+                            borderBottom: "2px solid #d8b4fe",
+                            padding: "10px 14px",
+                            textAlign: "center",
+                            borderLeft: "2px solid #c084fc",
+                          }}
+                        >
+                          Total Akumulasi
+                        </th>
+                      </tr>
+                      {pivotMetric === "both" && (
+                        <tr style={{ background: "#f3f4f6", color: "#6b7280", fontWeight: 700, fontSize: 10 }}>
+                          <th style={{ position: "sticky", top: 38, left: 0, zIndex: 30, background: "#f3f4f6", borderBottom: "1px solid #e5e7eb" }}></th>
+                          <th style={{ position: "sticky", top: 38, left: 45, zIndex: 30, background: "#f3f4f6", borderBottom: "1px solid #e5e7eb", boxShadow: "2px 0 5px -2px rgba(0,0,0,0.1)" }}></th>
+                          {timeLabels.map((tl) => (
+                            <Fragment key={`sub-${tl}`}>
+                              <th style={{ position: "sticky", top: 38, zIndex: 10, background: "#f3f4f6", borderBottom: "1px solid #e5e7eb", borderLeft: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "right" }}>Qty</th>
+                              <th style={{ position: "sticky", top: 38, zIndex: 10, background: "#f3f4f6", borderBottom: "1px solid #e5e7eb", padding: "4px 8px", textAlign: "right" }}>Omset</th>
+                            </Fragment>
+                          ))}
+                          <th style={{ position: "sticky", top: 38, zIndex: 10, background: "#ede9fe", color: "#5005A6", borderBottom: "1px solid #d8b4fe", borderLeft: "2px solid #c084fc", padding: "4px 8px", textAlign: "right" }}>Qty</th>
+                          <th style={{ position: "sticky", top: 38, zIndex: 10, background: "#ede9fe", color: "#5005A6", borderBottom: "1px solid #d8b4fe", padding: "4px 8px", textAlign: "right" }}>Omset</th>
+                        </tr>
+                      )}
+                    </thead>
+                    <tbody>
+                      {loading ? (
+                        <tr>
+                          <td colSpan={2 + timeLabels.length * 2 + 2} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                            Memuat data pivot penjualan...
+                          </td>
+                        </tr>
+                      ) : pagedProducts.length === 0 ? (
+                        <tr>
+                          <td colSpan={2 + timeLabels.length * 2 + 2} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                            {tableSearch ? "Tidak ada produk yang cocok dengan pencarian." : "Tidak ada data penjualan pada rentang waktu ini."}
+                          </td>
+                        </tr>
+                      ) : (
+                        pagedProducts.map((p: any, idx: number) => (
+                          <tr key={p.product_id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                            <td style={{ position: "sticky", left: 0, background: "white", zIndex: 5, padding: "10px 12px", color: "#6b7280", borderBottom: "1px solid #f3f4f6" }}>
+                              {startIndex + idx + 1}
+                            </td>
+                            <td style={{ position: "sticky", left: 45, background: "white", zIndex: 5, padding: "10px 14px", fontWeight: 700, color: "#111827", borderBottom: "1px solid #f3f4f6", boxShadow: "2px 0 5px -2px rgba(0,0,0,0.1)" }}>
+                              <div>{p.product_name}</div>
+                              <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 500 }}>{p.category_name} {p.sku ? `• ${p.sku}` : ""}</div>
+                            </td>
+                            {timeLabels.map((tl) => {
+                              const cell = pivotMap[p.product_id]?.[tl] || { qty: 0, omset: 0 };
+                              const hasSales = cell.qty > 0 || cell.omset > 0;
+                              if (pivotMetric === "qty") {
+                                return (
+                                  <td key={tl} style={{ padding: "10px 12px", textAlign: "right", borderLeft: "1px solid #f3f4f6", borderBottom: "1px solid #f3f4f6", fontWeight: hasSales ? 700 : 400, color: hasSales ? "#15803d" : "#9ca3af" }}>
+                                    {cell.qty > 0 ? `${cell.qty} pcs` : "-"}
+                                  </td>
+                                );
+                              }
+                              if (pivotMetric === "omset") {
+                                return (
+                                  <td key={tl} style={{ padding: "10px 12px", textAlign: "right", borderLeft: "1px solid #f3f4f6", borderBottom: "1px solid #f3f4f6", fontWeight: hasSales ? 700 : 400, color: hasSales ? "#5005A6" : "#9ca3af" }}>
+                                    {cell.omset > 0 ? `Rp ${Number(cell.omset).toLocaleString("id-ID")}` : "-"}
+                                  </td>
+                                );
+                              }
+                              return (
+                                <Fragment key={tl}>
+                                  <td style={{ padding: "10px 8px", textAlign: "right", borderLeft: "1px solid #f3f4f6", borderBottom: "1px solid #f3f4f6", fontWeight: cell.qty > 0 ? 700 : 400, color: cell.qty > 0 ? "#15803d" : "#9ca3af" }}>
+                                    {cell.qty > 0 ? cell.qty : "-"}
+                                  </td>
+                                  <td style={{ padding: "10px 8px", textAlign: "right", borderBottom: "1px solid #f3f4f6", fontWeight: cell.omset > 0 ? 700 : 400, color: cell.omset > 0 ? "#5005A6" : "#9ca3af" }}>
+                                    {cell.omset > 0 ? `Rp ${Number(cell.omset).toLocaleString("id-ID")}` : "-"}
+                                  </td>
+                                </Fragment>
+                              );
+                            })}
+
+                            {/* Total Akumulasi Columns */}
+                            {pivotMetric === "qty" && (
+                              <td style={{ padding: "10px 14px", textAlign: "right", background: "#faf5ff", fontWeight: 800, color: "#15803d", borderLeft: "2px solid #c084fc", borderBottom: "1px solid #f3f4f6" }}>
+                                {Number(p.total_qty || 0).toLocaleString("id-ID")} pcs
+                              </td>
+                            )}
+                            {pivotMetric === "omset" && (
+                              <td style={{ padding: "10px 14px", textAlign: "right", background: "#faf5ff", fontWeight: 800, color: "#5005A6", borderLeft: "2px solid #c084fc", borderBottom: "1px solid #f3f4f6" }}>
+                                Rp {Number(p.total_omset || 0).toLocaleString("id-ID")}
+                              </td>
+                            )}
+                            {pivotMetric === "both" && (
+                              <>
+                                <td style={{ padding: "10px 10px", textAlign: "right", background: "#faf5ff", fontWeight: 800, color: "#15803d", borderLeft: "2px solid #c084fc", borderBottom: "1px solid #f3f4f6" }}>
+                                  {Number(p.total_qty || 0).toLocaleString("id-ID")}
+                                </td>
+                                <td style={{ padding: "10px 10px", textAlign: "right", background: "#faf5ff", fontWeight: 800, color: "#5005A6", borderBottom: "1px solid #f3f4f6" }}>
+                                  Rp {Number(p.total_omset || 0).toLocaleString("id-ID")}
+                                </td>
+                              </>
+                            )}
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                <Pagination
+                  page={safePage}
+                  totalPages={totalPages}
+                  total={totalItems}
+                  limit={limit}
+                  onChange={(p) => setPage(p)}
+                  onLimitChange={(lim) => {
+                    setLimit(lim);
+                    setPage(1);
+                  }}
+                />
+              </>
+            );
+          }
+
+          // Default Standard Table View
           return (
             <>
-              <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, textAlign: "left", fontSize: 13, whiteSpace: "nowrap" }}>
-                <thead>
-                  <tr style={{ background: "#fafafa", color: "#6b7280", fontWeight: 700, fontSize: 11, textTransform: "uppercase" }}>
-                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", width: 50 }}>No.</th>
-                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", width: 110 }}>SKU</th>
-                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Nama Produk</th>
-                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Kategori</th>
-                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "right" }}>Harga Rata-Rata</th>
-                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "right" }}>Qty Terjual</th>
-                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "right" }}>Total Rupiah (Omset)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    <tr>
-                      <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
-                        Memuat data produk...
-                      </td>
+              <div className="datagrid-sticky-container" style={{ maxHeight: "68vh", overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, textAlign: "left", fontSize: 13, whiteSpace: "nowrap" }}>
+                  <thead>
+                    <tr style={{ background: "#fafafa", color: "#6b7280", fontWeight: 700, fontSize: 11, textTransform: "uppercase" }}>
+                      <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", width: 50 }}>No.</th>
+                      <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", width: 110 }}>SKU</th>
+                      <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Nama Produk</th>
+                      <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Kategori</th>
+                      <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "right" }}>Harga Rata-Rata</th>
+                      <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "right" }}>Qty Terjual</th>
+                      <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "right" }}>Total Rupiah (Omset)</th>
                     </tr>
-                  ) : pagedProducts.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
-                        {tableSearch ? "Tidak ada produk yang sesuai dengan pencarian." : "Tidak ada data penjualan produk ditemukan."}
-                      </td>
-                    </tr>
-                  ) : (
-                    pagedProducts.map((p: any, idx: number) => (
-                      <tr key={p.product_id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                        <td style={{ padding: "12px 14px", color: "#6b7280", borderBottom: "1px solid #f3f4f6" }}>{startIndex + idx + 1}</td>
-                        <td style={{ padding: "12px 14px", fontFamily: "monospace", fontWeight: 700, color: "#5005A6", borderBottom: "1px solid #f3f4f6" }}>
-                          {p.sku || "-"}
-                        </td>
-                        <td style={{ padding: "12px 14px", fontWeight: 700, color: "#111827", borderBottom: "1px solid #f3f4f6" }}>
-                          {p.product_name}
-                          {p.is_half_portion && (
-                            <span style={{ marginLeft: 6, fontSize: 11, background: "#fef3c7", color: "#b45309", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>
-                              ½ Porsi
-                            </span>
-                          )}
-                        </td>
-                        <td style={{ padding: "12px 14px", color: "#4b5563", borderBottom: "1px solid #f3f4f6" }}>
-                          {p.category_name}
-                        </td>
-                        <td style={{ padding: "12px 14px", textAlign: "right", color: "#4b5563", borderBottom: "1px solid #f3f4f6" }}>
-                          Rp {Number(p.avg_price || 0).toLocaleString("id-ID")}
-                        </td>
-                        <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: "#15803d", borderBottom: "1px solid #f3f4f6" }}>
-                          {Number(p.total_qty || 0).toLocaleString("id-ID")} pcs
-                        </td>
-                        <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: "#5005A6", borderBottom: "1px solid #f3f4f6" }}>
-                          Rp {Number(p.total_omset || 0).toLocaleString("id-ID")}
+                  </thead>
+                  <tbody>
+                    {loading ? (
+                      <tr>
+                        <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                          Memuat data produk...
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    ) : pagedProducts.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                          {tableSearch ? "Tidak ada produk yang sesuai dengan pencarian." : "Tidak ada data penjualan produk ditemukan."}
+                        </td>
+                      </tr>
+                    ) : (
+                      pagedProducts.map((p: any, idx: number) => (
+                        <tr key={p.product_id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                          <td style={{ padding: "12px 14px", color: "#6b7280", borderBottom: "1px solid #f3f4f6" }}>{startIndex + idx + 1}</td>
+                          <td style={{ padding: "12px 14px", fontFamily: "monospace", fontWeight: 700, color: "#5005A6", borderBottom: "1px solid #f3f4f6" }}>
+                            {p.sku || "-"}
+                          </td>
+                          <td style={{ padding: "12px 14px", fontWeight: 700, color: "#111827", borderBottom: "1px solid #f3f4f6" }}>
+                            {p.product_name}
+                            {p.is_half_portion && (
+                              <span style={{ marginLeft: 6, fontSize: 11, background: "#fef3c7", color: "#b45309", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>
+                                ½ Porsi
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ padding: "12px 14px", color: "#4b5563", borderBottom: "1px solid #f3f4f6" }}>
+                            {p.category_name}
+                          </td>
+                          <td style={{ padding: "12px 14px", textAlign: "right", color: "#4b5563", borderBottom: "1px solid #f3f4f6" }}>
+                            Rp {Number(p.avg_price || 0).toLocaleString("id-ID")}
+                          </td>
+                          <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: "#15803d", borderBottom: "1px solid #f3f4f6" }}>
+                            {Number(p.total_qty || 0).toLocaleString("id-ID")} pcs
+                          </td>
+                          <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: "#5005A6", borderBottom: "1px solid #f3f4f6" }}>
+                            Rp {Number(p.total_omset || 0).toLocaleString("id-ID")}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
 
               <Pagination
                 page={safePage}

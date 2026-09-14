@@ -10,10 +10,19 @@ export async function GET(req: NextRequest) {
     if (type === "pl") {
       const month = p.get("month"); // "1" .. "12" or "all"
       const year = p.get("year") || "2026";
+      const dateFrom = p.get("date_from");
+      const dateTo = p.get("date_to");
 
-      let dateFilter = `AND EXTRACT(YEAR FROM j.journal_date) = ${Number(year)}`;
-      if (month && month !== "all") {
-        dateFilter += ` AND EXTRACT(MONTH FROM j.journal_date) = ${Number(month)}`;
+      let dateFilter = "";
+      if (dateFrom && dateTo) {
+        dateFilter = `AND j.journal_date >= '${dateFrom}'::date AND j.journal_date <= '${dateTo}'::date`;
+      } else if (dateFrom) {
+        dateFilter = `AND j.journal_date = '${dateFrom}'::date`;
+      } else {
+        dateFilter = `AND EXTRACT(YEAR FROM j.journal_date) = ${Number(year)}`;
+        if (month && month !== "all") {
+          dateFilter += ` AND EXTRACT(MONTH FROM j.journal_date) = ${Number(month)}`;
+        }
       }
 
       const plRes = await client.query(
@@ -31,7 +40,7 @@ export async function GET(req: NextRequest) {
         ORDER BY bulan DESC`
       );
 
-      // Detailed breakdown by CoA based on selected month & year
+      // Detailed breakdown by CoA based on selected period
       const detailRes = await client.query(
         `SELECT 
           c.kelompok, c.sub_kelompok, c.kode_akun, c.nama_akun,

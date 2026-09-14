@@ -727,7 +727,16 @@ export default function SiapSajiOrdersPage() {
       setCustomerPhone(data.customer_phone || "");
       setCustomerAddress(data.customer_address || "");
       setCustomerPatokan(data.customer_patokan || "");
-      setSelectedAreaId(data.area_id || (masterAreas.length > 0 ? masterAreas[0].id : ""));
+      setSelectedAreaId(data.area_id || "");
+      if (data.area_id) {
+        const found = masterAreas.find((a) => String(a.id) === String(data.area_id));
+        if (found) {
+          const zoneLabel = found.shipping_zone === "dalam_kota" ? "Dalam Kota" : "Luar Kota";
+          setSelectedAreaName(`${found.kecamatan} (${found.kota}) — [${zoneLabel}]`);
+        }
+      } else {
+        setSelectedAreaName("");
+      }
       setSelectedChannelId(data.channel_id || (masterChannels.length > 0 ? masterChannels[0].id : ""));
       setSelectedDriverId(data.driver_id || "");
       setSelectedBankId(data.kas_bank_id || (masterKasBank.length > 0 ? masterKasBank[0].id : ""));
@@ -769,7 +778,8 @@ export default function SiapSajiOrdersPage() {
     setCustomerName("");
     setCustomerPhone("");
     setSelectedDriverId("");
-    setSelectedAreaId(masterAreas.length > 0 ? masterAreas[0].id : "");
+    setSelectedAreaId("");
+    setSelectedAreaName("");
     setCustomerAddress("");
     setCustomerPatokan("");
     setShippingFee(0);
@@ -1676,7 +1686,7 @@ export default function SiapSajiOrdersPage() {
       )}
 
       {/* ── TRANSACTIONS TABLE ────────────────────────────────── */}
-      <div style={{ background: "white", borderRadius: 12, border: "1px solid #e5e7eb", overflowX: "auto", maxWidth: "100%" }}>
+      <div className="datagrid-sticky-container" style={{ background: "white", borderRadius: 12, border: "1px solid #e5e7eb", maxWidth: "100%", maxHeight: "72vh" }}>
         <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, textAlign: "left", fontSize: 13, whiteSpace: "nowrap" }}>
           <thead>
             <tr style={{ background: "#fafafa", color: "#6b7280", fontWeight: 700, fontSize: 12, textTransform: "uppercase" }}>
@@ -2313,8 +2323,13 @@ export default function SiapSajiOrdersPage() {
                     >
                       {(() => {
                         const selArea = masterAreas.find((a) => String(a.id) === String(selectedAreaId));
+                        const formatZone = (zone?: string) => {
+                          if (!zone) return "";
+                          if (zone === "dalam_kota") return "Dalam Kota";
+                          return "Luar Kota";
+                        };
                         const displayText = selArea
-                          ? `${selArea.kecamatan} (${selArea.kota}) — [${selArea.shipping_zone}]`
+                          ? `${selArea.kecamatan} (${selArea.kota}) — [${formatZone(selArea.shipping_zone)}]`
                           : (selectedAreaName || "-- Cari & Pilih Kecamatan --");
                         const hasVal = Boolean(selArea || selectedAreaName);
                         return (
@@ -2389,12 +2404,15 @@ export default function SiapSajiOrdersPage() {
 
                               return filtered.map((a) => {
                                 const isSelected = String(a.id) === String(selectedAreaId);
+                                const zoneLabel = a.shipping_zone === "dalam_kota" ? "Dalam Kota" : "Luar Kota";
                                 return (
                                   <div
                                     key={a.id}
-                                    onClick={() => {
-                                      setSelectedAreaId(Number(a.id));
-                                      setSelectedAreaName(`${a.kecamatan} (${a.kota}) — [${a.shipping_zone}]`);
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const areaIdNum = Number(a.id);
+                                      setSelectedAreaId(areaIdNum);
+                                      setSelectedAreaName(`${a.kecamatan} (${a.kota}) — [${zoneLabel}]`);
                                       setIsShippingAuto(true);
                                       setIsAreaDropdownOpen(false);
                                       setAreaSearchQuery("");
@@ -2416,8 +2434,17 @@ export default function SiapSajiOrdersPage() {
                                     <span>
                                       <strong>{a.kecamatan}</strong> ({a.kota})
                                     </span>
-                                    <span style={{ fontSize: 10, color: isSelected ? "#7e22ce" : "#6b7280", background: isSelected ? "#e9d5ff" : "#f3f4f6", padding: "2px 6px", borderRadius: 4 }}>
-                                      {a.shipping_zone}
+                                    <span
+                                      style={{
+                                        fontSize: 10,
+                                        fontWeight: 700,
+                                        color: a.shipping_zone === "dalam_kota" ? "#1d4ed8" : "#b10fbd",
+                                        background: a.shipping_zone === "dalam_kota" ? "#eff6ff" : "#fdf4ff",
+                                        padding: "2px 6px",
+                                        borderRadius: 4,
+                                      }}
+                                    >
+                                      {zoneLabel}
                                     </span>
                                   </div>
                                 );

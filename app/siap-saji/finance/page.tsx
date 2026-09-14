@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, Fragment } from "react";
-import { CreditCard, DollarSign, Plus, FileText, PieChart, BookOpen, ArrowUpRight, ArrowDownLeft, X, CheckCircle, RefreshCw, Search, Edit3, Trash2 } from "lucide-react";
+import { CreditCard, DollarSign, Plus, FileText, PieChart, BookOpen, ArrowUpRight, ArrowDownLeft, X, CheckCircle, RefreshCw, Search, Edit3, Trash2, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/ui/Pagination";
 import { formatDate } from "@/lib/utils";
@@ -37,8 +37,11 @@ export default function SiapSajiFinancePage() {
 
   // Tab 1: P&L Data & Filters
   const [plData, setPlData] = useState<any>(null);
+  const [plPeriodMode, setPlPeriodMode] = useState<"month" | "date">("date"); // "month" (Bulan/Tahun) or "date" (Harian / Rentang Tanggal)
   const [plMonth, setPlMonth] = useState<string>("6"); // Default Juni
   const [plYear, setPlYear] = useState<string>("2026");
+  const [plDateFrom, setPlDateFrom] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [plDateTo, setPlDateTo] = useState<string>(new Date().toISOString().split("T")[0]);
 
   // Tab 2: Purchases Data & Filters
   const [purchases, setPurchases] = useState<any[]>([]);
@@ -153,11 +156,15 @@ export default function SiapSajiFinancePage() {
     setLoading(true);
     try {
       if (activeTab === "pl") {
-        const q = new URLSearchParams({
-          type: "pl",
-          month: plMonth,
-          year: plYear,
-        }).toString();
+        const queryParams: Record<string, string> = { type: "pl" };
+        if (plPeriodMode === "date") {
+          if (plDateFrom) queryParams.date_from = plDateFrom;
+          if (plDateTo) queryParams.date_to = plDateTo;
+        } else {
+          queryParams.month = plMonth;
+          queryParams.year = plYear;
+        }
+        const q = new URLSearchParams(queryParams).toString();
         const res = await fetch(`/api/siap-saji/finance/reports?${q}`);
         if (res.ok) setPlData(await res.json());
       } else if (activeTab === "purchases") {
@@ -295,7 +302,7 @@ export default function SiapSajiFinancePage() {
     fetchTabData();
   }, [
     activeTab,
-    plMonth, plYear,
+    plPeriodMode, plMonth, plYear, plDateFrom, plDateTo,
     purPage, purLimit, purSearch, purDateFrom, purDateTo,
     expPage, expLimit, expSearch, expDateFrom, expDateTo,
     mutSearch, mutJenisFilter, mutDateFrom, mutDateTo,
@@ -738,56 +745,136 @@ export default function SiapSajiFinancePage() {
               </p>
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <select
-                value={plMonth}
-                onChange={(e) => setPlMonth(e.target.value)}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: 8,
-                  border: "1px solid #d1d5db",
-                  background: "#f9fafb",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: "#374151",
-                  outline: "none",
-                  cursor: "pointer",
-                }}
-              >
-                <option value="all">Semua Bulan (Setahun)</option>
-                <option value="1">Januari</option>
-                <option value="2">Februari</option>
-                <option value="3">Maret</option>
-                <option value="4">April</option>
-                <option value="5">Mei</option>
-                <option value="6">Juni</option>
-                <option value="7">Juli</option>
-                <option value="8">Agustus</option>
-                <option value="9">September</option>
-                <option value="10">Oktober</option>
-                <option value="11">November</option>
-                <option value="12">Desember</option>
-              </select>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              {/* Toggle Mode: Bulanan vs Harian */}
+              <div style={{ background: "#f3f4f6", padding: 3, borderRadius: 8, display: "flex", gap: 3 }}>
+                <button
+                  type="button"
+                  onClick={() => setPlPeriodMode("date")}
+                  style={{
+                    padding: "5px 10px",
+                    borderRadius: 6,
+                    border: "none",
+                    background: plPeriodMode === "date" ? "#5005A6" : "transparent",
+                    color: plPeriodMode === "date" ? "white" : "#4b5563",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
+                >
+                  <Calendar size={13} /> Harian / Tanggal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPlPeriodMode("month")}
+                  style={{
+                    padding: "5px 10px",
+                    borderRadius: 6,
+                    border: "none",
+                    background: plPeriodMode === "month" ? "#5005A6" : "transparent",
+                    color: plPeriodMode === "month" ? "white" : "#4b5563",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Bulanan
+                </button>
+              </div>
 
-              <select
-                value={plYear}
-                onChange={(e) => setPlYear(e.target.value)}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: 8,
-                  border: "1px solid #d1d5db",
-                  background: "#f9fafb",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: "#374151",
-                  outline: "none",
-                  cursor: "pointer",
-                }}
-              >
-                <option value="2025">2025</option>
-                <option value="2026">2026</option>
-                <option value="2027">2027</option>
-              </select>
+              {plPeriodMode === "month" ? (
+                <>
+                  <select
+                    value={plMonth}
+                    onChange={(e) => setPlMonth(e.target.value)}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: 8,
+                      border: "1px solid #d1d5db",
+                      background: "#f9fafb",
+                      fontSize: 13,
+                      fontWeight: 700,
+                      color: "#374151",
+                      outline: "none",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <option value="all">Semua Bulan (Setahun)</option>
+                    <option value="1">Januari</option>
+                    <option value="2">Februari</option>
+                    <option value="3">Maret</option>
+                    <option value="4">April</option>
+                    <option value="5">Mei</option>
+                    <option value="6">Juni</option>
+                    <option value="7">Juli</option>
+                    <option value="8">Agustus</option>
+                    <option value="9">September</option>
+                    <option value="10">Oktober</option>
+                    <option value="11">November</option>
+                    <option value="12">Desember</option>
+                  </select>
+
+                  <select
+                    value={plYear}
+                    onChange={(e) => setPlYear(e.target.value)}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: 8,
+                      border: "1px solid #d1d5db",
+                      background: "#f9fafb",
+                      fontSize: 13,
+                      fontWeight: 700,
+                      color: "#374151",
+                      outline: "none",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <option value="2025">2025</option>
+                    <option value="2026">2026</option>
+                    <option value="2027">2027</option>
+                  </select>
+                </>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#f9fafb", padding: "4px 8px", borderRadius: 8, border: "1px solid #d1d5db" }}>
+                  <input
+                    type="date"
+                    value={plDateFrom}
+                    onChange={(e) => setPlDateFrom(e.target.value)}
+                    style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #d1d5db", fontSize: 12, outline: "none" }}
+                  />
+                  <span style={{ fontSize: 12, color: "#6b7280" }}>s/d</span>
+                  <input
+                    type="date"
+                    value={plDateTo}
+                    onChange={(e) => setPlDateTo(e.target.value)}
+                    style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #d1d5db", fontSize: 12, outline: "none" }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const today = new Date().toISOString().split("T")[0];
+                      setPlDateFrom(today);
+                      setPlDateTo(today);
+                    }}
+                    style={{
+                      padding: "4px 8px",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      background: "#eef2ff",
+                      color: "#4338ca",
+                      borderRadius: 6,
+                      border: "none",
+                      cursor: "pointer",
+                    }}
+                    title="Set ke Hari Ini"
+                  >
+                    Hari Ini
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -898,7 +985,7 @@ export default function SiapSajiFinancePage() {
             )}
           </div>
 
-          <div style={{ background: "white", borderRadius: 12, border: "1px solid #e5e7eb", overflowX: "auto" }}>
+          <div className="datagrid-sticky-container" style={{ background: "white", borderRadius: 12, border: "1px solid #e5e7eb", maxHeight: "65vh" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 14, whiteSpace: "nowrap" }}>
               <thead>
                 <tr style={{ background: "#fafafa", borderBottom: "1px solid #e5e7eb", color: "#6b7280", fontWeight: 700, fontSize: 12, textTransform: "uppercase" }}>
@@ -945,16 +1032,16 @@ export default function SiapSajiFinancePage() {
                 )}
               </tbody>
             </table>
-
-            <Pagination
-              page={purPage}
-              totalPages={Math.ceil(purchases.length / purLimit) || 1}
-              total={purchases.length}
-              limit={purLimit}
-              onChange={(p) => setPurPage(p)}
-              onLimitChange={(lim) => { setPurLimit(lim); setPurPage(1); }}
-            />
           </div>
+
+          <Pagination
+            page={purPage}
+            totalPages={Math.ceil(purchases.length / purLimit) || 1}
+            total={purchases.length}
+            limit={purLimit}
+            onChange={(p) => setPurPage(p)}
+            onLimitChange={(lim) => { setPurLimit(lim); setPurPage(1); }}
+          />
         </div>
       )}
 
@@ -1001,7 +1088,7 @@ export default function SiapSajiFinancePage() {
             )}
           </div>
 
-          <div style={{ background: "white", borderRadius: 12, border: "1px solid #e5e7eb", overflowX: "auto" }}>
+          <div className="datagrid-sticky-container" style={{ background: "white", borderRadius: 12, border: "1px solid #e5e7eb", maxHeight: "65vh" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 14, whiteSpace: "nowrap" }}>
             <thead>
               <tr style={{ background: "#fafafa", borderBottom: "1px solid #e5e7eb", color: "#6b7280", fontWeight: 700, fontSize: 12, textTransform: "uppercase" }}>
