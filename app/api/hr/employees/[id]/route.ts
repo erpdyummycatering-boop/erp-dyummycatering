@@ -55,7 +55,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     const fields = [
       "kode_karyawan", "nama_fingerprint", "nama_lengkap", "department_id", "position_id",
-      "tipe_karyawan", "tipe_gaji", "no_fingerprint", "no_ktp", "email", "no_telepon",
+      "tipe_karyawan", "tipe_gaji", "tipe_periode_gaji", "no_fingerprint", "no_ktp", "email", "no_telepon",
       "npwp", "ptkp_status", "bpjs_ketenagakerjaan", "bpjs_kesehatan",
       "tanggal_masuk", "tanggal_keluar", "status", "catatan"
     ];

@@ -36,6 +36,7 @@ export default function KaryawanPage() {
     position_id: "",
     tipe_karyawan: "TETAP",
     tipe_gaji: "HARIAN_PRODUKSI",
+    tipe_periode_gaji: "PEKANAN",
     no_fingerprint: "",
     no_ktp: "",
     no_telepon: "",
@@ -85,6 +86,7 @@ export default function KaryawanPage() {
         position_id: String(emp.position_id || ""),
         tipe_karyawan: emp.tipe_karyawan || "TETAP",
         tipe_gaji: emp.tipe_gaji || "HARIAN_PRODUKSI",
+        tipe_periode_gaji: emp.tipe_periode_gaji || "PEKANAN",
         no_fingerprint: emp.no_fingerprint ? String(emp.no_fingerprint) : "",
         no_ktp: emp.no_ktp || "",
         no_telepon: emp.no_telepon || "",
@@ -105,6 +107,7 @@ export default function KaryawanPage() {
         position_id: positions[0]?.id ? String(positions[0].id) : "",
         tipe_karyawan: "TETAP",
         tipe_gaji: "HARIAN_PRODUKSI",
+        tipe_periode_gaji: "PEKANAN",
         no_fingerprint: "",
         no_ktp: "",
         no_telepon: "",
@@ -339,6 +342,11 @@ export default function KaryawanPage() {
                         <Badge color={emp.tipe_karyawan === "TETAP" ? "purple" : "gray"}>
                           {emp.tipe_karyawan}
                         </Badge>
+                        <div style={{ marginTop: 4 }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: emp.tipe_periode_gaji === "BULANAN" ? "#e0f2fe" : "#fef3c7", color: emp.tipe_periode_gaji === "BULANAN" ? "#0369a1" : "#b45309" }}>
+                            {emp.tipe_periode_gaji || "PEKANAN"}
+                          </span>
+                        </div>
                       </td>
                       <td>Rp {Number(emp.gaji_pokok_harian || 0).toLocaleString("id-ID")}</td>
                       <td>
@@ -470,7 +478,7 @@ export default function KaryawanPage() {
             </FormField>
           </FormRow>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}>
             <FormField label="Tipe Karyawan">
               <select
                 value={formData.tipe_karyawan}
@@ -489,6 +497,15 @@ export default function KaryawanPage() {
               >
                 <option value="HARIAN_PRODUKSI">Harian Produksi</option>
                 <option value="HARIAN_DRIVER">Harian Driver</option>
+              </select>
+            </FormField>
+            <FormField label="Periode Gaji">
+              <select
+                value={formData.tipe_periode_gaji}
+                onChange={(e) => setFormData({ ...formData, tipe_periode_gaji: e.target.value })}
+              >
+                <option value="PEKANAN">Pekanan (Mingguan)</option>
+                <option value="BULANAN">Bulanan</option>
               </select>
             </FormField>
             <FormField label="No. Fingerprint">

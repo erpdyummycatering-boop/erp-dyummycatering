@@ -8,7 +8,7 @@ export async function GET() {
        FROM hr_payrolls p
        LEFT JOIN users u1 ON u1.id = p.dihitung_oleh
        LEFT JOIN users u2 ON u2.id = p.disetujui_oleh
-       ORDER BY p.periode_tahun DESC, p.periode_bulan DESC`
+       ORDER BY COALESCE(p.tanggal_mulai, p.created_at::date) DESC, p.id DESC`
     );
     return NextResponse.json(rows);
   } catch (error: any) {

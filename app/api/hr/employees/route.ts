@@ -82,6 +82,7 @@ export async function POST(req: Request) {
       tanggal_masuk,
       status,
       catatan,
+      tipe_periode_gaji,
       // Gaji Pokok awal
       gaji_pokok_harian,
       lembur_per_jam,
@@ -98,30 +99,31 @@ export async function POST(req: Request) {
 
     // Auto-generate kode_karyawan if not provided
     const countRes = await client.query(`SELECT COUNT(*) FROM hr_employees`);
-    const count = parseInt(countRes.rows[0].count, 10) + 1;
-    const kode_karyawan = body.kode_karyawan || (tipe_gaji === "HARIAN_DRIVER" ? `DRV-${String(count).padStart(3, "0")}` : `EMP-${String(count).padStart(3, "0")}`);
+    const nextNum = parseInt(countRes.rows[0].count, 10) + 1;
+    const autoKode = `EMP-${String(nextNum).padStart(3, "0")}`;
 
     const empRes = await client.query(
       `INSERT INTO hr_employees (
         kode_karyawan, nama_fingerprint, nama_lengkap, department_id, position_id,
-        tipe_karyawan, tipe_gaji, no_fingerprint, no_ktp, email, no_telepon,
+        tipe_karyawan, tipe_gaji, tipe_periode_gaji, no_fingerprint, no_ktp, email, no_telepon,
         npwp, ptkp_status, tanggal_masuk, status, catatan
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       RETURNING *`,
       [
-        kode_karyawan,
+        autoKode,
         nama_fingerprint.trim(),
         nama_lengkap.trim(),
         department_id,
         position_id,
         tipe_karyawan || "TETAP",
         tipe_gaji || "HARIAN_PRODUKSI",
-        no_fingerprint || null,
+        tipe_periode_gaji || "PEKANAN",
+        no_fingerprint ? parseInt(no_fingerprint, 10) : null,
         no_ktp || null,
         email || null,
         no_telepon || null,
         npwp || null,
-        ptkp_status || "TK0",
+        ptkp_status || "TK/0",
         tanggal_masuk,
         status || "AKTIF",
         catatan || null,

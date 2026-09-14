@@ -60,6 +60,7 @@ const RUMPUN_MENU: ModuleGroup[] = [
       {
         section: "Presensi & Kehadiran",
         items: [
+          { href: "/hr/presensi/harian", label: "Presensi Harian & Bonus", icon: Clock },
           { href: "/hr/presensi/upload", label: "Upload Presensi", icon: UploadCloud },
           { href: "/hr/presensi/rekap", label: "Rekap Kehadiran", icon: CalendarDays },
           { href: "/hr/presensi/koreksi", label: "Koreksi Presensi", icon: ClipboardList },
