@@ -2,6 +2,133 @@ import { NextResponse } from "next/server";
 import pool from "@/lib/db";
 import * as XLSX from "xlsx";
 
+function parseExcelTime(val: any): string | null {
+  if (val === null || val === undefined || val === "") return null;
+
+  if (typeof val === "string") {
+    const trimmed = val.trim();
+    if (!trimmed || trimmed === "-" || trimmed.toLowerCase() === "null" || trimmed.toLowerCase() === "undefined") {
+      return null;
+    }
+
+    // 1. Check standard time pattern "HH:mm", "HH:mm:ss", with optional AM/PM
+    const colonMatch = trimmed.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*(AM|PM))?$/i);
+    if (colonMatch) {
+      let h = parseInt(colonMatch[1], 10);
+      const m = parseInt(colonMatch[2], 10);
+      const s = colonMatch[3] ? parseInt(colonMatch[3], 10) : 0;
+      const meridiem = colonMatch[4] ? colonMatch[4].toUpperCase() : null;
+      if (meridiem === "PM" && h < 12) h += 12;
+      if (meridiem === "AM" && h === 12) h = 0;
+      if (h >= 0 && h < 24 && m >= 0 && m < 60 && s >= 0 && s < 60) {
+        return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+      }
+    }
+
+    // 2. Check "HH.mm" format (e.g. 12.01 -> 12:01:00)
+    const dotMatch = trimmed.match(/^(\d{1,2})\.(\d{2})$/);
+    if (dotMatch) {
+      const h = parseInt(dotMatch[1], 10);
+      const m = parseInt(dotMatch[2], 10);
+      if (h >= 0 && h < 24 && m >= 0 && m < 60) {
+        return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`;
+      }
+    }
+
+    // 3. Check if string is float representation of Excel time (e.g. "0.500694444444444")
+    const num = Number(trimmed);
+    if (!isNaN(num) && num > 0 && num < 1) {
+      val = num;
+    } else {
+      return null;
+    }
+  }
+
+  if (typeof val === "number") {
+    if (isNaN(val) || val < 0) return null;
+    // Excel time is a fraction of a 24-hour day (0 <= fraction < 1)
+    let fraction = val % 1;
+    if (fraction === 0 && val >= 1) return null; // An integer >= 1 is likely a date without time or an ID
+    if (fraction < 0) fraction += 1;
+    const totalSeconds = Math.round(fraction * 86400);
+    const h = Math.floor(totalSeconds / 3600) % 24;
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  }
+
+  if (val instanceof Date) {
+    const h = String(val.getHours()).padStart(2, "0");
+    const m = String(val.getMinutes()).padStart(2, "0");
+    const s = String(val.getSeconds()).padStart(2, "0");
+    return `${h}:${m}:${s}`;
+  }
+
+  return null;
+}
+
+function parseExcelDate(val: any): string | null {
+  if (val === null || val === undefined || val === "") return null;
+
+  if (typeof val === "number") {
+    try {
+      const dateObj = XLSX.SSF.parse_date_code(val);
+      if (dateObj && dateObj.y && dateObj.m && dateObj.d) {
+        return `${dateObj.y}-${String(dateObj.m).padStart(2, "0")}-${String(dateObj.d).padStart(2, "0")}`;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  if (val instanceof Date) {
+    return `${val.getFullYear()}-${String(val.getMonth() + 1).padStart(2, "0")}-${String(val.getDate()).padStart(2, "0")}`;
+  }
+
+  if (typeof val === "string") {
+    const trimmed = val.trim();
+    if (!trimmed) return null;
+
+    if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(trimmed)) {
+      const [y, m, d] = trimmed.split("-");
+      return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+    }
+
+    const dmy = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+    if (dmy) {
+      return `${dmy[3]}-${dmy[2].padStart(2, "0")}-${dmy[1].padStart(2, "0")}`;
+    }
+  }
+
+  return null;
+}
+
+function findEmployee(nameRaw: any, empMap: Map<string, any>): any {
+  if (!nameRaw) return null;
+  const clean = String(nameRaw).trim().replace(/\s+/g, " ");
+  const lower = clean.toLowerCase();
+
+  // 1. Direct match
+  if (empMap.has(lower)) return empMap.get(lower);
+
+  // 2. Remove text in parentheses, e.g. "Husain Pria Wardana (Dana)" -> "Husain Pria Wardana"
+  const withoutParens = clean.replace(/\(.*?\)/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+  if (withoutParens && empMap.has(withoutParens)) return empMap.get(withoutParens);
+
+  // 3. Match text inside parentheses, e.g. "(Dana)" -> "dana"
+  const insideParensMatches = Array.from(clean.matchAll(/\((.*?)\)/g));
+  for (const match of insideParensMatches) {
+    const inside = match[1].trim().toLowerCase();
+    if (inside && empMap.has(inside)) return empMap.get(inside);
+  }
+
+  // 4. Strip honorific titles like "pak", "bu", "ibu", "bapak"
+  const withoutTitles = withoutParens.replace(/^(pak|bapak|bu|ibu)\s+/i, "").trim().toLowerCase();
+  if (withoutTitles && empMap.has(withoutTitles)) return empMap.get(withoutTitles);
+
+  return null;
+}
+
 export async function POST(req: Request) {
   const client = await pool.connect();
   try {
@@ -18,7 +145,7 @@ export async function POST(req: Request) {
     const workbook = XLSX.read(bytes, { type: "array" });
     const sheetNames = workbook.SheetNames;
 
-    // Fetch all active employees for name matching
+    // Fetch all employees for name matching
     const empRes = await client.query(
       `SELECT id, kode_karyawan, nama_fingerprint, nama_lengkap FROM hr_employees`
     );
@@ -27,8 +154,8 @@ export async function POST(req: Request) {
     // Build lookup map (lowercase normalized)
     const empMap = new Map<string, any>();
     employees.forEach((emp) => {
-      empMap.set(emp.nama_fingerprint.trim().toLowerCase(), emp);
-      empMap.set(emp.nama_lengkap.trim().toLowerCase(), emp);
+      if (emp.nama_fingerprint) empMap.set(emp.nama_fingerprint.trim().toLowerCase(), emp);
+      if (emp.nama_lengkap) empMap.set(emp.nama_lengkap.trim().toLowerCase(), emp);
     });
 
     let format_file = "FORMAT_A"; // Default
@@ -55,7 +182,6 @@ export async function POST(req: Request) {
     let unmatchedCount = 0;
     let anomalyCount = 0;
     const unmatchedNames: string[] = [];
-    const errorLogs: any[] = [];
 
     const sheet = workbook.Sheets[sheetNames[0]];
     const rawData: any[] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
@@ -82,7 +208,7 @@ export async function POST(req: Request) {
 
           totalRows++;
           const nameRaw = String(row[1]).trim();
-          const emp = empMap.get(nameRaw.toLowerCase());
+          const emp = findEmployee(nameRaw, empMap);
 
           if (emp) {
             matchedCount++;
@@ -107,44 +233,98 @@ export async function POST(req: Request) {
       const rowsJson: any[] = XLSX.utils.sheet_to_json(sheet, { range: headerIdx });
 
       for (const row of rowsJson) {
-        const nameRaw = row["Nama Karyawan"] || row["Nama"] || row["nama_karyawan"] || row["Nama Fingerprint"] || row["Name"];
+        const nameRaw =
+          row["Nama Karyawan"] ||
+          row["Nama"] ||
+          row["nama_karyawan"] ||
+          row["Nama Fingerprint"] ||
+          row["Name"] ||
+          row["nama"] ||
+          row["Employee Name"];
         if (!nameRaw) continue;
 
         totalRows++;
-        const emp = empMap.get(String(nameRaw).trim().toLowerCase());
+        const emp = findEmployee(nameRaw, empMap);
 
         if (!emp) {
           unmatchedCount++;
-          if (!unmatchedNames.includes(String(nameRaw).trim())) {
-            unmatchedNames.push(String(nameRaw).trim());
+          const trimmedName = String(nameRaw).trim();
+          if (!unmatchedNames.includes(trimmedName)) {
+            unmatchedNames.push(trimmedName);
           }
           continue;
         }
 
         matchedCount++;
-        const dateRaw = row["Tanggal"] || row["tanggal"] || row["Date"];
-        const timeIn = row["Jam Masuk"] || row["jam_masuk"] || row["In"];
-        const timeOut = row["Jam Keluar"] || row["jam_keluar"] || row["Out"];
-        const ket = row["Keterangan"] || row["keterangan"] || "HADIR";
+        const dateRaw =
+          row["Tanggal"] ||
+          row["tanggal"] ||
+          row["Date"] ||
+          row["date"] ||
+          row["Tgl"] ||
+          row["tgl"];
+        const timeInRaw =
+          row["Jam Masuk"] ||
+          row["jam_masuk"] ||
+          row["In"] ||
+          row["in"] ||
+          row["Masuk"] ||
+          row["masuk"] ||
+          row["Check In"];
+        const timeOutRaw =
+          row["Jam Keluar"] ||
+          row["jam_keluar"] ||
+          row["Out"] ||
+          row["out"] ||
+          row["Keluar"] ||
+          row["keluar"] ||
+          row["Check Out"];
+        const rawKet =
+          row["Keterangan"] ||
+          row["keterangan"] ||
+          row["Status"] ||
+          row["status"] ||
+          row["Ket"] ||
+          row["ket"];
 
-        let dateStr = dateRaw;
-        if (typeof dateRaw === "number") {
-          const dateObj = XLSX.SSF.parse_date_code(dateRaw);
-          dateStr = `${dateObj.y}-${String(dateObj.m).padStart(2, "0")}-${String(dateObj.d).padStart(2, "0")}`;
-        }
+        const dateStr = parseExcelDate(dateRaw);
+        const timeIn = parseExcelTime(timeInRaw);
+        const timeOut = parseExcelTime(timeOutRaw);
 
         if (dateStr && emp) {
           const isNoScan = (!timeIn && !!timeOut) || (!!timeIn && !timeOut);
           if (isNoScan) anomalyCount++;
 
+          // Auto calculate work duration & overtime if both timeIn & timeOut exist
+          let durasiMenit: number | null = null;
+          let lemburMenit = 0;
+          if (timeIn && timeOut) {
+            const [inH, inM] = timeIn.split(":").map(Number);
+            const [outH, outM] = timeOut.split(":").map(Number);
+            let inTotal = inH * 60 + inM;
+            let outTotal = outH * 60 + outM;
+            if (outTotal < inTotal) {
+              outTotal += 24 * 60; // shift crossed midnight
+            }
+            durasiMenit = outTotal - inTotal;
+            if (durasiMenit > 480) {
+              lemburMenit = durasiMenit - 480;
+            }
+          }
+
+          const ket = rawKet || (!timeIn && !timeOut ? "LIBUR" : "HADIR");
+
           await client.query(
             `INSERT INTO hr_attendances (
-              employee_id, upload_id, tanggal, jam_masuk, jam_keluar, keterangan,
+              employee_id, upload_id, tanggal, jam_masuk, jam_keluar,
+              durasi_kerja_menit, lembur_menit, keterangan,
               tidak_scan_lengkap, is_anomali, source
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'UPLOAD')
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'UPLOAD')
             ON CONFLICT (employee_id, tanggal) DO UPDATE SET
               jam_masuk = EXCLUDED.jam_masuk,
               jam_keluar = EXCLUDED.jam_keluar,
+              durasi_kerja_menit = EXCLUDED.durasi_kerja_menit,
+              lembur_menit = EXCLUDED.lembur_menit,
               keterangan = EXCLUDED.keterangan,
               tidak_scan_lengkap = EXCLUDED.tidak_scan_lengkap,
               is_anomali = EXCLUDED.is_anomali,
@@ -154,9 +334,11 @@ export async function POST(req: Request) {
               emp.id,
               uploadId,
               dateStr,
-              timeIn || null,
-              timeOut || null,
-              ket || "HADIR",
+              timeIn,
+              timeOut,
+              durasiMenit,
+              lemburMenit,
+              ket,
               isNoScan,
               isNoScan,
             ]
