@@ -29,12 +29,39 @@ export async function GET(req: NextRequest) {
         `SELECT 
           j.lini,
           DATE_TRUNC('month', j.journal_date) AS bulan,
-          SUM(CASE WHEN c.kelompok = 'Pendapatan' THEN j.nominal ELSE 0 END) AS pendapatan,
-          SUM(CASE WHEN c.kelompok = 'Beban' AND c.sub_kelompok = 'Beban Pokok Penjualan' THEN j.nominal ELSE 0 END) AS hpp,
-          SUM(CASE WHEN c.kelompok = 'Beban' AND c.sub_kelompok = 'Beban Operasional' THEN j.nominal ELSE 0 END) AS biaya_operasional,
-          SUM(CASE WHEN c.kelompok = 'Pendapatan' THEN j.nominal ELSE 0 END) - SUM(CASE WHEN c.kelompok = 'Beban' THEN j.nominal ELSE 0 END) AS laba_bersih
+          SUM(
+            CASE 
+              WHEN ck.kelompok = 'Pendapatan' THEN j.nominal 
+              WHEN cd.kelompok = 'Pendapatan' THEN -j.nominal
+              ELSE 0 
+            END
+          ) AS pendapatan,
+          SUM(
+            CASE 
+              WHEN cd.kelompok = 'Beban' AND cd.sub_kelompok = 'Beban Pokok Penjualan' THEN j.nominal 
+              WHEN ck.kelompok = 'Beban' AND ck.sub_kelompok = 'Beban Pokok Penjualan' THEN -j.nominal
+              ELSE 0 
+            END
+          ) AS hpp,
+          SUM(
+            CASE 
+              WHEN cd.kelompok = 'Beban' AND cd.sub_kelompok = 'Beban Operasional' THEN j.nominal 
+              WHEN ck.kelompok = 'Beban' AND ck.sub_kelompok = 'Beban Operasional' THEN -j.nominal
+              ELSE 0 
+            END
+          ) AS biaya_operasional,
+          SUM(
+            CASE 
+              WHEN ck.kelompok = 'Pendapatan' THEN j.nominal 
+              WHEN cd.kelompok = 'Pendapatan' THEN -j.nominal
+              WHEN cd.kelompok = 'Beban' THEN -j.nominal
+              WHEN ck.kelompok = 'Beban' THEN j.nominal
+              ELSE 0 
+            END
+          ) AS laba_bersih
         FROM journals j
-        JOIN coa c ON c.id = j.akun_debit
+        LEFT JOIN coa cd ON cd.id = j.akun_debit
+        LEFT JOIN coa ck ON ck.id = j.akun_kredit
         WHERE j.lini = 'siap_saji' ${dateFilter}
         GROUP BY j.lini, DATE_TRUNC('month', j.journal_date)
         ORDER BY bulan DESC`
@@ -44,7 +71,17 @@ export async function GET(req: NextRequest) {
       const detailRes = await client.query(
         `SELECT 
           c.kelompok, c.sub_kelompok, c.kode_akun, c.nama_akun,
-          COALESCE(SUM(j.nominal), 0) AS total_nominal
+          COALESCE(
+            SUM(
+              CASE 
+                WHEN c.kelompok = 'Pendapatan' THEN 
+                  CASE WHEN j.akun_kredit = c.id THEN j.nominal WHEN j.akun_debit = c.id THEN -j.nominal ELSE 0 END
+                WHEN c.kelompok = 'Beban' THEN 
+                  CASE WHEN j.akun_debit = c.id THEN j.nominal WHEN j.akun_kredit = c.id THEN -j.nominal ELSE 0 END
+                ELSE j.nominal
+              END
+            ), 0
+          ) AS total_nominal
         FROM coa c
         LEFT JOIN journals j ON (j.akun_debit = c.id OR j.akun_kredit = c.id) AND j.lini = 'siap_saji' ${dateFilter}
         WHERE c.lini = 'siap_saji'

@@ -32,9 +32,9 @@ export async function GET(req: NextRequest) {
         c.name AS nama_customer,
         c.phone AS no_hp,
         o.no_struk,
-        COALESCE(a.kecamatan, '-') AS kecamatan,
-        COALESCE(o.venue, c.address, '-') AS alamat,
-        c.patokan,
+        COALESCE(ao.kecamatan, ac.kecamatan, '-') AS kecamatan,
+        COALESCE(NULLIF(o.venue, ''), c.address, '-') AS alamat,
+        COALESCE(NULLIF(o.patokan, ''), c.patokan, '-') AS patokan,
         COALESCE(dr.name, 'Unassigned') AS driver_name,
         COALESCE(
           json_agg(
@@ -47,15 +47,16 @@ export async function GET(req: NextRequest) {
         ) AS items
       FROM orders o
       JOIN customers c ON c.id = o.customer_id
-      LEFT JOIN areas a ON a.id = c.area_id
+      LEFT JOIN areas ao ON ao.id = o.area_id
+      LEFT JOIN areas ac ON ac.id = c.area_id
       LEFT JOIN channels ch ON ch.id = o.channel_id
       LEFT JOIN drivers dr ON dr.id = o.driver_id
       LEFT JOIN order_items oi ON oi.order_id = o.id
       LEFT JOIN products p ON p.id = oi.product_id
       WHERE o.lini = 'siap_saji' AND o.status_order <> 'Dibatalkan'
         AND (o.delivery_date::date >= $1::date AND o.delivery_date::date <= $2::date)
-      GROUP BY o.id, c.id, c.name, c.phone, o.no_struk, a.kecamatan, o.venue, c.address, c.patokan, dr.name
-      ORDER BY COALESCE(dr.name, 'Z'), a.kecamatan, c.name`,
+      GROUP BY o.id, c.id, c.name, c.phone, o.no_struk, ao.kecamatan, ac.kecamatan, o.venue, o.patokan, c.address, c.patokan, dr.name
+      ORDER BY COALESCE(dr.name, 'Z'), COALESCE(ao.kecamatan, ac.kecamatan, '-'), c.name`,
       [dateFrom, dateTo]
     );
 
@@ -148,10 +149,16 @@ export async function GET(req: NextRequest) {
       const itemsList = Array.isArray(ord.items) ? ord.items : [];
       // Include Biaya Kirim as extra line if shipping fee > 0
       const displayItems = [
-        ...itemsList.map((it: any) => ({
-          name: it.name || "Produk",
-          qty: String(it.quantity || 1),
-        })),
+        ...itemsList.map((it: any) => {
+          let pName = String(it.name || "Produk").trim();
+          if (it.is_half_portion && !pName.includes("1/2") && !pName.includes("½")) {
+            pName = `${pName} 1/2`;
+          }
+          return {
+            name: pName,
+            qty: String(it.quantity || 1),
+          };
+        }),
         { name: "Biaya Kirim", qty: "1" },
       ];
 

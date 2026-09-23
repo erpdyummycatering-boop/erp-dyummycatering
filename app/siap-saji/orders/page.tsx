@@ -142,6 +142,7 @@ export default function SiapSajiOrdersPage() {
   };
 
   // Filters
+  const [showStatsAndFilters, setShowStatsAndFilters] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [channelFilter, setChannelFilter] = useState("");
@@ -251,12 +252,23 @@ export default function SiapSajiOrdersPage() {
   const [customerAddresses, setCustomerAddresses] = useState<any[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<number | "custom">("custom");
 
-  const fetchCustomerAddresses = async (custId: number) => {
+  const fetchCustomerAddresses = async (custId: number, currentAddr?: string) => {
     try {
       const res = await fetch(`/api/siap-saji/customers/${custId}/addresses`);
       if (res.ok) {
         const json = await res.json();
-        setCustomerAddresses(json.data || []);
+        const list = json.data || [];
+        setCustomerAddresses(list);
+        if (currentAddr && list.length > 0) {
+          const match = list.find(
+            (a: any) => a.address && a.address.trim().toLowerCase() === currentAddr.trim().toLowerCase()
+          );
+          if (match) {
+            setSelectedAddressId(match.id);
+          } else {
+            setSelectedAddressId("custom");
+          }
+        }
       } else {
         setCustomerAddresses([]);
       }
@@ -728,6 +740,16 @@ export default function SiapSajiOrdersPage() {
       setCustomerAddress(data.customer_address || "");
       setCustomerPatokan(data.customer_patokan || "");
       setSelectedAreaId(data.area_id || "");
+
+      if (data.customer_id) {
+        setSelectedCustomerId(data.customer_id);
+        fetchCustomerAddresses(data.customer_id, data.customer_address);
+      } else {
+        setSelectedCustomerId("new");
+        setCustomerAddresses([]);
+        setSelectedAddressId("custom");
+      }
+
       if (data.area_id) {
         const found = masterAreas.find((a) => String(a.id) === String(data.area_id));
         if (found) {
@@ -773,6 +795,9 @@ export default function SiapSajiOrdersPage() {
   const resetForm = () => {
     setEditingOrderId(null);
     setCurrentDraftId(null);
+    setSelectedCustomerId("new");
+    setCustomerAddresses([]);
+    setSelectedAddressId("custom");
     setDeliveryDate(getTodayStr());
     setOrderDate(getTodayStr());
     setCustomerName("");
@@ -1134,6 +1159,44 @@ export default function SiapSajiOrdersPage() {
           </button>
 
           <button
+            onClick={() => setShowStatsAndFilters((prev) => !prev)}
+            style={{
+              background: showStatsAndFilters ? "#f3e8ff" : "white",
+              color: showStatsAndFilters ? "#5005A6" : "#4b5563",
+              border: showStatsAndFilters ? "1.5px solid #5005A6" : "1px solid #d1d5db",
+              borderRadius: 10,
+              padding: "10px 16px",
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+              transition: "all 0.15s ease",
+            }}
+            title={showStatsAndFilters ? "Sembunyikan panel scorecard & filter" : "Tampilkan panel scorecard & filter"}
+          >
+            <Filter size={17} color={showStatsAndFilters ? "#5005A6" : "#6b7280"} />
+            {showStatsAndFilters ? "Sembunyikan Filter & Scorecard" : "Tampilkan Filter & Scorecard"}
+            {Boolean(search || statusFilter || channelFilter || productFilter || timeShortcut !== "today" || (dateFrom && dateFrom !== getTodayStr()) || (dateTo && dateTo !== getTodayStr())) && !showStatsAndFilters && (
+              <span
+                style={{
+                  background: "#BA7517",
+                  color: "white",
+                  fontSize: 10,
+                  padding: "2px 7px",
+                  borderRadius: 10,
+                  fontWeight: 800,
+                  textTransform: "uppercase",
+                }}
+              >
+                Aktif
+              </span>
+            )}
+          </button>
+
+          <button
             onClick={handleOpenCreateOrder}
             style={{
               background: "linear-gradient(135deg, #5005A6 0%, #B10FBD 100%)",
@@ -1159,8 +1222,10 @@ export default function SiapSajiOrdersPage() {
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16, marginBottom: 24 }}>
+      {showStatsAndFilters && (
+        <>
+          {/* Stats Cards */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16, marginBottom: 24 }}>
         <div style={{ background: "white", borderRadius: 12, padding: "16px 20px", border: "1px solid #e5e7eb", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
           <p style={{ fontSize: 13, color: "#6b7280", fontWeight: 600 }}>Total Omset Siap Saji</p>
           <p style={{ fontSize: 22, fontWeight: 800, color: "#5005A6", marginTop: 6 }}>
@@ -1510,6 +1575,8 @@ export default function SiapSajiOrdersPage() {
           </button>
         )}
       </div>
+      </>
+      )}
 
       {/* ── BULK ACTION BAR ────────────────────────────────────── */}
       {selectedOrderIds.length > 0 && (
@@ -2188,7 +2255,7 @@ export default function SiapSajiOrdersPage() {
                                   setSelectedCustomerId(c.id);
                                   setIsCustDropdownOpen(false);
                                   setDuplicatePhoneCust(null);
-                                  fetchCustomerAddresses(c.id);
+                                  fetchCustomerAddresses(c.id, c.address);
                                 }}
                                 style={{
                                   padding: "8px 12px",
@@ -2555,6 +2622,11 @@ export default function SiapSajiOrdersPage() {
                               if (addr.patokan) setCustomerPatokan(addr.patokan);
                               if (addr.area_id) {
                                 setSelectedAreaId(addr.area_id);
+                                const foundArea = masterAreas.find((a) => String(a.id) === String(addr.area_id));
+                                if (foundArea) {
+                                  const zoneLabel = foundArea.shipping_zone === "dalam_kota" ? "Dalam Kota" : "Luar Kota";
+                                  setSelectedAreaName(`${foundArea.kecamatan} (${foundArea.kota}) — [${zoneLabel}]`);
+                                }
                                 setIsShippingAuto(true);
                               }
                               toast.info(`Alamat "${addr.label || 'Tersimpan'}" dipilih`);
@@ -3304,20 +3376,26 @@ export default function SiapSajiOrdersPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(selectedStruk.items || []).map((it: any, i: number) => (
-                    <tr key={i}>
-                      <td style={{ paddingTop: 4 }}>
-                        {it.product_name}
-                        <br />
-                        <span style={{ fontSize: 11, color: "#6b7280" }}>
-                          {it.quantity} x {Number(it.price).toLocaleString("id-ID")}
-                        </span>
-                      </td>
-                      <td style={{ textAlign: "right", verticalAlign: "top", paddingTop: 4 }}>
-                        {Number(it.subtotal).toLocaleString("id-ID")}
-                      </td>
-                    </tr>
-                  ))}
+                  {(selectedStruk.items || []).map((it: any, i: number) => {
+                    let pName = String(it.product_name || "").trim();
+                    if (it.is_half_portion && !pName.includes("1/2") && !pName.includes("½")) {
+                      pName = `${pName} 1/2`;
+                    }
+                    return (
+                      <tr key={i}>
+                        <td style={{ paddingTop: 4 }}>
+                          {pName}
+                          <br />
+                          <span style={{ fontSize: 11, color: "#6b7280" }}>
+                            {it.quantity} x {Number(it.price).toLocaleString("id-ID")}
+                          </span>
+                        </td>
+                        <td style={{ textAlign: "right", verticalAlign: "top", paddingTop: 4 }}>
+                          {Number(it.subtotal).toLocaleString("id-ID")}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
 
@@ -3770,20 +3848,26 @@ export default function SiapSajiOrdersPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {(order.items || []).map((it: any, i: number) => (
-                          <tr key={i}>
-                            <td style={{ paddingTop: 4 }}>
-                              {it.product_name}
-                              <br />
-                              <span style={{ fontSize: 11, color: "#6b7280" }}>
-                                {it.quantity} x {Number(it.price).toLocaleString("id-ID")}
-                              </span>
-                            </td>
-                            <td style={{ textAlign: "right", verticalAlign: "top", paddingTop: 4 }}>
-                              {Number(it.subtotal).toLocaleString("id-ID")}
-                            </td>
-                          </tr>
-                        ))}
+                        {(order.items || []).map((it: any, i: number) => {
+                          let pName = String(it.product_name || "").trim();
+                          if (it.is_half_portion && !pName.includes("1/2") && !pName.includes("½")) {
+                            pName = `${pName} 1/2`;
+                          }
+                          return (
+                            <tr key={i}>
+                              <td style={{ paddingTop: 4 }}>
+                                {pName}
+                                <br />
+                                <span style={{ fontSize: 11, color: "#6b7280" }}>
+                                  {it.quantity} x {Number(it.price).toLocaleString("id-ID")}
+                                </span>
+                              </td>
+                              <td style={{ textAlign: "right", verticalAlign: "top", paddingTop: 4 }}>
+                                {Number(it.subtotal).toLocaleString("id-ID")}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
 

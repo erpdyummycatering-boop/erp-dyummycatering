@@ -19,6 +19,14 @@ const wrapText = (text: string, maxChars: number = 29): string[] => {
   return lines.length > 0 ? lines : [text.substring(0, maxChars)];
 };
 
+const formatProductName = (name: string, isHalf?: boolean): string => {
+  let pName = String(name || "").trim();
+  if (isHalf && !pName.includes("1/2") && !pName.includes("½")) {
+    return `${pName} 1/2`;
+  }
+  return pName;
+};
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const idsStr = searchParams.get("ids");
@@ -44,10 +52,10 @@ export async function GET(req: NextRequest) {
         o.*,
         c.name AS customer_name,
         c.phone AS customer_phone,
-        c.address AS customer_address,
-        c.patokan AS customer_patokan,
-        a.kecamatan AS area_kecamatan,
-        a.kota AS area_kota,
+        COALESCE(NULLIF(o.venue, ''), c.address) AS customer_address,
+        COALESCE(NULLIF(o.patokan, ''), c.patokan) AS customer_patokan,
+        COALESCE(ao.kecamatan, ac.kecamatan, '-') AS area_kecamatan,
+        COALESCE(ao.kota, ac.kota, 'Kota Bandung') AS area_kota,
         u.name AS pic_name,
         (
           SELECT json_agg(
@@ -55,6 +63,7 @@ export async function GET(req: NextRequest) {
               'id', oi.id,
               'product_name', pr.name,
               'sku', pr.sku,
+              'is_half_portion', pr.is_half_portion,
               'price', oi.price,
               'quantity', oi.quantity,
               'subtotal', oi.subtotal,
@@ -67,7 +76,8 @@ export async function GET(req: NextRequest) {
         ) AS items
       FROM orders o
       JOIN customers c ON o.customer_id = c.id
-      LEFT JOIN areas a ON c.area_id = a.id
+      LEFT JOIN areas ao ON o.area_id = ao.id
+      LEFT JOIN areas ac ON c.area_id = ac.id
       LEFT JOIN users u ON o.pic_id = u.id
       WHERE o.id = ANY($1::bigint[]) AND o.lini = 'siap_saji'
       ORDER BY array_position($1::bigint[], o.id)`,
@@ -112,7 +122,8 @@ export async function GET(req: NextRequest) {
 
       // Items
       items.forEach((it: any) => {
-        const pLines = wrapText(it.product_name || "-", 29);
+        const displayName = formatProductName(it.product_name, it.is_half_portion);
+        const pLines = wrapText(displayName || "-", 29);
         h += pLines.length * 16;
         h += 17;
         if (it.notes || it.note) {
@@ -237,7 +248,8 @@ export async function GET(req: NextRequest) {
         const subVal = Number(it.subtotal || 0);
         subtotalItems += subVal;
 
-        const pLines = wrapText(it.product_name || "-", 29);
+        const displayName = formatProductName(it.product_name, it.is_half_portion);
+        const pLines = wrapText(displayName || "-", 29);
         pLines.forEach((line) => {
           pageObj.drawText(line, { x: margin, y, size: 13.5, font: fontBold });
           y -= 16;

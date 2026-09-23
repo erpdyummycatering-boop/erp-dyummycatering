@@ -21,11 +21,11 @@ export async function GET(
         o.*,
         c.name AS customer_name,
         c.phone AS customer_phone,
-        c.address AS customer_address,
-        c.patokan AS customer_patokan,
-        c.area_id,
-        a.kecamatan AS area_kecamatan,
-        a.kota AS area_kota,
+        COALESCE(NULLIF(o.venue, ''), c.address) AS customer_address,
+        COALESCE(NULLIF(o.patokan, ''), c.patokan) AS customer_patokan,
+        COALESCE(o.area_id, c.area_id) AS area_id,
+        COALESCE(ao.kecamatan, ac.kecamatan, '-') AS area_kecamatan,
+        COALESCE(ao.kota, ac.kota, '-') AS area_kota,
         ch.name AS channel_name,
         u.name AS pic_name,
         cb.name AS cancelled_by_name,
@@ -51,7 +51,8 @@ export async function GET(
       FROM orders o
       JOIN customers c ON o.customer_id = c.id
       LEFT JOIN channels ch ON o.channel_id = ch.id
-      LEFT JOIN areas a ON c.area_id = a.id
+      LEFT JOIN areas ao ON o.area_id = ao.id
+      LEFT JOIN areas ac ON c.area_id = ac.id
       LEFT JOIN users u ON o.pic_id = u.id
       LEFT JOIN users cb ON o.cancelled_by = cb.id
       WHERE o.id = $1 AND o.lini = 'siap_saji'`,
@@ -131,20 +132,34 @@ export async function PUT(
       finalCustomerId = phoneCheckRes.rows[0].id;
       await client.query(
         `UPDATE customers
-         SET name = COALESCE(NULLIF($1, ''), name),
-             address = COALESCE(NULLIF($2, ''), address),
-             patokan = COALESCE(NULLIF($3, ''), patokan),
-             area_id = COALESCE($4, area_id)
-         WHERE id = $5`,
-        [customer_name, customer_address, customer_patokan, area_id || null, finalCustomerId]
+         SET name = COALESCE(NULLIF($1, ''), name)
+         WHERE id = $2`,
+        [customer_name, finalCustomerId]
       );
     } else {
       await client.query(
         `UPDATE customers
-         SET name = $1, phone = $2, address = $3, patokan = $4, area_id = $5
-         WHERE id = $6`,
-        [customer_name, cleanPhone, customer_address || "-", customer_patokan || "", area_id || null, finalCustomerId]
+         SET name = $1, phone = $2
+         WHERE id = $3`,
+        [customer_name, cleanPhone, finalCustomerId]
       );
+    }
+
+    // Record address to customer_addresses if not exists yet
+    if (customer_address && customer_address.trim()) {
+      const existAddrRes = await client.query(
+        `SELECT id FROM customer_addresses 
+         WHERE customer_id = $1 AND LOWER(TRIM(address)) = LOWER(TRIM($2))
+         LIMIT 1`,
+        [finalCustomerId, customer_address.trim()]
+      );
+      if (existAddrRes.rows.length === 0) {
+        await client.query(
+          `INSERT INTO customer_addresses (customer_id, label, address, patokan, area_id, is_default)
+           VALUES ($1, 'Alamat', $2, $3, $4, false)`,
+          [finalCustomerId, customer_address.trim(), customer_patokan || null, area_id ? Number(area_id) : null]
+        );
+      }
     }
 
     // 3. Calculate Item Subtotals & Order Totals
@@ -181,7 +196,7 @@ export async function PUT(
       }
     }
 
-    // 4. Update Order Record
+    // 4. Update Order Record with order-specific address, patokan, and area
     await client.query(
       `UPDATE orders
        SET customer_id = $1,
@@ -195,8 +210,11 @@ export async function PUT(
            payment_bank = $9,
            payment_account = $10,
            driver_id = $11,
+           venue = $12,
+           patokan = $13,
+           area_id = $14,
            updated_at = NOW()
-       WHERE id = $12`,
+       WHERE id = $15`,
       [
         finalCustomerId,
         channel_id || existingOrder.channel_id,
@@ -209,6 +227,9 @@ export async function PUT(
         paymentBankName,
         paymentAccountNo,
         body.driver_id ? Number(body.driver_id) : null,
+        customer_address || null,
+        customer_patokan || null,
+        area_id ? Number(area_id) : null,
         orderId,
       ]
     );

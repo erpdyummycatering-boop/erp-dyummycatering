@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect, Fragment } from "react";
-import { CreditCard, DollarSign, Plus, FileText, PieChart, BookOpen, ArrowUpRight, ArrowDownLeft, X, CheckCircle, RefreshCw, Search, Edit3, Trash2, Calendar } from "lucide-react";
+import { CreditCard, DollarSign, Plus, FileText, PieChart, BookOpen, ArrowUpRight, ArrowDownLeft, X, CheckCircle, RefreshCw, Search, Edit3, Trash2, Calendar, Printer, Download, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/ui/Pagination";
 import { formatDate } from "@/lib/utils";
+import * as XLSX from "xlsx";
 
 export default function SiapSajiFinancePage() {
   const [activeTab, setActiveTab] = useState<"pl" | "purchases" | "expenses" | "kas_bank" | "journals" | "coa" | "neraca">("pl");
@@ -38,8 +39,8 @@ export default function SiapSajiFinancePage() {
   // Tab 1: P&L Data & Filters
   const [plData, setPlData] = useState<any>(null);
   const [plPeriodMode, setPlPeriodMode] = useState<"month" | "date">("date"); // "month" (Bulan/Tahun) or "date" (Harian / Rentang Tanggal)
-  const [plMonth, setPlMonth] = useState<string>("6"); // Default Juni
-  const [plYear, setPlYear] = useState<string>("2026");
+  const [plMonth, setPlMonth] = useState<string>(String(new Date().getMonth() + 1));
+  const [plYear, setPlYear] = useState<string>(String(new Date().getFullYear()));
   const [plDateFrom, setPlDateFrom] = useState<string>(new Date().toISOString().split("T")[0]);
   const [plDateTo, setPlDateTo] = useState<string>(new Date().toISOString().split("T")[0]);
 
@@ -403,6 +404,104 @@ export default function SiapSajiFinancePage() {
   const labaKotor = totalPendapatan - totalHpp;
   const totalBiayaOperasional = calculatePlCategoryTotal("Beban", "Beban Operasional");
   const labaBersih = labaKotor - totalBiayaOperasional;
+
+  // Export P&L to Excel (.xlsx) matching Accurate Online format (Screenshot 2)
+  const handleExportPlXLSX = () => {
+    if (!plData || !plData.details) {
+      return toast.error("Data Laba/Rugi belum siap untuk diexport");
+    }
+
+    const monthNames = [
+      "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+      "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+    ];
+
+    let periodStr = "";
+    if (plPeriodMode === "date") {
+      periodStr = `Dari ${plDateFrom} s/d ${plDateTo}`;
+    } else {
+      periodStr = plMonth === "all" ? `Tahun ${plYear}` : `Bulan ${monthNames[Number(plMonth) - 1]} ${plYear}`;
+    }
+
+    const rows: (string | number)[][] = [
+      ["DYUMMY CATERING"],
+      ["LABA / RUGI (STANDAR)"],
+      [periodStr],
+      ["Cabang: [Semua Cabang] | Mata Uang: Indonesian Rupiah"],
+      [],
+      ["Deskripsi", "Nominal (Rp)"],
+      ["PENDAPATAN", ""],
+      ["  Pendapatan Operasional", ""],
+    ];
+
+    const pendAccounts = plData.details.filter((d: any) => d.kelompok === "Pendapatan");
+    pendAccounts.forEach((acc: any) => {
+      rows.push([`    ${acc.nama_akun}`, Number(acc.total_nominal || 0)]);
+    });
+    rows.push(["Jumlah Pendapatan", totalPendapatan]);
+    rows.push([]);
+
+    rows.push(["BEBAN POKOK PENJUALAN", ""]);
+    rows.push(["  Beban Pokok Penjualan", ""]);
+    const hppAccs = plData.details.filter((d: any) => d.kelompok === "Beban" && d.sub_kelompok === "Beban Pokok Penjualan");
+    hppAccs.forEach((acc: any) => {
+      rows.push([`    ${acc.nama_akun}`, Number(acc.total_nominal || 0)]);
+    });
+    rows.push(["Jumlah Beban Pokok Penjualan", totalHpp]);
+    rows.push([]);
+
+    rows.push(["LABA KOTOR", labaKotor]);
+    rows.push([]);
+
+    rows.push(["BEBAN OPERASIONAL", ""]);
+    rows.push(["  Beban Operasional", ""]);
+    const opexAccs = plData.details.filter((d: any) => d.kelompok === "Beban" && d.sub_kelompok === "Beban Operasional");
+    opexAccs.forEach((acc: any) => {
+      rows.push([`    ${acc.nama_akun}`, Number(acc.total_nominal || 0)]);
+    });
+    rows.push(["Jumlah Beban Operasional", totalBiayaOperasional]);
+    rows.push([]);
+
+    rows.push(["LABA OPERASIONAL", labaKotor - totalBiayaOperasional]);
+    rows.push([]);
+
+    const otherAccs = plData.details.filter(
+      (d: any) => d.kelompok === "Beban" && d.sub_kelompok !== "Beban Pokok Penjualan" && d.sub_kelompok !== "Beban Operasional"
+    );
+    if (otherAccs.length > 0) {
+      rows.push(["PENDAPATAN / (BEBAN) LAIN-LAIN", ""]);
+      otherAccs.forEach((acc: any) => {
+        rows.push([`    ${acc.nama_akun}`, Number(acc.total_nominal || 0)]);
+      });
+      rows.push([]);
+    }
+
+    rows.push(["LABA BERSIH", labaBersih]);
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+
+    // Set column widths
+    ws["!cols"] = [{ wch: 45 }, { wch: 25 }];
+
+    XLSX.utils.book_append_sheet(wb, ws, "Laba Rugi Standar");
+    const safePeriod = periodStr.replace(/[^a-zA-Z0-9_-]/g, "_");
+    XLSX.writeFile(wb, `Laporan_Laba_Rugi_DYummy_Catering_${safePeriod}.xlsx`);
+    toast.success("Laporan Laba/Rugi berhasil diexport ke Excel (.xlsx)!");
+  };
+
+  // Open PDF Print Page matching Accurate Online format (Screenshot 2)
+  const handlePrintPlPDF = () => {
+    const q = new URLSearchParams();
+    if (plPeriodMode === "date") {
+      if (plDateFrom) q.append("date_from", plDateFrom);
+      if (plDateTo) q.append("date_to", plDateTo);
+    } else {
+      q.append("month", plMonth);
+      q.append("year", plYear);
+    }
+    window.open(`/print/siap-saji/pl?${q.toString()}`, "_blank");
+  };
 
   // Handlers for Kas Masuk / Keluar & Jurnal Umum Manual
   const handleOpenKasMutasiModal = (jenis: "Masuk" | "Keluar") => {
@@ -875,6 +974,52 @@ export default function SiapSajiFinancePage() {
                   </button>
                 </div>
               )}
+
+              {/* Action Buttons: Export Excel & PDF */}
+              <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
+                <button
+                  type="button"
+                  onClick={handleExportPlXLSX}
+                  style={{
+                    padding: "7px 12px",
+                    background: "#f0fdf4",
+                    color: "#15803d",
+                    border: "1px solid #bbf7d0",
+                    borderRadius: 8,
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                  title="Export Laporan Laba/Rugi ke format Excel (.xlsx)"
+                >
+                  <FileSpreadsheet size={15} /> Export Excel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handlePrintPlPDF}
+                  style={{
+                    padding: "7px 14px",
+                    background: "#5005A6",
+                    color: "white",
+                    border: "none",
+                    borderRadius: 8,
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    boxShadow: "0 2px 6px rgba(80, 5, 166, 0.2)",
+                  }}
+                  title="Cetak atau simpan Laporan Laba/Rugi sebagai PDF"
+                >
+                  <Printer size={15} /> Cetak / Unduh PDF
+                </button>
+              </div>
             </div>
           </div>
 
@@ -937,6 +1082,175 @@ export default function SiapSajiFinancePage() {
             <div style={{ background: "linear-gradient(135deg, #5005A6 0%, #B10FBD 100%)", color: "white", borderRadius: 12, padding: "18px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 4px 14px rgba(177, 15, 189, 0.3)" }}>
               <span style={{ fontSize: 18, fontWeight: 800 }}>LABA BERSIH</span>
               <span style={{ fontSize: 24, fontWeight: 900 }}>Rp {labaBersih.toLocaleString("id-ID")}</span>
+            </div>
+
+            {/* ── RINCIAN STANDAR AKUNTANSI (FORMAT ACCURATE ONLINE) ── */}
+            <div style={{ marginTop: 24, borderTop: "2px solid #f3f4f6", paddingTop: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                <div>
+                  <h3 style={{ fontSize: 16, fontWeight: 800, color: "#111827", margin: 0 }}>
+                    Rincian Standar Laba / Rugi (Akun COA)
+                  </h3>
+                  <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>
+                    Tampilan berjenjang akun nominal pendapatan & beban sesuai format resmi Accurate
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handlePrintPlPDF}
+                  style={{
+                    padding: "5px 10px",
+                    background: "#f9fafb",
+                    color: "#4b5563",
+                    border: "1px solid #d1d5db",
+                    borderRadius: 6,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5,
+                  }}
+                >
+                  <Printer size={13} /> Pratinjau PDF
+                </button>
+              </div>
+
+              <div style={{ background: "#ffffff", border: "1px solid #e5e7eb", borderRadius: 10, padding: "18px 20px", overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1.5px solid #111827" }}>
+                      <th style={{ textAlign: "left", padding: "6px 0", fontWeight: 700, color: "#1e3a8a", width: "70%" }}>
+                        Deskripsi
+                      </th>
+                      <th style={{ textAlign: "right", padding: "6px 0", fontWeight: 700, color: "#1e3a8a", width: "30%" }}>
+                        Nominal (Rp)
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* PENDAPATAN */}
+                    <tr>
+                      <td colSpan={2} style={{ padding: "12px 0 4px", fontWeight: 800, color: "#111827" }}>
+                        PENDAPATAN
+                      </td>
+                    </tr>
+                    <tr>
+                      <td colSpan={2} style={{ padding: "2px 0 2px 14px", fontWeight: 700, color: "#4b5563" }}>
+                        Pendapatan Operasional
+                      </td>
+                    </tr>
+                    {(plData?.details?.filter((d: any) => d.kelompok === "Pendapatan") || []).map((acc: any, i: number) => (
+                      <tr key={i}>
+                        <td style={{ padding: "2px 0 2px 28px", color: "#374151" }}>
+                          {acc.nama_akun}
+                        </td>
+                        <td style={{ textAlign: "right", padding: "2px 0", fontFamily: "monospace" }}>
+                          {Number(acc.total_nominal || 0).toLocaleString("id-ID")}
+                        </td>
+                      </tr>
+                    ))}
+                    <tr>
+                      <td style={{ padding: "6px 0 6px 0", fontWeight: 800, color: "#111827" }}>
+                        Jumlah Pendapatan
+                      </td>
+                      <td style={{ textAlign: "right", padding: "6px 0", fontWeight: 800, borderTop: "1px solid #111827", fontFamily: "monospace" }}>
+                        {totalPendapatan.toLocaleString("id-ID")}
+                      </td>
+                    </tr>
+
+                    {/* HPP */}
+                    <tr>
+                      <td colSpan={2} style={{ padding: "14px 0 4px", fontWeight: 800, color: "#111827" }}>
+                        BEBAN POKOK PENJUALAN
+                      </td>
+                    </tr>
+                    <tr>
+                      <td colSpan={2} style={{ padding: "2px 0 2px 14px", fontWeight: 700, color: "#4b5563" }}>
+                        Beban Pokok Penjualan
+                      </td>
+                    </tr>
+                    {(plData?.details?.filter((d: any) => d.kelompok === "Beban" && d.sub_kelompok === "Beban Pokok Penjualan") || []).map((acc: any, i: number) => (
+                      <tr key={i}>
+                        <td style={{ padding: "2px 0 2px 28px", color: "#374151" }}>
+                          {acc.nama_akun}
+                        </td>
+                        <td style={{ textAlign: "right", padding: "2px 0", fontFamily: "monospace" }}>
+                          {Number(acc.total_nominal || 0).toLocaleString("id-ID")}
+                        </td>
+                      </tr>
+                    ))}
+                    <tr>
+                      <td style={{ padding: "6px 0 6px 0", fontWeight: 800, color: "#111827" }}>
+                        Jumlah Beban Pokok Penjualan
+                      </td>
+                      <td style={{ textAlign: "right", padding: "6px 0", fontWeight: 800, borderTop: "1px solid #111827", fontFamily: "monospace" }}>
+                        {totalHpp.toLocaleString("id-ID")}
+                      </td>
+                    </tr>
+
+                    {/* LABA KOTOR */}
+                    <tr style={{ borderTop: "1.5px solid #111827", borderBottom: "1px solid #d1d5db" }}>
+                      <td style={{ padding: "8px 0", fontWeight: 900, color: "#111827" }}>
+                        LABA KOTOR
+                      </td>
+                      <td style={{ textAlign: "right", padding: "8px 0", fontWeight: 900, color: "#111827", fontFamily: "monospace" }}>
+                        {labaKotor.toLocaleString("id-ID")}
+                      </td>
+                    </tr>
+
+                    {/* BEBAN OPERASIONAL */}
+                    <tr>
+                      <td colSpan={2} style={{ padding: "14px 0 4px", fontWeight: 800, color: "#111827" }}>
+                        BEBAN OPERASIONAL
+                      </td>
+                    </tr>
+                    <tr>
+                      <td colSpan={2} style={{ padding: "2px 0 2px 14px", fontWeight: 700, color: "#4b5563" }}>
+                        Beban Operasional
+                      </td>
+                    </tr>
+                    {(plData?.details?.filter((d: any) => d.kelompok === "Beban" && d.sub_kelompok === "Beban Operasional") || []).map((acc: any, i: number) => (
+                      <tr key={i}>
+                        <td style={{ padding: "2px 0 2px 28px", color: "#374151" }}>
+                          {acc.nama_akun}
+                        </td>
+                        <td style={{ textAlign: "right", padding: "2px 0", fontFamily: "monospace" }}>
+                          {Number(acc.total_nominal || 0).toLocaleString("id-ID")}
+                        </td>
+                      </tr>
+                    ))}
+                    <tr>
+                      <td style={{ padding: "6px 0 6px 0", fontWeight: 800, color: "#111827" }}>
+                        Jumlah Beban Operasional
+                      </td>
+                      <td style={{ textAlign: "right", padding: "6px 0", fontWeight: 800, borderTop: "1px solid #111827", fontFamily: "monospace" }}>
+                        {totalBiayaOperasional.toLocaleString("id-ID")}
+                      </td>
+                    </tr>
+
+                    {/* LABA OPERASIONAL */}
+                    <tr style={{ borderTop: "1px solid #111827" }}>
+                      <td style={{ padding: "8px 0", fontWeight: 800, color: "#111827" }}>
+                        LABA OPERASIONAL
+                      </td>
+                      <td style={{ textAlign: "right", padding: "8px 0", fontWeight: 800, color: "#111827", fontFamily: "monospace" }}>
+                        {(labaKotor - totalBiayaOperasional).toLocaleString("id-ID")}
+                      </td>
+                    </tr>
+
+                    {/* LABA BERSIH */}
+                    <tr>
+                      <td style={{ padding: "12px 0 6px", fontWeight: 900, color: "#111827", borderTop: "2px solid #111827", borderBottom: "3px double #111827" }}>
+                        LABA BERSIH
+                      </td>
+                      <td style={{ textAlign: "right", padding: "12px 0 6px", fontWeight: 900, color: labaBersih >= 0 ? "#15803d" : "#b91c1c", borderTop: "2px solid #111827", borderBottom: "3px double #111827", fontFamily: "monospace" }}>
+                        Rp {labaBersih.toLocaleString("id-ID")}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>

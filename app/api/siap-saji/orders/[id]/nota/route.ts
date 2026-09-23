@@ -19,10 +19,10 @@ export async function GET(
         o.*,
         c.name AS customer_name,
         c.phone AS customer_phone,
-        c.address AS customer_address,
-        c.patokan AS customer_patokan,
-        a.kecamatan AS area_kecamatan,
-        a.kota AS area_kota,
+        COALESCE(NULLIF(o.venue, ''), c.address) AS customer_address,
+        COALESCE(NULLIF(o.patokan, ''), c.patokan) AS customer_patokan,
+        COALESCE(ao.kecamatan, ac.kecamatan, '-') AS area_kecamatan,
+        COALESCE(ao.kota, ac.kota, '-') AS area_kota,
         ch.name AS channel_name,
         (
           SELECT json_agg(
@@ -30,6 +30,7 @@ export async function GET(
               'id', oi.id,
               'product_name', pr.name,
               'sku', pr.sku,
+              'is_half_portion', pr.is_half_portion,
               'price', oi.price,
               'quantity', oi.quantity,
               'subtotal', oi.subtotal
@@ -42,7 +43,8 @@ export async function GET(
       FROM orders o
       JOIN customers c ON o.customer_id = c.id
       LEFT JOIN channels ch ON o.channel_id = ch.id
-      LEFT JOIN areas a ON c.area_id = a.id
+      LEFT JOIN areas ao ON o.area_id = ao.id
+      LEFT JOIN areas ac ON c.area_id = ac.id
       WHERE o.id = $1 AND o.lini = 'siap_saji'`,
       [orderId]
     );
@@ -215,17 +217,22 @@ export async function GET(
           <th style="text-align:right;">Total</th>
         </tr>
       </thead>
-      <tbody>
-        ${items.map((it: any) => `
+        ${items.map((it: any) => {
+          let pName = String(it.product_name || "").trim();
+          if (it.is_half_portion && !pName.includes("1/2") && !pName.includes("½")) {
+            pName = `${pName} 1/2`;
+          }
+          return `
           <tr>
             <td>
-              ${it.product_name}
+              ${pName}
               <br/>
               <span style="color:#6b7280; font-size:10px;">${it.quantity} x ${Number(it.price).toLocaleString("id-ID")}</span>
             </td>
             <td style="text-align:right;">${Number(it.subtotal).toLocaleString("id-ID")}</td>
           </tr>
-        `).join("")}
+        `;
+        }).join("")}
       </tbody>
     </table>
 

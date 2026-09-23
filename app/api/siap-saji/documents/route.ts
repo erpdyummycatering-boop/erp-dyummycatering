@@ -75,9 +75,9 @@ export async function GET(req: NextRequest) {
             o.no_struk AS order_number,
             c.name AS customer_name,
             c.phone AS customer_phone,
-            COALESCE(a.kecamatan, '-') AS kecamatan,
-            COALESCE(c.address, '-') AS delivery_address,
-            c.patokan,
+            COALESCE(ao.kecamatan, ac.kecamatan, '-') AS kecamatan,
+            COALESCE(NULLIF(o.venue, ''), c.address, '-') AS delivery_address,
+            COALESCE(NULLIF(o.patokan, ''), c.patokan, '-') AS patokan,
             o.driver_id,
             COALESCE(dr.name, 'Unassigned') AS driver_name,
             COALESCE(o.shipping_status, 'Menunggu') AS shipping_status,
@@ -93,14 +93,15 @@ export async function GET(req: NextRequest) {
             ) AS items
           FROM orders o
           JOIN customers c ON c.id = o.customer_id
-          LEFT JOIN areas a ON a.id = c.area_id
+          LEFT JOIN areas ao ON ao.id = o.area_id
+          LEFT JOIN areas ac ON ac.id = c.area_id
           LEFT JOIN channels ch ON ch.id = o.channel_id
           LEFT JOIN drivers dr ON dr.id = o.driver_id
           LEFT JOIN order_items oi ON oi.order_id = o.id
           LEFT JOIN products p ON p.id = oi.product_id
           ${whereSql}
-          GROUP BY o.id, c.id, c.name, c.phone, o.no_struk, a.kecamatan, c.address, c.patokan, o.driver_id, dr.name, o.shipping_status, o.created_at, ch.name
-          ORDER BY COALESCE(dr.name, 'Z'), a.kecamatan, c.name`,
+          GROUP BY o.id, c.id, c.name, c.phone, o.no_struk, ao.kecamatan, ac.kecamatan, o.venue, o.patokan, c.address, c.patokan, o.driver_id, dr.name, o.shipping_status, o.created_at, ch.name
+          ORDER BY COALESCE(dr.name, 'Z'), COALESCE(ao.kecamatan, ac.kecamatan, '-'), c.name`,
           vals
         );
 
@@ -119,11 +120,11 @@ export async function GET(req: NextRequest) {
           c.name AS nama_customer,
           c.phone AS no_hp,
           o.no_struk,
-          COALESCE(a.kecamatan, '-') AS kecamatan,
-          COALESCE(a.shipping_zone, 'dalam_kota') AS shipping_zone,
-          COALESCE(a.kota, 'Pekanbaru') AS kota,
-          COALESCE(c.address, '-') AS alamat,
-          c.patokan,
+          COALESCE(ao.kecamatan, ac.kecamatan, '-') AS kecamatan,
+          COALESCE(ao.shipping_zone, ac.shipping_zone, 'dalam_kota') AS shipping_zone,
+          COALESCE(ao.kota, ac.kota, 'Kota Bandung') AS kota,
+          COALESCE(NULLIF(o.venue, ''), c.address, '-') AS alamat,
+          COALESCE(NULLIF(o.patokan, ''), c.patokan, '-') AS patokan,
           STRING_AGG(CONCAT(oi.quantity, 'x ', p.name), ', ') AS daftar_order,
           o.grand_total,
           COALESCE(o.payment_bank, 'Cash') AS payment_bank,
@@ -131,14 +132,15 @@ export async function GET(req: NextRequest) {
           COALESCE(dr.name, 'Unassigned') AS driver_name
         FROM orders o
         JOIN customers c ON c.id = o.customer_id
-        LEFT JOIN areas a ON a.id = c.area_id
+        LEFT JOIN areas ao ON ao.id = o.area_id
+        LEFT JOIN areas ac ON ac.id = c.area_id
         LEFT JOIN channels ch ON ch.id = o.channel_id
         LEFT JOIN drivers dr ON dr.id = o.driver_id
         LEFT JOIN order_items oi ON oi.order_id = o.id
         LEFT JOIN products p ON p.id = oi.product_id
         ${whereSql}
-        GROUP BY o.id, c.id, c.name, c.phone, o.no_struk, a.kecamatan, a.shipping_zone, a.kota, c.address, c.patokan, o.grand_total, o.payment_bank, ch.name, dr.name
-        ORDER BY ch.name, CASE COALESCE(a.shipping_zone, 'dalam_kota') WHEN 'dalam_kota' THEN 1 ELSE 2 END, a.kota, a.kecamatan, c.name`,
+        GROUP BY o.id, c.id, c.name, c.phone, o.no_struk, ao.kecamatan, ac.kecamatan, ao.shipping_zone, ac.shipping_zone, ao.kota, ac.kota, o.venue, o.patokan, c.address, c.patokan, o.grand_total, o.payment_bank, ch.name, dr.name
+        ORDER BY ch.name, CASE COALESCE(ao.shipping_zone, ac.shipping_zone, 'dalam_kota') WHEN 'dalam_kota' THEN 1 ELSE 2 END, COALESCE(ao.kota, ac.kota, 'Kota Bandung'), COALESCE(ao.kecamatan, ac.kecamatan, '-'), c.name`,
         vals
       );
 

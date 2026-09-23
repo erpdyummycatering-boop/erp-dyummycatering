@@ -77,10 +77,11 @@ export async function GET(req: NextRequest) {
           COALESCE(o.shipping_status, 'Menunggu') AS shipping_status,
           c.name AS customer_name,
           c.phone AS customer_phone,
-          c.address AS customer_address,
-          c.patokan AS customer_patokan,
-          a.kecamatan AS area_kecamatan,
-          a.kota AS area_kota,
+          COALESCE(NULLIF(o.venue, ''), c.address) AS customer_address,
+          COALESCE(NULLIF(o.patokan, ''), c.patokan) AS customer_patokan,
+          COALESCE(o.area_id, c.area_id) AS area_id,
+          COALESCE(ao.kecamatan, ac.kecamatan, '-') AS area_kecamatan,
+          COALESCE(ao.kota, ac.kota, '-') AS area_kota,
           ch.name AS channel_name,
           u.name AS pic_name,
           dr.name AS driver_name,
@@ -106,7 +107,8 @@ export async function GET(req: NextRequest) {
         FROM orders o
         JOIN customers c ON o.customer_id = c.id
         LEFT JOIN channels ch ON o.channel_id = ch.id
-        LEFT JOIN areas a ON c.area_id = a.id
+        LEFT JOIN areas ao ON o.area_id = ao.id
+        LEFT JOIN areas ac ON c.area_id = ac.id
         LEFT JOIN users u ON o.pic_id = u.id
         LEFT JOIN drivers dr ON o.driver_id = dr.id
         ${whereSql}
@@ -382,11 +384,11 @@ export async function POST(req: NextRequest) {
     const insOrderRes = await client.query(
       `INSERT INTO orders (
         customer_id, pic_id, lini, channel_id, driver_id, no_struk, order_date, delivery_date,
-        departure_time, arrival_time, venue, order_notes, status_order, status_payment,
+        departure_time, arrival_time, venue, patokan, area_id, order_notes, status_order, status_payment,
         shipping_fee, discount, discount_type, discount_value, shipping_zone, grand_total, payment_bank, payment_account,
         input_source, jenis_order, closing_date
       )
-      VALUES ($1, $2, 'siap_saji', $3, $4, $5, $6, $7, $8, $9, $10, $11, 'Aktif', 'Lunas', $12, $13, $14, $15, $16, $17, $18, $19, 'manual', $20, $21)
+      VALUES ($1, $2, 'siap_saji', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'Aktif', 'Lunas', $14, $15, $16, $17, $18, $19, $20, $21, 'manual', $22, $23)
       RETURNING *`,
       [
         finalCustomerId,
@@ -399,6 +401,8 @@ export async function POST(req: NextRequest) {
         departure_time || "06:30",
         arrival_time || "07:00",
         address || null,
+        patokan || null,
+        area_id ? Number(area_id) : null,
         order_notes || null,
         finalShippingFee,
         orderDiscount,

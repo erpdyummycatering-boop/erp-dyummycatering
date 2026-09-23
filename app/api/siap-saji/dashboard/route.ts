@@ -4,7 +4,19 @@ import pool from "@/lib/db";
 export async function GET(req: NextRequest) {
   const client = await pool.connect();
   try {
-    const todayStr = "2026-06-18"; // Matching seed date
+    const { searchParams } = new URL(req.url);
+    const period = searchParams.get("period") || "daily";
+    const dateParam = searchParams.get("date");
+
+    // Dynamic operational date for Indonesia/Jakarta (WIB)
+    const nowJakarta = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Jakarta",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+
+    const todayStr = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : nowJakarta;
 
     // 1. Today Stats
     const statsRes = await client.query(
@@ -13,7 +25,7 @@ export async function GET(req: NextRequest) {
         COUNT(*) AS total_orders,
         COALESCE(AVG(grand_total), 0) AS avg_order_value
        FROM orders
-       WHERE lini = 'siap_saji' AND delivery_date = $1 AND status_order <> 'Dibatalkan'`,
+       WHERE lini = 'siap_saji' AND delivery_date = $1::date AND status_order <> 'Dibatalkan'`,
       [todayStr]
     );
 
@@ -23,7 +35,7 @@ export async function GET(req: NextRequest) {
         `SELECT ch.name AS channel_name, COUNT(o.id) AS order_count
          FROM orders o
          JOIN channels ch ON o.channel_id = ch.id
-         WHERE o.lini = 'siap_saji' AND o.delivery_date = $1 AND o.status_order <> 'Dibatalkan'
+         WHERE o.lini = 'siap_saji' AND o.delivery_date = $1::date AND o.status_order <> 'Dibatalkan'
          GROUP BY ch.name
          ORDER BY order_count DESC LIMIT 1`,
         [todayStr]
@@ -32,15 +44,12 @@ export async function GET(req: NextRequest) {
         `SELECT COALESCE(SUM(oi.quantity), 0) AS total_pcs
          FROM order_items oi
          JOIN orders o ON oi.order_id = o.id
-         WHERE o.lini = 'siap_saji' AND o.delivery_date = $1 AND o.status_order <> 'Dibatalkan'`,
+         WHERE o.lini = 'siap_saji' AND o.delivery_date = $1::date AND o.status_order <> 'Dibatalkan'`,
         [todayStr]
       ),
     ]);
 
     // 3. Sales Trend by Period (daily | monthly | yearly)
-    const { searchParams } = new URL(req.url);
-    const period = searchParams.get("period") || "daily";
-
     let trendSql = "";
     if (period === "yearly") {
       trendSql = `SELECT 
