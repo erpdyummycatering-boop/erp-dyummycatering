@@ -214,7 +214,7 @@ export default async function PrintPlPage({ searchParams }: PageProps) {
             {pendapatanAccounts.map((acc, idx) => (
               <tr key={idx}>
                 <td style={{ padding: "2px 0 2px 28px", color: "#374151" }}>
-                  {acc.nama_akun}
+                  ({acc.kode_akun}) {acc.nama_akun}
                 </td>
                 <td style={{ textAlign: "right", padding: "2px 0", color: "#111827", fontFamily: "monospace", fontSize: 13 }}>
                   {fmtCurrency(Number(acc.total_nominal))}
@@ -244,7 +244,7 @@ export default async function PrintPlPage({ searchParams }: PageProps) {
             {/* ── 2. BEBAN POKOK PENJUALAN ─────────────── */}
             <tr>
               <td colSpan={2} style={{ padding: "16px 0 4px", fontWeight: 800, color: "#111827", textTransform: "uppercase" }}>
-                BEBAN POKOK PENJUALAN
+                BEBAN POKOK PENJUALAN (HPP & OVERHEAD)
               </td>
             </tr>
             <tr>
@@ -256,7 +256,7 @@ export default async function PrintPlPage({ searchParams }: PageProps) {
             {hppAccounts.map((acc, idx) => (
               <tr key={idx}>
                 <td style={{ padding: "2px 0 2px 28px", color: "#374151" }}>
-                  {acc.nama_akun}
+                  ({acc.kode_akun}) {acc.nama_akun}
                 </td>
                 <td style={{ textAlign: "right", padding: "2px 0", color: "#111827", fontFamily: "monospace", fontSize: 13 }}>
                   {fmtCurrency(Number(acc.total_nominal))}
@@ -296,7 +296,7 @@ export default async function PrintPlPage({ searchParams }: PageProps) {
             {/* ── 4. BEBAN OPERASIONAL ─────────────────── */}
             <tr>
               <td colSpan={2} style={{ padding: "16px 0 4px", fontWeight: 800, color: "#111827", textTransform: "uppercase" }}>
-                BEBAN OPERASIONAL
+                BEBAN OPERASIONAL (KANTOR & UMUM)
               </td>
             </tr>
             <tr>
@@ -308,7 +308,7 @@ export default async function PrintPlPage({ searchParams }: PageProps) {
             {opexAccounts.map((acc, idx) => (
               <tr key={idx}>
                 <td style={{ padding: "2px 0 2px 28px", color: "#374151" }}>
-                  {acc.nama_akun}
+                  ({acc.kode_akun}) {acc.nama_akun}
                 </td>
                 <td style={{ textAlign: "right", padding: "2px 0", color: "#111827", fontFamily: "monospace", fontSize: 13 }}>
                   {fmtCurrency(Number(acc.total_nominal))}

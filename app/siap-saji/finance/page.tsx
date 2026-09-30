@@ -69,6 +69,15 @@ export default function SiapSajiFinancePage() {
   const [expDateFrom, setExpDateFrom] = useState("");
   const [expDateTo, setExpDateTo] = useState("");
 
+  // Edit Expense State
+  const [isEditExpenseModalOpen, setIsEditExpenseModalOpen] = useState(false);
+  const [editExpenseId, setEditExpenseId] = useState<number | null>(null);
+  const [editExpDate, setEditExpDate] = useState("");
+  const [editExpKeterangan, setEditExpKeterangan] = useState("");
+  const [editExpNominal, setEditExpNominal] = useState<number>(0);
+  const [editExpCoaId, setEditExpCoaId] = useState<number | "">("");
+  const [editExpKasBankId, setEditExpKasBankId] = useState<number | "hutang" | "">("");
+
   // Tab 4: Kas & Bank Data & Filters
   const [accounts, setAccounts] = useState<any[]>([]);
   const [mutasi, setMutasi] = useState<any[]>([]);
@@ -134,6 +143,9 @@ export default function SiapSajiFinancePage() {
         setAccounts(json.accounts || []);
         setMutasi(json.mutasi || []);
         setCoaList(json.coa || []);
+        if (json.coa?.length > 0) {
+          setCoaListAll((prev) => (prev && prev.length > 0 ? prev : json.coa));
+        }
 
         if (json.accounts?.length > 0) {
           if (!purchaseKasBankId) setPurchaseKasBankId(json.accounts[0].id);
@@ -141,7 +153,7 @@ export default function SiapSajiFinancePage() {
         }
 
         if (json.coa?.length > 0) {
-          const defaultHpp = json.coa.find((c: any) => c.kode_akun === "5-1001");
+          const defaultHpp = json.coa.find((c: any) => c.kode_akun === "5-1001" || c.kode_akun === "5-50000");
           if (defaultHpp && !purchaseCoaId) setPurchaseCoaId(defaultHpp.id);
 
           const defaultExpense = json.coa.find((c: any) => c.kode_akun.startsWith("6-"));
@@ -295,8 +307,24 @@ export default function SiapSajiFinancePage() {
     }
   };
 
+  const fetchCoaMaster = async () => {
+    try {
+      const res = await fetch("/api/siap-saji/finance/coa");
+      if (res.ok) {
+        const json = await res.json();
+        if (json.data?.length > 0) {
+          setCoaListAll(json.data);
+          setCoaList(json.data);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
     fetchKasBankMaster();
+    fetchCoaMaster();
   }, []);
 
   useEffect(() => {
@@ -391,6 +419,62 @@ export default function SiapSajiFinancePage() {
     }
   };
 
+  const handleOpenEditExpense = (item: any) => {
+    setEditExpenseId(item.id);
+    setEditExpDate(item.journal_date ? item.journal_date.split("T")[0] : new Date().toISOString().split("T")[0]);
+    setEditExpKeterangan(item.keterangan ? item.keterangan.replace(/^Biaya Operasional:\s*/i, "") : "");
+    setEditExpNominal(Number(item.nominal || 0));
+    setEditExpCoaId(item.akun_debit || "");
+    setEditExpKasBankId(item.kas_bank_id || (item.kredit_nama?.toLowerCase().includes("utang") ? "hutang" : (accounts.length > 0 ? accounts[0].id : "")));
+    setIsEditExpenseModalOpen(true);
+  };
+
+  const handleSaveEditExpense = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editExpenseId || !editExpDate || !editExpKeterangan || !editExpNominal || !editExpCoaId) {
+      return toast.error("Tanggal, Keterangan, Nominal, dan Kategori Beban wajib diisi.");
+    }
+    setIsSubmitting(true);
+    try {
+      const res = await fetch("/api/siap-saji/finance/expenses", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: editExpenseId,
+          expense_date: editExpDate,
+          keterangan: editExpKeterangan,
+          nominal: editExpNominal,
+          coa_id: editExpCoaId,
+          kas_bank_id: editExpKasBankId,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Gagal memperbarui biaya operasional");
+      toast.success("Biaya operasional berhasil diperbarui!");
+      setIsEditExpenseModalOpen(false);
+      fetchTabData();
+      fetchKasBankMaster();
+    } catch (err: any) {
+      toast.error(err.message || "Gagal memperbarui biaya");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteExpense = async (id: number, ket: string) => {
+    if (!confirm(`Apakah Anda yakin ingin menghapus biaya "${ket}"? Saldo kas/bank akan dikembalikan otomatis.`)) return;
+    try {
+      const res = await fetch(`/api/siap-saji/finance/expenses?id=${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Gagal menghapus biaya operasional");
+      toast.success("Biaya operasional berhasil dihapus dan saldo kas diperbarui.");
+      fetchTabData();
+      fetchKasBankMaster();
+    } catch (err: any) {
+      toast.error(err.message || "Gagal menghapus biaya");
+    }
+  };
+
   // Helpers for P&L calculations
   const calculatePlCategoryTotal = (kelompok: string, subKelompok?: string) => {
     if (!plData || !plData.details) return 0;
@@ -436,7 +520,7 @@ export default function SiapSajiFinancePage() {
 
     const pendAccounts = plData.details.filter((d: any) => d.kelompok === "Pendapatan");
     pendAccounts.forEach((acc: any) => {
-      rows.push([`    ${acc.nama_akun}`, Number(acc.total_nominal || 0)]);
+      rows.push([`    (${acc.kode_akun}) ${acc.nama_akun}`, Number(acc.total_nominal || 0)]);
     });
     rows.push(["Jumlah Pendapatan", totalPendapatan]);
     rows.push([]);
@@ -445,7 +529,7 @@ export default function SiapSajiFinancePage() {
     rows.push(["  Beban Pokok Penjualan", ""]);
     const hppAccs = plData.details.filter((d: any) => d.kelompok === "Beban" && d.sub_kelompok === "Beban Pokok Penjualan");
     hppAccs.forEach((acc: any) => {
-      rows.push([`    ${acc.nama_akun}`, Number(acc.total_nominal || 0)]);
+      rows.push([`    (${acc.kode_akun}) ${acc.nama_akun}`, Number(acc.total_nominal || 0)]);
     });
     rows.push(["Jumlah Beban Pokok Penjualan", totalHpp]);
     rows.push([]);
@@ -457,7 +541,7 @@ export default function SiapSajiFinancePage() {
     rows.push(["  Beban Operasional", ""]);
     const opexAccs = plData.details.filter((d: any) => d.kelompok === "Beban" && d.sub_kelompok === "Beban Operasional");
     opexAccs.forEach((acc: any) => {
-      rows.push([`    ${acc.nama_akun}`, Number(acc.total_nominal || 0)]);
+      rows.push([`    (${acc.kode_akun}) ${acc.nama_akun}`, Number(acc.total_nominal || 0)]);
     });
     rows.push(["Jumlah Beban Operasional", totalBiayaOperasional]);
     rows.push([]);
@@ -471,7 +555,7 @@ export default function SiapSajiFinancePage() {
     if (otherAccs.length > 0) {
       rows.push(["PENDAPATAN / (BEBAN) LAIN-LAIN", ""]);
       otherAccs.forEach((acc: any) => {
-        rows.push([`    ${acc.nama_akun}`, Number(acc.total_nominal || 0)]);
+        rows.push([`    (${acc.kode_akun}) ${acc.nama_akun}`, Number(acc.total_nominal || 0)]);
       });
       rows.push([]);
     }
@@ -510,13 +594,14 @@ export default function SiapSajiFinancePage() {
     setKasMutasiDate(new Date().toISOString().split("T")[0]);
     setKasMutasiNominal(0);
 
+    const availableCoa = coaListAll.length > 0 ? coaListAll : coaList;
     if (jenis === "Keluar") {
-      const priveAcc = coaListAll.find((c: any) => c.kode_akun === "3-2001");
-      setKasMutasiCoaId(priveAcc ? priveAcc.id : "");
+      const priveAcc = availableCoa.find((c: any) => c.kode_akun === "3-2001");
+      setKasMutasiCoaId(priveAcc ? priveAcc.id : (availableCoa.length > 0 ? availableCoa[0].id : ""));
       setKasMutasiKeterangan("Pengambilan prive owner");
     } else {
-      const modalAcc = coaListAll.find((c: any) => c.kode_akun === "3-1001");
-      setKasMutasiCoaId(modalAcc ? modalAcc.id : "");
+      const modalAcc = availableCoa.find((c: any) => c.kode_akun === "3-1001");
+      setKasMutasiCoaId(modalAcc ? modalAcc.id : (availableCoa.length > 0 ? availableCoa[0].id : ""));
       setKasMutasiKeterangan("Setoran modal owner");
     }
     setIsKasMutasiModalOpen(true);
@@ -1026,23 +1111,59 @@ export default function SiapSajiFinancePage() {
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {/* PENDAPATAN */}
             <div style={{ background: "#fafafa", borderRadius: 10, padding: 16, border: "1px solid #f3f4f6" }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>
-                PENDAPATAN
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    PENDAPATAN
+                  </div>
+                  <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>
+                    Pendapatan Penjualan, Catering Umum/Regular, & Pengurang Penjualan
+                  </div>
+                </div>
+                <span style={{ fontWeight: 800, color: "#15803d", fontSize: 16 }}>Rp {totalPendapatan.toLocaleString("id-ID")}</span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 15, fontWeight: 600, color: "#111827" }}>
-                <span>Penjualan Bersih (Siap Saji)</span>
-                <span style={{ fontWeight: 800, color: "#15803d" }}>Rp {totalPendapatan.toLocaleString("id-ID")}</span>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 4 }}>
+                {(plData?.details?.filter((d: any) => d.kelompok === "Pendapatan" && Number(d.total_nominal || 0) !== 0) || []).map((acc: any, i: number) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, color: "#374151" }}>
+                    <span>({acc.kode_akun}) {acc.nama_akun}</span>
+                    <span style={{ fontWeight: 600, fontFamily: "monospace" }}>Rp {Number(acc.total_nominal || 0).toLocaleString("id-ID")}</span>
+                  </div>
+                ))}
+                {(!plData?.details || plData.details.filter((d: any) => d.kelompok === "Pendapatan" && Number(d.total_nominal || 0) !== 0).length === 0) && (
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, color: "#6b7280" }}>
+                    <span>Penjualan Bersih (Siap Saji)</span>
+                    <span style={{ fontWeight: 600, fontFamily: "monospace" }}>Rp {totalPendapatan.toLocaleString("id-ID")}</span>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* HARGA POKOK PENJUALAN (HPP) */}
             <div style={{ background: "#fafafa", borderRadius: 10, padding: 16, border: "1px solid #f3f4f6" }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>
-                HARGA POKOK PENJUALAN (HPP)
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    HARGA POKOK PENJUALAN (HPP & OVERHEAD)
+                  </div>
+                  <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>
+                    Bahan Baku, Kemasan, Gaji Produksi, & Overhead Dapur (Gas, Listrik Dapur, Bensin Dapur)
+                  </div>
+                </div>
+                <span style={{ fontWeight: 800, color: "#b45309", fontSize: 16 }}>Rp {totalHpp.toLocaleString("id-ID")}</span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 15, fontWeight: 600, color: "#111827" }}>
-                <span>Total HPP (Bahan & Kemasan)</span>
-                <span style={{ fontWeight: 800, color: "#b45309" }}>Rp {totalHpp.toLocaleString("id-ID")}</span>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 4 }}>
+                {(plData?.details?.filter((d: any) => d.kelompok === "Beban" && d.sub_kelompok === "Beban Pokok Penjualan" && Number(d.total_nominal || 0) !== 0) || []).map((acc: any, i: number) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, color: "#374151" }}>
+                    <span>({acc.kode_akun}) {acc.nama_akun}</span>
+                    <span style={{ fontWeight: 600, fontFamily: "monospace" }}>Rp {Number(acc.total_nominal || 0).toLocaleString("id-ID")}</span>
+                  </div>
+                ))}
+                {(!plData?.details || plData.details.filter((d: any) => d.kelompok === "Beban" && d.sub_kelompok === "Beban Pokok Penjualan" && Number(d.total_nominal || 0) !== 0).length === 0) && (
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, color: "#6b7280" }}>
+                    <span>Total HPP (Bahan & Kemasan)</span>
+                    <span style={{ fontWeight: 600, fontFamily: "monospace" }}>Rp {totalHpp.toLocaleString("id-ID")}</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1054,12 +1175,30 @@ export default function SiapSajiFinancePage() {
 
             {/* BIAYA OPERASIONAL */}
             <div style={{ background: "#fafafa", borderRadius: 10, padding: 16, border: "1px solid #f3f4f6" }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>
-                BIAYA OPERASIONAL
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    BIAYA OPERASIONAL (KANTOR & UMUM)
+                  </div>
+                  <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>
+                    Gaji Karyawan Kantor, ATK, Sewa Kantor, & Operasional Umum
+                  </div>
+                </div>
+                <span style={{ fontWeight: 800, color: "#b91c1c", fontSize: 16 }}>Rp {totalBiayaOperasional.toLocaleString("id-ID")}</span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 15, fontWeight: 600, color: "#111827", marginBottom: 8 }}>
-                <span>Biaya Operasional & Overhead</span>
-                <span style={{ fontWeight: 800, color: "#b91c1c" }}>Rp {totalBiayaOperasional.toLocaleString("id-ID")}</span>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 4, marginBottom: 8 }}>
+                {(plData?.details?.filter((d: any) => d.kelompok === "Beban" && d.sub_kelompok === "Beban Operasional" && Number(d.total_nominal || 0) !== 0) || []).map((acc: any, i: number) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, color: "#374151" }}>
+                    <span>({acc.kode_akun}) {acc.nama_akun}</span>
+                    <span style={{ fontWeight: 600, fontFamily: "monospace" }}>Rp {Number(acc.total_nominal || 0).toLocaleString("id-ID")}</span>
+                  </div>
+                ))}
+                {(!plData?.details || plData.details.filter((d: any) => d.kelompok === "Beban" && d.sub_kelompok === "Beban Operasional" && Number(d.total_nominal || 0) !== 0).length === 0) && (
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, color: "#6b7280" }}>
+                    <span>Biaya Operasional</span>
+                    <span style={{ fontWeight: 600, fontFamily: "monospace" }}>Rp {totalBiayaOperasional.toLocaleString("id-ID")}</span>
+                  </div>
+                )}
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 14, fontWeight: 700, color: "#374151", paddingTop: 8, borderTop: "1px dashed #e5e7eb" }}>
                 <span>LABA OPERASIONAL</span>
@@ -1143,7 +1282,7 @@ export default function SiapSajiFinancePage() {
                     {(plData?.details?.filter((d: any) => d.kelompok === "Pendapatan") || []).map((acc: any, i: number) => (
                       <tr key={i}>
                         <td style={{ padding: "2px 0 2px 28px", color: "#374151" }}>
-                          {acc.nama_akun}
+                          ({acc.kode_akun}) {acc.nama_akun}
                         </td>
                         <td style={{ textAlign: "right", padding: "2px 0", fontFamily: "monospace" }}>
                           {Number(acc.total_nominal || 0).toLocaleString("id-ID")}
@@ -1173,7 +1312,7 @@ export default function SiapSajiFinancePage() {
                     {(plData?.details?.filter((d: any) => d.kelompok === "Beban" && d.sub_kelompok === "Beban Pokok Penjualan") || []).map((acc: any, i: number) => (
                       <tr key={i}>
                         <td style={{ padding: "2px 0 2px 28px", color: "#374151" }}>
-                          {acc.nama_akun}
+                          ({acc.kode_akun}) {acc.nama_akun}
                         </td>
                         <td style={{ textAlign: "right", padding: "2px 0", fontFamily: "monospace" }}>
                           {Number(acc.total_nominal || 0).toLocaleString("id-ID")}
@@ -1213,7 +1352,7 @@ export default function SiapSajiFinancePage() {
                     {(plData?.details?.filter((d: any) => d.kelompok === "Beban" && d.sub_kelompok === "Beban Operasional") || []).map((acc: any, i: number) => (
                       <tr key={i}>
                         <td style={{ padding: "2px 0 2px 28px", color: "#374151" }}>
-                          {acc.nama_akun}
+                          ({acc.kode_akun}) {acc.nama_akun}
                         </td>
                         <td style={{ textAlign: "right", padding: "2px 0", fontFamily: "monospace" }}>
                           {Number(acc.total_nominal || 0).toLocaleString("id-ID")}
@@ -1412,18 +1551,19 @@ export default function SiapSajiFinancePage() {
                 <th style={{ padding: "12px 16px" }}>Kategori Beban</th>
                 <th style={{ padding: "12px 16px" }}>Sumber Dana</th>
                 <th style={{ padding: "12px 16px", textAlign: "right" }}>Nominal</th>
+                <th style={{ padding: "12px 16px", textAlign: "center", width: 90 }}>Aksi</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                  <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
                     Memuat biaya operasional...
                   </td>
                 </tr>
               ) : expenses.length === 0 ? (
                 <tr>
-                  <td colSpan={6} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                  <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
                     Belum ada riwayat biaya operasional.
                   </td>
                 </tr>
@@ -1434,11 +1574,47 @@ export default function SiapSajiFinancePage() {
                     <td style={{ padding: "14px 16px", fontWeight: 600 }}>{formatDate(e.journal_date)}</td>
                     <td style={{ padding: "14px 16px", color: "#111827", fontWeight: 600 }}>{e.keterangan}</td>
                     <td style={{ padding: "14px 16px", color: "#4b5563" }}>
-                      {e.beban_kode} - {e.beban_nama}
+                      ({e.beban_kode}) {e.beban_nama}
                     </td>
                     <td style={{ padding: "14px 16px", color: "#374151" }}>{e.kredit_nama}</td>
                     <td style={{ padding: "14px 16px", textAlign: "right", fontWeight: 800, color: "#E24B4A" }}>
                       Rp {Number(e.nominal).toLocaleString("id-ID")}
+                    </td>
+                    <td style={{ padding: "14px 16px", textAlign: "center" }}>
+                      <div style={{ display: "flex", justifyContent: "center", gap: 6 }}>
+                        <button
+                          onClick={() => handleOpenEditExpense(e)}
+                          style={{
+                            padding: "6px 8px",
+                            borderRadius: 6,
+                            border: "1px solid #d1d5db",
+                            background: "#f9fafb",
+                            color: "#4b5563",
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                          }}
+                          title="Edit Biaya Operasional"
+                        >
+                          <Edit3 size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteExpense(e.id, e.keterangan)}
+                          style={{
+                            padding: "6px 8px",
+                            borderRadius: 6,
+                            border: "1px solid #fecaca",
+                            background: "#fef2f2",
+                            color: "#dc2626",
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                          }}
+                          title="Hapus Biaya Operasional"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -1719,10 +1895,11 @@ export default function SiapSajiFinancePage() {
               </span>
               <button
                 onClick={() => {
+                  const list = coaListAll.length > 0 ? coaListAll : coaList;
                   setJouFormDate(new Date().toISOString().split("T")[0]);
                   setJouFormRefNo(`JU-${Date.now().toString().slice(-6)}`);
-                  setJouFormDebitCoaId(coaListAll.length > 0 ? coaListAll[0].id : "");
-                  setJouFormCreditCoaId(coaListAll.length > 1 ? coaListAll[1].id : "");
+                  setJouFormDebitCoaId(list.length > 0 ? list[0].id : "");
+                  setJouFormCreditCoaId(list.length > 1 ? list[1].id : "");
                   setJouFormNominal(0);
                   setJouFormKeterangan("");
                   setIsJournalModalOpen(true);
@@ -1934,11 +2111,11 @@ export default function SiapSajiFinancePage() {
                   required
                   style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
                 >
-                  {coaList
+                  {(coaListAll.length > 0 ? coaListAll : coaList)
                     .filter((c) => c.sub_kelompok === "Beban Pokok Penjualan")
                     .map((c) => (
                       <option key={c.id} value={c.id}>
-                        [{c.kode_akun}] {c.nama_akun}
+                        ({c.kode_akun}) {c.nama_akun}
                       </option>
                     ))}
                 </select>
@@ -1993,10 +2170,10 @@ export default function SiapSajiFinancePage() {
       {/* ── MODAL: INPUT EXPENSE ────────────────────────────── */}
       {isExpenseModalOpen && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-          <div style={{ background: "white", borderRadius: 16, maxWidth: 480, width: "100%", padding: 24 }}>
+          <div style={{ background: "white", borderRadius: 16, maxWidth: 480, width: "100%", padding: 24, boxShadow: "0 20px 25px -5px rgba(0,0,0,0.2)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h3 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>Catat Biaya Operasional</h3>
-              <button onClick={() => setIsExpenseModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer" }}>
+              <h3 style={{ fontSize: 18, fontWeight: 800, margin: 0, color: "#111827" }}>Catat Biaya Operasional</h3>
+              <button onClick={() => setIsExpenseModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280" }}>
                 <X size={20} />
               </button>
             </div>
@@ -2021,7 +2198,7 @@ export default function SiapSajiFinancePage() {
                 </label>
                 <input
                   type="text"
-                  placeholder="Gaji staf CS, Token listrik dapur, Bensin kurir..."
+                  placeholder="Gaji staf kantor, ATK, Biaya harian..."
                   value={expenseKeterangan}
                   onChange={(e) => setExpenseKeterangan(e.target.value)}
                   required
@@ -2039,11 +2216,11 @@ export default function SiapSajiFinancePage() {
                   required
                   style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
                 >
-                  {coaList
-                    .filter((c) => c.sub_kelompok === "Beban Operasional")
+                  {(coaListAll.length > 0 ? coaListAll : coaList)
+                    .filter((c) => c.sub_kelompok === "Beban Operasional" || c.kelompok === "Beban")
                     .map((c) => (
                       <option key={c.id} value={c.id}>
-                        [{c.kode_akun}] {c.nama_akun}
+                        ({c.kode_akun}) {c.nama_akun} - {c.sub_kelompok || c.kelompok}
                       </option>
                     ))}
                 </select>
@@ -2088,6 +2265,110 @@ export default function SiapSajiFinancePage() {
                 </button>
                 <button type="submit" disabled={isSubmitting} style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "#5005A6", color: "white", fontWeight: 700 }}>
                   {isSubmitting ? "Simpan..." : "Simpan Biaya"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: EDIT EXPENSE ──────────────────────────────── */}
+      {isEditExpenseModalOpen && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: "white", borderRadius: 16, maxWidth: 480, width: "100%", padding: 24, boxShadow: "0 20px 25px -5px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 800, margin: 0, color: "#111827" }}>Edit Biaya Operasional</h3>
+              <button onClick={() => setIsEditExpenseModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280" }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditExpense}>
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                  Tanggal Transaksi *
+                </label>
+                <input
+                  type="date"
+                  value={editExpDate}
+                  onChange={(e) => setEditExpDate(e.target.value)}
+                  required
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                  Keterangan Biaya *
+                </label>
+                <input
+                  type="text"
+                  placeholder="Gaji staf kantor, ATK, Biaya harian..."
+                  value={editExpKeterangan}
+                  onChange={(e) => setEditExpKeterangan(e.target.value)}
+                  required
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                  Kategori Beban Operasional *
+                </label>
+                <select
+                  value={editExpCoaId}
+                  onChange={(e) => setEditExpCoaId(Number(e.target.value))}
+                  required
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                >
+                  {(coaListAll.length > 0 ? coaListAll : coaList)
+                    .filter((c) => c.sub_kelompok === "Beban Operasional" || c.kelompok === "Beban")
+                    .map((c) => (
+                      <option key={c.id} value={c.id}>
+                        ({c.kode_akun}) {c.nama_akun} - {c.sub_kelompok || c.kelompok}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                  Sumber Dana Kas/Bank / Metode *
+                </label>
+                <select
+                  value={editExpKasBankId}
+                  onChange={(e) => setEditExpKasBankId(e.target.value === "hutang" ? "hutang" : Number(e.target.value))}
+                  required
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                >
+                  <option value="hutang">💳 Hutang Usaha / Tempo (Belum Dibayar)</option>
+                  {accounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.nama_rekening} (Saldo: Rp{Number(a.saldo_kini).toLocaleString("id-ID")})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                  Nominal (Rp) *
+                </label>
+                <input
+                  type="text"
+                  value={formatThousand(editExpNominal)}
+                  onChange={(e) => setEditExpNominal(parseThousand(e.target.value))}
+                  required
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, fontWeight: 700 }}
+                />
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                <button type="button" onClick={() => setIsEditExpenseModalOpen(false)} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "white", cursor: "pointer" }}>
+                  Batal
+                </button>
+                <button type="submit" disabled={isSubmitting} style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "#5005A6", color: "white", fontWeight: 700, cursor: "pointer" }}>
+                  {isSubmitting ? "Menyimpan..." : "Simpan Perubahan"}
                 </button>
               </div>
             </form>
@@ -2616,9 +2897,9 @@ export default function SiapSajiFinancePage() {
                   style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
                 >
                   <option value="">-- Pilih Akun COA --</option>
-                  {coaListAll.map((c) => (
+                  {(coaListAll.length > 0 ? coaListAll : coaList).map((c) => (
                     <option key={c.id} value={c.id}>
-                      [{c.kode_akun}] {c.nama_akun} ({c.kelompok})
+                      ({c.kode_akun}) {c.nama_akun} - {c.kelompok}
                     </option>
                   ))}
                 </select>
@@ -2734,9 +3015,9 @@ export default function SiapSajiFinancePage() {
                   style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #bbf7d0", background: "#f0fdf4", fontSize: 14, fontWeight: 600 }}
                 >
                   <option value="">-- Pilih Akun Debet --</option>
-                  {coaListAll.map((c) => (
+                  {(coaListAll.length > 0 ? coaListAll : coaList).map((c) => (
                     <option key={c.id} value={c.id}>
-                      [{c.kode_akun}] {c.nama_akun} ({c.kelompok})
+                      ({c.kode_akun}) {c.nama_akun} - {c.kelompok}
                     </option>
                   ))}
                 </select>
@@ -2753,9 +3034,9 @@ export default function SiapSajiFinancePage() {
                   style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #fca5a5", background: "#fef2f2", fontSize: 14, fontWeight: 600 }}
                 >
                   <option value="">-- Pilih Akun Kredit --</option>
-                  {coaListAll.map((c) => (
+                  {(coaListAll.length > 0 ? coaListAll : coaList).map((c) => (
                     <option key={c.id} value={c.id}>
-                      [{c.kode_akun}] {c.nama_akun} ({c.kelompok})
+                      ({c.kode_akun}) {c.nama_akun} - {c.kelompok}
                     </option>
                   ))}
                 </select>

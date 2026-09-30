@@ -45,10 +45,12 @@ export async function GET(req: NextRequest) {
           j.*,
           c.nama_akun AS beban_nama,
           c.kode_akun AS beban_kode,
-          ck.nama_akun AS kredit_nama
+          ck.nama_akun AS kredit_nama,
+          km.kas_bank_id
         FROM journals j
         LEFT JOIN coa c ON j.akun_debit = c.id
         LEFT JOIN coa ck ON j.akun_kredit = ck.id
+        LEFT JOIN kas_mutasi km ON km.ref_type = 'biaya' AND km.ref_id = j.id
         WHERE ${whereSql}
         ORDER BY j.journal_date DESC, j.id DESC
         LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
@@ -150,6 +152,159 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     await client.query("ROLLBACK");
     console.error("Gagal mencatat biaya operasional:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  } finally {
+    client.release();
+  }
+}
+
+export async function PUT(req: NextRequest) {
+  const body = await req.json();
+  const { id, expense_date, keterangan, nominal, coa_id, kas_bank_id } = body;
+
+  if (!id || !expense_date || !keterangan || !nominal || !coa_id) {
+    return NextResponse.json(
+      { error: "ID, Tanggal, Keterangan, Nominal, dan Kategori Beban wajib diisi." },
+      { status: 400 }
+    );
+  }
+
+  const isHutang = kas_bank_id === "hutang" || kas_bank_id === "0" || !kas_bank_id;
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const amount = Number(nominal);
+
+    // 1. Verify existing journal
+    const jCheck = await client.query(
+      "SELECT * FROM journals WHERE id = $1 AND lini = 'siap_saji' AND ref_type = 'biaya' FOR UPDATE",
+      [id]
+    );
+    if (jCheck.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "Data biaya operasional tidak ditemukan." }, { status: 404 });
+    }
+
+    // 2. Revert previous kas_mutasi and refund old saldo if previously paid via kas_bank
+    const oldMutasiRes = await client.query(
+      "SELECT * FROM kas_mutasi WHERE ref_type = 'biaya' AND ref_id = $1",
+      [id]
+    );
+    if (oldMutasiRes.rows.length > 0) {
+      const oldM = oldMutasiRes.rows[0];
+      await client.query(
+        "UPDATE kas_bank SET saldo_kini = saldo_kini + $1, updated_at = NOW() WHERE id = $2",
+        [Number(oldM.nominal), oldM.kas_bank_id]
+      );
+      await client.query("DELETE FROM kas_mutasi WHERE id = $1", [oldM.id]);
+    }
+
+    // 3. Resolve new Kredit Account
+    let coaKreditId: number | null = null;
+    if (isHutang) {
+      const coaUtangRes = await client.query("SELECT id FROM coa WHERE kode_akun = '2-1001' AND lini = 'siap_saji' LIMIT 1");
+      if (coaUtangRes.rows.length > 0) coaKreditId = coaUtangRes.rows[0].id;
+    } else {
+      const kbRes = await client.query("SELECT * FROM kas_bank WHERE id = $1", [kas_bank_id]);
+      if (kbRes.rows.length > 0) {
+        const bankName = kbRes.rows[0].nama_bank || kbRes.rows[0].nama_rekening;
+        let kreditKode = "1-1002";
+        if (bankName.toUpperCase().includes("MANDIRI")) kreditKode = "1-1003";
+        else if (bankName.toUpperCase().includes("KAS")) kreditKode = "1-1001";
+
+        const coaKreditRes = await client.query("SELECT id FROM coa WHERE kode_akun = $1 AND lini = 'siap_saji' LIMIT 1", [kreditKode]);
+        if (coaKreditRes.rows.length > 0) coaKreditId = coaKreditRes.rows[0].id;
+      }
+    }
+
+    if (!coaKreditId) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "Akun kredit CoA tidak ditemukan." }, { status: 400 });
+    }
+
+    // 4. Update Journal
+    const finalKeterangan = isHutang && !keterangan.includes("Hutang Usaha")
+      ? `Biaya Operasional (Hutang Usaha / Tempo): ${keterangan.trim()}`
+      : keterangan.trim();
+
+    const updRes = await client.query(
+      `UPDATE journals
+       SET journal_date = $1, akun_debit = $2, akun_kredit = $3, nominal = $4, keterangan = $5
+       WHERE id = $6
+       RETURNING *`,
+      [expense_date, Number(coa_id), coaKreditId, amount, finalKeterangan, id]
+    );
+
+    // 5. Insert new kas_mutasi & deduct new kas_bank if not hutang
+    if (!isHutang) {
+      await client.query(
+        `INSERT INTO kas_mutasi (kas_bank_id, lini, mutasi_date, jenis, nominal, ref_type, ref_id, keterangan)
+         VALUES ($1, 'siap_saji', $2, 'Keluar', $3, 'biaya', $4, $5)`,
+        [kas_bank_id, expense_date, amount, id, `Biaya Operasional: ${keterangan.trim()}`]
+      );
+
+      await client.query(
+        "UPDATE kas_bank SET saldo_kini = saldo_kini - $1, updated_at = NOW() WHERE id = $2",
+        [amount, kas_bank_id]
+      );
+    }
+
+    await client.query("COMMIT");
+    return NextResponse.json(updRes.rows[0]);
+  } catch (error: any) {
+    await client.query("ROLLBACK");
+    console.error("Gagal memperbarui biaya operasional:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  } finally {
+    client.release();
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get("id");
+
+  if (!id) {
+    return NextResponse.json({ error: "Parameter ID biaya operasional wajib diisi." }, { status: 400 });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // 1. Verify journal exists
+    const jCheck = await client.query(
+      "SELECT * FROM journals WHERE id = $1 AND lini = 'siap_saji' AND ref_type = 'biaya' FOR UPDATE",
+      [id]
+    );
+    if (jCheck.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "Data biaya operasional tidak ditemukan." }, { status: 404 });
+    }
+
+    // 2. Refund kas balance if mutasi exists
+    const oldMutasiRes = await client.query(
+      "SELECT * FROM kas_mutasi WHERE ref_type = 'biaya' AND ref_id = $1",
+      [id]
+    );
+    if (oldMutasiRes.rows.length > 0) {
+      const oldM = oldMutasiRes.rows[0];
+      await client.query(
+        "UPDATE kas_bank SET saldo_kini = saldo_kini + $1, updated_at = NOW() WHERE id = $2",
+        [Number(oldM.nominal), oldM.kas_bank_id]
+      );
+      await client.query("DELETE FROM kas_mutasi WHERE id = $1", [oldM.id]);
+    }
+
+    // 3. Delete journal
+    await client.query("DELETE FROM journals WHERE id = $1", [id]);
+
+    await client.query("COMMIT");
+    return NextResponse.json({ message: "Biaya operasional berhasil dihapus." });
+  } catch (error: any) {
+    await client.query("ROLLBACK");
+    console.error("Gagal menghapus biaya operasional:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   } finally {
     client.release();
