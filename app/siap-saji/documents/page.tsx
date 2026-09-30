@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { ClipboardList, Printer, Calendar, Filter, Truck, ChefHat, FileText, CheckCircle, Search, ArrowUpDown, ChevronUp, ChevronDown } from "lucide-react";
+import { ClipboardList, Printer, Calendar, Filter, Truck, ChefHat, FileText, CheckCircle, Search, ArrowUpDown, ChevronUp, ChevronDown, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { MultiSelectCheckbox } from "@/components/ui/MultiSelectCheckbox";
 import { Pagination } from "@/components/ui/Pagination";
@@ -72,7 +73,11 @@ export default function SiapSajiDocumentsPage() {
 
     return list.sort((a, b) => {
       let comp = 0;
-      if (rekapSortField === "pelanggan") {
+      if (rekapSortField === "tanggal") {
+        comp = (a.tanggal || "").localeCompare(b.tanggal || "");
+      } else if (rekapSortField === "channel") {
+        comp = (a.channel || "").localeCompare(b.channel || "");
+      } else if (rekapSortField === "pelanggan") {
         comp = (a.pelanggan || "").localeCompare(b.pelanggan || "");
       } else if (rekapSortField === "penjualan") {
         comp = Number(a.penjualan || 0) - Number(b.penjualan || 0);
@@ -111,6 +116,87 @@ export default function SiapSajiDocumentsPage() {
     ) : (
       <ChevronDown size={13} color="#5005A6" style={{ marginLeft: 4, display: "inline-block" }} />
     );
+  };
+
+  // Export Excel for Rekap CS
+  const handleExportRekapCS = () => {
+    if (!sortedRekapData || sortedRekapData.length === 0) {
+      return toast.error("Tidak ada data Rekap CS untuk diekspor");
+    }
+
+    const wb = XLSX.utils.book_new();
+
+    const aoa: any[][] = [];
+    aoa.push(["REKAP TABEL HARIAN — CUSTOMER SERVICE"]);
+    aoa.push([`Format Sheet Manual CS | Tanggal: ${dateLabel} | Channel: ${docData?.channel || "Semua Channel"}`]);
+    aoa.push([]); // blank row
+
+    // Table Header
+    aoa.push([
+      "No",
+      "Tanggal",
+      "Pelanggan",
+      "Channel",
+      "Penjualan",
+      "Biaya Kirim",
+      "Total",
+      "Rekening",
+      "Status",
+      "Kecamatan",
+    ]);
+
+    sortedRekapData.forEach((row: any, idx: number) => {
+      const rekeningStr = `${row.bank || "Cash"}${row.no_rekening && row.no_rekening !== "-" ? ` (${row.no_rekening})` : ""}`;
+      aoa.push([
+        idx + 1,
+        row.tanggal ? formatDate(row.tanggal) : "-",
+        row.pelanggan || "-",
+        row.channel || "Direct",
+        Number(row.penjualan || 0),
+        Number(row.ongkir || 0),
+        Number(row.total || 0),
+        rekeningStr,
+        row.status || "Lunas",
+        row.kecamatan || "-",
+      ]);
+    });
+
+    // Total row
+    const totalPenjualan = (docData?.total_omset || 0) - (docData?.total_ongkir || 0);
+    aoa.push([
+      "",
+      "",
+      "",
+      "TOTAL REKAP:",
+      totalPenjualan,
+      Number(docData?.total_ongkir || 0),
+      Number(docData?.total_omset || 0),
+      "",
+      "",
+      "",
+    ]);
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+    // Set column widths
+    ws["!cols"] = [
+      { wch: 6 },  // No
+      { wch: 16 }, // Tanggal
+      { wch: 25 }, // Pelanggan
+      { wch: 18 }, // Channel
+      { wch: 16 }, // Penjualan
+      { wch: 14 }, // Biaya Kirim
+      { wch: 16 }, // Total
+      { wch: 26 }, // Rekening
+      { wch: 12 }, // Status
+      { wch: 20 }, // Kecamatan
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, "Rekap CS");
+
+    const fileName = `Rekap_Tabel_CS_${dateFrom}_sd_${dateTo}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+    toast.success("Rekap Tabel CS berhasil diekspor ke Excel!");
   };
 
   return (
@@ -254,7 +340,7 @@ export default function SiapSajiDocumentsPage() {
       </div>
 
       {/* ── FILTER TOOLBAR ────────────────────────────────────────── */}
-      <div style={{ background: "white", borderRadius: 12, padding: "12px 16px", border: "1px solid #e5e7eb", marginBottom: 20, display: "flex", gap: 16, alignItems: "center", overflowX: "auto", whiteSpace: "nowrap" }}>
+      <div style={{ background: "white", borderRadius: 12, padding: "12px 16px", border: "1px solid #e5e7eb", marginBottom: 20, display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap", position: "relative", zIndex: 50 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
           <Calendar size={16} color="#6b7280" />
           <label style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>Dari:</label>
@@ -591,13 +677,36 @@ export default function SiapSajiDocumentsPage() {
         ) : (
           /* TAB 3: REKAP TABEL CS */
           <div>
-            <div style={{ textAlign: "center", borderBottom: "2px solid #111827", paddingBottom: 12, marginBottom: 16 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0, textTransform: "uppercase" }}>
-                REKAP TABEL HARIAN — CUSTOMER SERVICE
-              </h2>
-              <p style={{ fontSize: 13, color: "#4b5563", marginTop: 4, margin: 0 }}>
-                Format Sheet Manual CS | Tanggal: <strong>{dateLabel}</strong> | Channel: <strong>{docData.channel}</strong>
-              </p>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "2px solid #111827", paddingBottom: 12, marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+              <div>
+                <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0, textTransform: "uppercase" }}>
+                  REKAP TABEL HARIAN — CUSTOMER SERVICE
+                </h2>
+                <p style={{ fontSize: 13, color: "#4b5563", marginTop: 4, margin: 0 }}>
+                  Format Sheet Manual CS | Tanggal: <strong>{dateLabel}</strong> | Channel: <strong>{docData.channel}</strong>
+                </p>
+              </div>
+
+              <button
+                onClick={handleExportRekapCS}
+                className="no-print"
+                style={{
+                  padding: "8px 16px",
+                  background: "#16a34a",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 7,
+                  boxShadow: "0 2px 8px rgba(22, 163, 74, 0.25)",
+                }}
+              >
+                <FileSpreadsheet size={16} /> Export Excel (.xlsx)
+              </button>
             </div>
 
             {/* Quick Sort Options Bar */}
@@ -693,10 +802,17 @@ export default function SiapSajiDocumentsPage() {
                 <tr style={{ background: "#f3f4f6", borderBottom: "2px solid #d1d5db", textTransform: "uppercase", fontSize: 11, color: "#374151" }}>
                   <th
                     onClick={() => toggleRekapSort("no")}
-                    style={{ padding: "10px 12px", width: 50, textAlign: "center", cursor: "pointer", userSelect: "none" }}
+                    style={{ padding: "10px 12px", width: 45, textAlign: "center", cursor: "pointer", userSelect: "none" }}
                     title="Klik untuk urutkan No"
                   >
                     No {renderSortIndicator("no")}
+                  </th>
+                  <th
+                    onClick={() => toggleRekapSort("tanggal")}
+                    style={{ padding: "10px 12px", textAlign: "center", cursor: "pointer", userSelect: "none" }}
+                    title="Klik untuk urutkan Tanggal"
+                  >
+                    Tanggal {renderSortIndicator("tanggal")}
                   </th>
                   <th
                     onClick={() => toggleRekapSort("pelanggan")}
@@ -704,6 +820,13 @@ export default function SiapSajiDocumentsPage() {
                     title="Klik untuk urutkan Pelanggan"
                   >
                     Pelanggan {renderSortIndicator("pelanggan")}
+                  </th>
+                  <th
+                    onClick={() => toggleRekapSort("channel")}
+                    style={{ padding: "10px 12px", textAlign: "center", cursor: "pointer", userSelect: "none" }}
+                    title="Klik untuk urutkan Channel"
+                  >
+                    Channel {renderSortIndicator("channel")}
                   </th>
                   <th
                     onClick={() => toggleRekapSort("penjualan")}
@@ -770,7 +893,15 @@ export default function SiapSajiDocumentsPage() {
                       }}
                     >
                       <td style={{ padding: "10px 12px", textAlign: "center", fontWeight: 600 }}>{idx + 1}</td>
+                      <td style={{ padding: "10px 12px", textAlign: "center", fontSize: 12, color: "#4b5563", whiteSpace: "nowrap" }}>
+                        {row.tanggal ? formatDate(row.tanggal) : "-"}
+                      </td>
                       <td style={{ padding: "10px 12px", fontWeight: 700, color: "#111827" }}>{row.pelanggan}</td>
+                      <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                        <span style={{ background: "#f5f3ff", color: "#5005A6", padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
+                          {row.channel || "Direct"}
+                        </span>
+                      </td>
                       <td style={{ padding: "10px 12px", textAlign: "right" }}>
                         Rp {Number(row.penjualan || 0).toLocaleString("id-ID")}
                       </td>
@@ -803,8 +934,8 @@ export default function SiapSajiDocumentsPage() {
               </tbody>
               <tfoot>
                 <tr style={{ background: "#f9fafb", borderTop: "2px solid #111827", fontWeight: 800 }}>
-                  <td colSpan={2} style={{ padding: "12px", textAlign: "right" }}>
-                    TOTAL REKAP HARIAN:
+                  <td colSpan={4} style={{ padding: "12px", textAlign: "right" }}>
+                    TOTAL REKAP:
                   </td>
                   <td style={{ padding: "12px", textAlign: "right" }}>
                     Rp {((docData.total_omset || 0) - (docData.total_ongkir || 0)).toLocaleString("id-ID")}

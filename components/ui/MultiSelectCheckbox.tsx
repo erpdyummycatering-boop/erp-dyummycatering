@@ -82,7 +82,7 @@ export function MultiSelectCheckbox({
     <div
       ref={containerRef}
       className={className}
-      style={{ position: "relative", display: "inline-block", ...style }}
+      style={{ position: "relative", display: "inline-block", zIndex: isOpen ? 9999 : "auto", ...style }}
     >
       <button
         type="button"
@@ -155,13 +155,13 @@ export function MultiSelectCheckbox({
             position: "absolute",
             top: "calc(100% + 4px)",
             left: 0,
-            zIndex: 60,
+            zIndex: 9999,
             minWidth: 200,
             width: "100%",
             background: "white",
             border: "1px solid #e5e7eb",
             borderRadius: 8,
-            boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+            boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.15)",
             padding: "4px 0",
             maxHeight: 280,
             overflowY: "auto",

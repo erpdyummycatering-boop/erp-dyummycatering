@@ -384,7 +384,7 @@ export default function SalesByCustomerItemsReportPage() {
       </div>
 
       {/* ── FILTER TOOLBAR ────────────────────────────────────── */}
-      <div className="no-print" style={{ background: "white", borderRadius: 12, padding: "14px 18px", border: "1px solid #e5e7eb", marginBottom: 20, boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+      <div className="no-print" style={{ background: "white", borderRadius: 12, padding: "14px 18px", border: "1px solid #e5e7eb", marginBottom: 20, boxShadow: "0 1px 3px rgba(0,0,0,0.05)", position: "relative", zIndex: 50 }}>
         {/* Row 1: Date Shortcuts */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: "#64748b" }}>Periode Cepat:</span>
