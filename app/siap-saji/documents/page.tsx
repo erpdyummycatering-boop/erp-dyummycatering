@@ -1,17 +1,22 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { ClipboardList, Printer, Calendar, Filter, Truck, ChefHat, FileText, CheckCircle, Search } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { ClipboardList, Printer, Calendar, Filter, Truck, ChefHat, FileText, CheckCircle, Search, ArrowUpDown, ChevronUp, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
+import { MultiSelectCheckbox } from "@/components/ui/MultiSelectCheckbox";
 import { Pagination } from "@/components/ui/Pagination";
 import { formatDate } from "@/lib/utils";
 
 export default function SiapSajiDocumentsPage() {
   const [activeTab, setActiveTab] = useState<"produksi" | "pengiriman" | "rekap_pengiriman" | "rekap_cs">("produksi");
   const [tanggal, setTanggal] = useState(() => new Date().toISOString().split("T")[0]); // default date: Hari Ini
-  const [channelFilter, setChannelFilter] = useState("");
+  const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
   const [channels, setChannels] = useState<{ id: number; name: string }[]>([]);
+
+  // Sorting state for Rekap CS
+  const [rekapSortField, setRekapSortField] = useState<string>("no");
+  const [rekapSortOrder, setRekapSortOrder] = useState<"asc" | "desc">("asc");
 
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
@@ -34,12 +39,15 @@ export default function SiapSajiDocumentsPage() {
       const q = new URLSearchParams();
       q.append("type", activeTab);
       q.append("tanggal", tanggal);
-      if (channelFilter) q.append("channel", channelFilter);
+      if (selectedChannels.length > 0) {
+        q.append("channel", selectedChannels.join(","));
+      }
 
       const res = await fetch(`/api/siap-saji/documents?${q.toString()}`);
       if (!res.ok) throw new Error("Gagal mengambil data dokumen");
       const json = await res.json();
       setDocData(json);
+      setPage(1); // Reset page on filter change
     } catch (err: any) {
       toast.error(err.message || "Gagal memuat dokumen");
     } finally {
@@ -47,12 +55,78 @@ export default function SiapSajiDocumentsPage() {
     }
   };
 
-  useEffect(() => {
-    fetchDoc();
-  }, [activeTab, tanggal, channelFilter]);
+  // Sorting calculation for Rekap CS
+  const sortedRekapData = useMemo(() => {
+    if (!docData?.data || activeTab !== "rekap_cs") return docData?.data || [];
+    const list = [...docData.data];
+    if (rekapSortField === "no") return list;
+
+    return list.sort((a, b) => {
+      let comp = 0;
+      if (rekapSortField === "pelanggan") {
+        comp = (a.pelanggan || "").localeCompare(b.pelanggan || "");
+      } else if (rekapSortField === "penjualan") {
+        comp = Number(a.penjualan || 0) - Number(b.penjualan || 0);
+      } else if (rekapSortField === "ongkir") {
+        comp = Number(a.ongkir || 0) - Number(b.ongkir || 0);
+      } else if (rekapSortField === "total") {
+        comp = Number(a.total || 0) - Number(b.total || 0);
+      } else if (rekapSortField === "rekening") {
+        const rekA = `${a.bank || "Cash"} ${a.no_rekening || ""}`.trim().toUpperCase();
+        const rekB = `${b.bank || "Cash"} ${b.no_rekening || ""}`.trim().toUpperCase();
+        comp = rekA.localeCompare(rekB);
+      } else if (rekapSortField === "status") {
+        comp = (a.status || "").localeCompare(b.status || "");
+      } else if (rekapSortField === "kecamatan") {
+        comp = (a.kecamatan || "").localeCompare(b.kecamatan || "");
+      }
+      return rekapSortOrder === "asc" ? comp : -comp;
+    });
+  }, [docData?.data, activeTab, rekapSortField, rekapSortOrder]);
+
+  const toggleRekapSort = (field: string) => {
+    if (rekapSortField === field) {
+      setRekapSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setRekapSortField(field);
+      setRekapSortOrder("asc");
+    }
+  };
+
+  const renderSortIndicator = (field: string) => {
+    if (rekapSortField !== field) {
+      return <ArrowUpDown size={12} color="#9ca3af" style={{ marginLeft: 4, display: "inline-block" }} />;
+    }
+    return rekapSortOrder === "asc" ? (
+      <ChevronUp size={13} color="#5005A6" style={{ marginLeft: 4, display: "inline-block" }} />
+    ) : (
+      <ChevronDown size={13} color="#5005A6" style={{ marginLeft: 4, display: "inline-block" }} />
+    );
+  };
 
   return (
     <div style={{ maxWidth: 1280, margin: "0 auto", paddingBottom: 40 }}>
+      {/* ── PRINT STYLES ─────────────────────────────────────────────── */}
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          @media print {
+            body * { visibility: hidden !important; }
+            #document-print-content, #document-print-content * { visibility: visible !important; }
+            #document-print-content {
+              position: absolute !important;
+              left: 0 !important;
+              top: 0 !important;
+              width: 100% !important;
+              padding: 0 !important;
+              margin: 0 !important;
+              border: none !important;
+              box-shadow: none !important;
+            }
+            .no-print { display: none !important; }
+            .print-all-rows { display: table-row !important; }
+          }
+        `,
+      }} />
       {/* ── HEADER & CONTROLS ────────────────────────────────────────── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
         <div>
@@ -186,15 +260,13 @@ export default function SiapSajiDocumentsPage() {
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
           <Filter size={16} color="#6b7280" />
           <label style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>Channel:</label>
-          <SearchableSelect
-            options={[
-              { value: "", label: "Semua Channel" },
-              ...channels.map((ch) => ({ value: ch.name, label: ch.name })),
-            ]}
-            value={channelFilter}
-            onChange={(val) => setChannelFilter(val ? String(val) : "")}
+          <MultiSelectCheckbox
+            options={channels.map((ch) => ({ value: ch.name, label: ch.name }))}
+            selectedValues={selectedChannels}
+            onChange={(vals) => setSelectedChannels(vals)}
             placeholder="Semua Channel"
-            style={{ width: 170 }}
+            allLabel="Semua Channel"
+            style={{ minWidth: 190 }}
           />
         </div>
       </div>
@@ -205,7 +277,7 @@ export default function SiapSajiDocumentsPage() {
           <p style={{ textAlign: "center", padding: 40, color: "#9ca3af" }}>Memuat dokumen...</p>
         ) : !docData || !docData.data || docData.data.length === 0 ? (
           <p style={{ textAlign: "center", padding: 40, color: "#9ca3af" }}>
-            Tidak ada data untuk tanggal {tanggal} ({channelFilter || "Semua Channel"}).
+            Tidak ada data untuk tanggal {tanggal} ({selectedChannels.length > 0 ? selectedChannels.join(", ") : "Semua Channel"}).
           </p>
         ) : activeTab === "produksi" ? (
           /* TAB 1: LAPORAN PRODUKSI DAPUR */
@@ -503,54 +575,215 @@ export default function SiapSajiDocumentsPage() {
         ) : (
           /* TAB 3: REKAP TABEL CS */
           <div>
-            <div style={{ textAlign: "center", borderBottom: "2px solid #111827", paddingBottom: 12, marginBottom: 20 }}>
+            <div style={{ textAlign: "center", borderBottom: "2px solid #111827", paddingBottom: 12, marginBottom: 16 }}>
               <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0, textTransform: "uppercase" }}>
                 REKAP TABEL HARIAN — CUSTOMER SERVICE
               </h2>
-              <p style={{ fontSize: 13, color: "#4b5563", marginTop: 4 }}>
+              <p style={{ fontSize: 13, color: "#4b5563", marginTop: 4, margin: 0 }}>
                 Format Sheet Manual CS | Tanggal: <strong>{formatDate(tanggal)}</strong> | Channel: <strong>{docData.channel}</strong>
               </p>
+            </div>
+
+            {/* Quick Sort Options Bar */}
+            <div className="no-print" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap", background: "#f8fafc", padding: "8px 12px", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#475569", display: "flex", alignItems: "center", gap: 4 }}>
+                <ArrowUpDown size={14} color="#64748b" /> Urutkan Data:
+              </span>
+
+              <button
+                onClick={() => {
+                  setRekapSortField("rekening");
+                  setRekapSortOrder("asc");
+                }}
+                style={{
+                  padding: "5px 11px",
+                  borderRadius: 6,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  border: rekapSortField === "rekening" ? "1.5px solid #5005A6" : "1px solid #cbd5e1",
+                  background: rekapSortField === "rekening" ? "#f3e8ff" : "white",
+                  color: rekapSortField === "rekening" ? "#5005A6" : "#334155",
+                  boxShadow: rekapSortField === "rekening" ? "0 1px 3px rgba(80, 5, 166, 0.15)" : "none",
+                }}
+              >
+                🏦 Urut Rekening (Sama Bank) {rekapSortField === "rekening" && (rekapSortOrder === "asc" ? "▲" : "▼")}
+              </button>
+
+              <button
+                onClick={() => {
+                  setRekapSortField("pelanggan");
+                  setRekapSortOrder((prev) => (rekapSortField === "pelanggan" && prev === "asc" ? "desc" : "asc"));
+                }}
+                style={{
+                  padding: "5px 11px",
+                  borderRadius: 6,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  border: rekapSortField === "pelanggan" ? "1.5px solid #5005A6" : "1px solid #cbd5e1",
+                  background: rekapSortField === "pelanggan" ? "#f3e8ff" : "white",
+                  color: rekapSortField === "pelanggan" ? "#5005A6" : "#334155",
+                }}
+              >
+                👤 Pelanggan (A-Z) {rekapSortField === "pelanggan" && (rekapSortOrder === "asc" ? "▲" : "▼")}
+              </button>
+
+              <button
+                onClick={() => {
+                  setRekapSortField("total");
+                  setRekapSortOrder((prev) => (rekapSortField === "total" && prev === "desc" ? "asc" : "desc"));
+                }}
+                style={{
+                  padding: "5px 11px",
+                  borderRadius: 6,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  border: rekapSortField === "total" ? "1.5px solid #5005A6" : "1px solid #cbd5e1",
+                  background: rekapSortField === "total" ? "#f3e8ff" : "white",
+                  color: rekapSortField === "total" ? "#5005A6" : "#334155",
+                }}
+              >
+                💰 Total (Nominal) {rekapSortField === "total" && (rekapSortOrder === "desc" ? "▼" : "▲")}
+              </button>
+
+              {rekapSortField !== "no" && (
+                <button
+                  onClick={() => {
+                    setRekapSortField("no");
+                    setRekapSortOrder("asc");
+                  }}
+                  style={{
+                    padding: "5px 10px",
+                    borderRadius: 6,
+                    fontSize: 12,
+                    fontWeight: 500,
+                    cursor: "pointer",
+                    border: "none",
+                    background: "none",
+                    color: "#dc2626",
+                    textDecoration: "underline",
+                  }}
+                >
+                  Reset Urutan
+                </button>
+              )}
             </div>
 
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, whiteSpace: "nowrap" }}>
               <thead>
                 <tr style={{ background: "#f3f4f6", borderBottom: "2px solid #d1d5db", textTransform: "uppercase", fontSize: 11, color: "#374151" }}>
-                  <th style={{ padding: "10px 12px", width: 50 }}>No</th>
-                  <th style={{ padding: "10px 12px", textAlign: "left" }}>Pelanggan</th>
-                  <th style={{ padding: "10px 12px", textAlign: "right" }}>Penjualan</th>
-                  <th style={{ padding: "10px 12px", textAlign: "right" }}>Biaya Kirim</th>
-                  <th style={{ padding: "10px 12px", textAlign: "right" }}>Total</th>
-                  <th style={{ padding: "10px 12px", textAlign: "center" }}>Rekening</th>
-                  <th style={{ padding: "10px 12px", textAlign: "center" }}>Status</th>
-                  <th style={{ padding: "10px 12px", textAlign: "left" }}>Kecamatan</th>
+                  <th
+                    onClick={() => toggleRekapSort("no")}
+                    style={{ padding: "10px 12px", width: 50, textAlign: "center", cursor: "pointer", userSelect: "none" }}
+                    title="Klik untuk urutkan No"
+                  >
+                    No {renderSortIndicator("no")}
+                  </th>
+                  <th
+                    onClick={() => toggleRekapSort("pelanggan")}
+                    style={{ padding: "10px 12px", textAlign: "left", cursor: "pointer", userSelect: "none" }}
+                    title="Klik untuk urutkan Pelanggan"
+                  >
+                    Pelanggan {renderSortIndicator("pelanggan")}
+                  </th>
+                  <th
+                    onClick={() => toggleRekapSort("penjualan")}
+                    style={{ padding: "10px 12px", textAlign: "right", cursor: "pointer", userSelect: "none" }}
+                    title="Klik untuk urutkan Penjualan"
+                  >
+                    Penjualan {renderSortIndicator("penjualan")}
+                  </th>
+                  <th
+                    onClick={() => toggleRekapSort("ongkir")}
+                    style={{ padding: "10px 12px", textAlign: "right", cursor: "pointer", userSelect: "none" }}
+                    title="Klik untuk urutkan Biaya Kirim"
+                  >
+                    Biaya Kirim {renderSortIndicator("ongkir")}
+                  </th>
+                  <th
+                    onClick={() => toggleRekapSort("total")}
+                    style={{ padding: "10px 12px", textAlign: "right", cursor: "pointer", userSelect: "none" }}
+                    title="Klik untuk urutkan Total"
+                  >
+                    Total {renderSortIndicator("total")}
+                  </th>
+                  <th
+                    onClick={() => toggleRekapSort("rekening")}
+                    style={{
+                      padding: "10px 12px",
+                      textAlign: "center",
+                      cursor: "pointer",
+                      userSelect: "none",
+                      background: rekapSortField === "rekening" ? "#ede9fe" : undefined,
+                      color: rekapSortField === "rekening" ? "#5005A6" : undefined,
+                      fontWeight: rekapSortField === "rekening" ? 800 : undefined,
+                    }}
+                    title="Klik untuk kelompokkan rekening yang sama (BCA, Mandiri, Kas Kecil, dll)"
+                  >
+                    🏦 Rekening {renderSortIndicator("rekening")}
+                  </th>
+                  <th
+                    onClick={() => toggleRekapSort("status")}
+                    style={{ padding: "10px 12px", textAlign: "center", cursor: "pointer", userSelect: "none" }}
+                    title="Klik untuk urutkan Status"
+                  >
+                    Status {renderSortIndicator("status")}
+                  </th>
+                  <th
+                    onClick={() => toggleRekapSort("kecamatan")}
+                    style={{ padding: "10px 12px", textAlign: "left", cursor: "pointer", userSelect: "none" }}
+                    title="Klik untuk urutkan Kecamatan"
+                  >
+                    Kecamatan {renderSortIndicator("kecamatan")}
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {docData.data.slice((page - 1) * limit, page * limit).map((row: any, idx: number) => (
-                  <tr key={idx} style={{ borderBottom: "1px solid #e5e7eb" }}>
-                    <td style={{ padding: "10px 12px", textAlign: "center" }}>{(page - 1) * limit + idx + 1}</td>
-                    <td style={{ padding: "10px 12px", fontWeight: 700, color: "#111827" }}>{row.pelanggan}</td>
-                    <td style={{ padding: "10px 12px", textAlign: "right" }}>
-                      Rp {Number(row.penjualan || 0).toLocaleString("id-ID")}
-                    </td>
-                    <td style={{ padding: "10px 12px", textAlign: "right" }}>
-                      Rp {Number(row.ongkir || 0).toLocaleString("id-ID")}
-                    </td>
-                    <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 800, color: "#5005A6" }}>
-                      Rp {Number(row.total || 0).toLocaleString("id-ID")}
-                    </td>
-                    <td style={{ padding: "10px 12px", textAlign: "center", fontSize: 12 }}>
-                      {row.bank || "Cash"}{row.no_rekening && row.no_rekening !== "-" ? ` (${row.no_rekening})` : ""}
-                    </td>
-                    <td style={{ padding: "10px 12px", textAlign: "center" }}>
-                      <span style={{ background: "#f0fdf4", color: "#639922", padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 700 }}>
-                        {row.status || "Lunas"}
-                      </span>
-                    </td>
-                    <td style={{ padding: "10px 12px", color: "#4b5563" }}>{row.kecamatan || "-"}</td>
-                  </tr>
-                ))}
+                {sortedRekapData.map((row: any, idx: number) => {
+                  const isVisibleOnPage = idx >= (page - 1) * limit && idx < page * limit;
+                  return (
+                    <tr
+                      key={idx}
+                      className={isVisibleOnPage ? "" : "no-print"}
+                      style={{
+                        borderBottom: "1px solid #e5e7eb",
+                        display: isVisibleOnPage ? "table-row" : "none",
+                      }}
+                    >
+                      <td style={{ padding: "10px 12px", textAlign: "center", fontWeight: 600 }}>{idx + 1}</td>
+                      <td style={{ padding: "10px 12px", fontWeight: 700, color: "#111827" }}>{row.pelanggan}</td>
+                      <td style={{ padding: "10px 12px", textAlign: "right" }}>
+                        Rp {Number(row.penjualan || 0).toLocaleString("id-ID")}
+                      </td>
+                      <td style={{ padding: "10px 12px", textAlign: "right" }}>
+                        Rp {Number(row.ongkir || 0).toLocaleString("id-ID")}
+                      </td>
+                      <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 800, color: "#5005A6" }}>
+                        Rp {Number(row.total || 0).toLocaleString("id-ID")}
+                      </td>
+                      <td
+                        style={{
+                          padding: "10px 12px",
+                          textAlign: "center",
+                          fontSize: 12,
+                          background: rekapSortField === "rekening" ? "#faf5ff" : undefined,
+                          fontWeight: rekapSortField === "rekening" ? 700 : 500,
+                        }}
+                      >
+                        {row.bank || "Cash"}{row.no_rekening && row.no_rekening !== "-" ? ` (${row.no_rekening})` : ""}
+                      </td>
+                      <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                        <span style={{ background: "#f0fdf4", color: "#639922", padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 700 }}>
+                          {row.status || "Lunas"}
+                        </span>
+                      </td>
+                      <td style={{ padding: "10px 12px", color: "#4b5563" }}>{row.kecamatan || "-"}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
               <tfoot>
                 <tr style={{ background: "#f9fafb", borderTop: "2px solid #111827", fontWeight: 800 }}>
@@ -572,14 +805,16 @@ export default function SiapSajiDocumentsPage() {
             </table>
             </div>
 
-            <Pagination
-              page={page}
-              totalPages={Math.ceil(docData.data.length / limit) || 1}
-              total={docData.data.length}
-              limit={limit}
-              onChange={(p) => setPage(p)}
-              onLimitChange={(lim) => { setLimit(lim); setPage(1); }}
-            />
+            <div className="no-print">
+              <Pagination
+                page={page}
+                totalPages={Math.ceil(sortedRekapData.length / limit) || 1}
+                total={sortedRekapData.length}
+                limit={limit}
+                onChange={(p) => setPage(p)}
+                onLimitChange={(lim) => { setLimit(lim); setPage(1); }}
+              />
+            </div>
           </div>
         )}
       </div>

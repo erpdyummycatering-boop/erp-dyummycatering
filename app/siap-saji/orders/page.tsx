@@ -1502,22 +1502,23 @@ export default function SiapSajiOrdersPage() {
             window.open(url, "_blank");
           }}
           style={{
-            padding: "7px 12px",
+            padding: "6px 10px",
             background: "#eff6ff",
             color: "#1d4ed8",
             border: "1px solid #bfdbfe",
             borderRadius: 8,
-            fontSize: 13,
+            fontSize: 12,
             cursor: "pointer",
-            fontWeight: 700,
+            fontWeight: 600,
             flexShrink: 0,
             display: "flex",
             alignItems: "center",
-            gap: 6,
+            gap: 5,
+            whiteSpace: "nowrap",
           }}
           title="Cetak rekap akumulasi kuantitas produk & catatan untuk dapur"
         >
-          <ClipboardList size={15} /> 🍳 Rekap Dapur A4
+          <ClipboardList size={14} /> 🍳 Rekap Dapur
         </button>
 
         <button
@@ -1529,22 +1530,23 @@ export default function SiapSajiOrdersPage() {
             window.open(url, "_blank");
           }}
           style={{
-            padding: "7px 12px",
+            padding: "6px 10px",
             background: "#f0fdf4",
             color: "#15803d",
             border: "1px solid #bbf7d0",
             borderRadius: 8,
-            fontSize: 13,
+            fontSize: 12,
             cursor: "pointer",
-            fontWeight: 700,
+            fontWeight: 600,
             flexShrink: 0,
             display: "flex",
             alignItems: "center",
-            gap: 6,
+            gap: 5,
+            whiteSpace: "nowrap",
           }}
           title="Cetak rekapitulasi pengiriman harian kurir A4"
         >
-          <Truck size={15} /> 🚚 Rekap Pengiriman A4
+          <Truck size={14} /> 🚚 Rekap Kirim
         </button>
 
         {(search || statusFilter || channelFilter || productFilter || timeShortcut !== "today" || dateFrom || dateTo) && (
@@ -1585,34 +1587,37 @@ export default function SiapSajiOrdersPage() {
             background: "linear-gradient(135deg, #f0fdf4 0%, #eff6ff 100%)",
             border: "1.5px solid #378ADD",
             borderRadius: 12,
-            padding: "12px 18px",
+            padding: "8px 16px",
             marginBottom: 16,
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
             boxShadow: "0 4px 12px rgba(55, 138, 221, 0.15)",
+            gap: 12,
+            overflowX: "auto",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: "#1e293b" }}>
-              ✓ <span style={{ color: "#5005A6" }}>{selectedOrderIds.length}</span> pesanan terpilih
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", whiteSpace: "nowrap" }}>
+              ✓ <span style={{ color: "#5005A6" }}>{selectedOrderIds.length}</span> terpilih
             </span>
             <button
               onClick={() => setSelectedOrderIds([])}
               style={{
-                fontSize: 13,
+                fontSize: 12,
                 color: "#64748b",
                 background: "none",
                 border: "none",
                 cursor: "pointer",
                 fontWeight: 600,
                 textDecoration: "underline",
+                whiteSpace: "nowrap",
               }}
             >
-              Batal Pilih
+              Batal
             </button>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "nowrap", flexShrink: 0 }}>
             <button
               onClick={() => {
                 const url = `/api/siap-saji/orders/bulk-pdf?ids=${selectedOrderIds.join(",")}&mode=exact`;
@@ -1622,19 +1627,21 @@ export default function SiapSajiOrdersPage() {
                 background: "linear-gradient(135deg, #5005A6 0%, #B10FBD 100%)",
                 color: "white",
                 border: "none",
-                borderRadius: 10,
-                padding: "9px 16px",
-                fontSize: 13,
-                fontWeight: 700,
+                borderRadius: 8,
+                padding: "6px 11px",
+                fontSize: 12,
+                fontWeight: 600,
                 cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
-                gap: 6,
-                boxShadow: "0 4px 12px rgba(80, 5, 166, 0.25)",
+                gap: 5,
+                whiteSpace: "nowrap",
+                boxShadow: "0 2px 6px rgba(80, 5, 166, 0.2)",
               }}
+              title={`Cetak PDF Pas Ukuran untuk ${selectedOrderIds.length} Struk`}
             >
-              <FileText size={15} />
-              PDF Pas Ukuran ({selectedOrderIds.length} Struk)
+              <FileText size={14} />
+              PDF Pas
             </button>
 
             <button
@@ -1646,19 +1653,21 @@ export default function SiapSajiOrdersPage() {
                 background: "#15803d",
                 color: "white",
                 border: "none",
-                borderRadius: 10,
-                padding: "9px 16px",
-                fontSize: 13,
-                fontWeight: 700,
+                borderRadius: 8,
+                padding: "6px 11px",
+                fontSize: 12,
+                fontWeight: 600,
                 cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
-                gap: 6,
-                boxShadow: "0 4px 12px rgba(21, 128, 61, 0.25)",
+                gap: 5,
+                whiteSpace: "nowrap",
+                boxShadow: "0 2px 6px rgba(21, 128, 61, 0.2)",
               }}
+              title="Cetak PDF Roll Kontinu (Kassen BTP3100 Thermal)"
             >
-              <Printer size={15} />
-              PDF Roll Kontinu (Kassen BTP3100)
+              <Printer size={14} />
+              PDF Roll
             </button>
 
             <button
@@ -1670,19 +1679,21 @@ export default function SiapSajiOrdersPage() {
                 background: "#0284c7",
                 color: "white",
                 border: "none",
-                borderRadius: 10,
-                padding: "9px 16px",
-                fontSize: 13,
-                fontWeight: 700,
+                borderRadius: 8,
+                padding: "6px 11px",
+                fontSize: 12,
+                fontWeight: 600,
                 cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
-                gap: 6,
-                boxShadow: "0 4px 12px rgba(2, 132, 199, 0.25)",
+                gap: 5,
+                whiteSpace: "nowrap",
+                boxShadow: "0 2px 6px rgba(2, 132, 199, 0.2)",
               }}
+              title="Cetak Rekapitulasi Pengiriman Kurir A4"
             >
-              <Truck size={15} />
-              🚚 Rekap Pengiriman A4 (Kurir)
+              <Truck size={14} />
+              Rekap Kirim
             </button>
 
             <button
@@ -1694,59 +1705,67 @@ export default function SiapSajiOrdersPage() {
                 background: "#378ADD",
                 color: "white",
                 border: "none",
-                borderRadius: 10,
-                padding: "9px 16px",
-                fontSize: 13,
-                fontWeight: 700,
+                borderRadius: 8,
+                padding: "6px 11px",
+                fontSize: 12,
+                fontWeight: 600,
                 cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
-                gap: 6,
-                boxShadow: "0 4px 12px rgba(55, 138, 221, 0.25)",
+                gap: 5,
+                whiteSpace: "nowrap",
+                boxShadow: "0 2px 6px rgba(55, 138, 221, 0.2)",
               }}
+              title="Cetak Rekap Akumulasi Dapur A4"
             >
-              <ClipboardList size={15} />
-              🍳 Cetak Rekap Dapur (A4)
+              <ClipboardList size={14} />
+              Rekap Dapur
             </button>
+
             <button
               onClick={handleOpenBulkPrint}
               disabled={isLoadingBulk}
               style={{
-                background: "#white",
+                background: "white",
                 color: "#374151",
                 border: "1px solid #d1d5db",
-                borderRadius: 10,
-                padding: "10px 14px",
-                fontSize: 13,
-                fontWeight: 700,
+                borderRadius: 8,
+                padding: "6px 11px",
+                fontSize: 12,
+                fontWeight: 600,
                 cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
-                gap: 6,
+                gap: 5,
+                whiteSpace: "nowrap",
               }}
+              title="Preview Struk di Modal Web"
             >
-              <Printer size={15} />
-              {isLoadingBulk ? "Memuat..." : "Preview Web Modal"}
+              <Printer size={14} />
+              {isLoadingBulk ? "..." : "Preview"}
             </button>
+
             <button
               onClick={() => setIsBulkAssignModalOpen(true)}
               style={{
                 background: "#f59e0b",
                 color: "white",
                 border: "none",
-                borderRadius: 10,
-                padding: "9px 16px",
-                fontSize: 13,
-                fontWeight: 700,
+                borderRadius: 8,
+                padding: "6px 11px",
+                fontSize: 12,
+                fontWeight: 600,
                 cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
-                gap: 6,
-                boxShadow: "0 4px 12px rgba(245, 158, 11, 0.25)",
+                gap: 5,
+                whiteSpace: "nowrap",
+                boxShadow: "0 2px 6px rgba(245, 158, 11, 0.2)",
               }}
+              title="Tugaskan Driver ke Semua Pesanan Terpilih"
             >
-              <Truck size={15} />
-              🛵 Assign Driver
+              <Truck size={14} />
+              Assign Driver
             </button>
           </div>
         </div>

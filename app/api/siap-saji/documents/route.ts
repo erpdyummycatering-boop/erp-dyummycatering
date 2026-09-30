@@ -5,7 +5,11 @@ export async function GET(req: NextRequest) {
   const { searchParams: p } = new URL(req.url);
   const type = p.get("type") || "produksi"; // produksi | pengiriman | rekap_cs
   const tanggal = p.get("tanggal") || new Date().toISOString().split("T")[0];
-  const channel = p.get("channel") || "";
+  const channelParam = p.get("channel") || "";
+  const channelList = channelParam
+    ? channelParam.split(",").map((s) => s.trim()).filter(Boolean)
+    : [];
+  const channelDisplay = channelList.length > 0 ? channelList.join(", ") : "Semua Channel";
 
   const client = await pool.connect();
   try {
@@ -17,9 +21,9 @@ export async function GET(req: NextRequest) {
       ];
       const vals: any[] = [tanggal];
 
-      if (channel) {
-        wheres.push("ch.name = $2");
-        vals.push(channel);
+      if (channelList.length > 0) {
+        wheres.push("ch.name = ANY($2::text[])");
+        vals.push(channelList);
       }
 
       const whereSql = "WHERE " + wheres.join(" AND ");
@@ -45,7 +49,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         type: "produksi",
         tanggal,
-        channel: channel || "Semua Channel",
+        channel: channelDisplay,
         total_qty: totalQty,
         data: res.rows,
       });
@@ -59,9 +63,9 @@ export async function GET(req: NextRequest) {
       ];
       const vals: any[] = [tanggal];
 
-      if (channel) {
-        wheres.push("ch.name = $2");
-        vals.push(channel);
+      if (channelList.length > 0) {
+        wheres.push("ch.name = ANY($2::text[])");
+        vals.push(channelList);
       }
 
       const whereSql = "WHERE " + wheres.join(" AND ");
@@ -108,7 +112,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({
           type: "rekap_pengiriman",
           tanggal,
-          channel: channel || "Semua Channel",
+          channel: channelDisplay,
           data: res.rows,
         });
       }
@@ -147,7 +151,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         type: "pengiriman",
         tanggal,
-        channel: channel || "Semua Channel",
+        channel: channelDisplay,
         data: res.rows,
       });
     }
@@ -160,9 +164,9 @@ export async function GET(req: NextRequest) {
       ];
       const vals: any[] = [tanggal];
 
-      if (channel) {
-        wheres.push("ch.name = $2");
-        vals.push(channel);
+      if (channelList.length > 0) {
+        wheres.push("ch.name = ANY($2::text[])");
+        vals.push(channelList);
       }
 
       const whereSql = "WHERE " + wheres.join(" AND ");
@@ -193,7 +197,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         type: "rekap_cs",
         tanggal,
-        channel: channel || "Semua Channel",
+        channel: channelDisplay,
         total_omset: totalOmset,
         total_ongkir: totalOngkir,
         data: res.rows,

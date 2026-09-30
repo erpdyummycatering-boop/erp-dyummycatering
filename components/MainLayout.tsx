@@ -8,7 +8,7 @@ import {
   CalendarDays, BookOpen, ClipboardList, TrendingUp, CreditCard,
   PieChart, Settings, Menu, X, Utensils, Target,
   ShoppingCart, Layers, LogIn, LogOut, MapPin, Truck, ChevronRight,
-  UserCheck, DollarSign, UploadCloud, FileText, Clock, Building
+  UserCheck, DollarSign, UploadCloud, FileText, Clock, Building, FileSpreadsheet
 } from "lucide-react";
 import { useRole } from "@/contexts/RoleContext";
 import { getRoleConfig, ROLES } from "@/lib/roleConfig";
@@ -95,6 +95,7 @@ const RUMPUN_MENU: ModuleGroup[] = [
         items: [
           { href: "/siap-saji/reports/sales-by-product", label: "Laporan per Produk", icon: Layers },
           { href: "/siap-saji/reports/sales-by-customer", label: "Laporan per Customer", icon: Users },
+          { href: "/siap-saji/reports/sales-by-customer-items", label: "Pelanggan per Barang", icon: FileSpreadsheet },
           { href: "/siap-saji/analytics/products", label: "Analisa Produk", icon: BarChart2 },
           { href: "/siap-saji/analytics/customers", label: "Analisa Customer (RFM)", icon: PieChart },
           { href: "/siap-saji/finance", label: "Laporan Keuangan", icon: CreditCard },
