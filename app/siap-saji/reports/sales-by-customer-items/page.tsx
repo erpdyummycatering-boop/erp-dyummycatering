@@ -215,7 +215,7 @@ export default function SalesByCustomerItemsReportPage() {
 
     // Table Header
     const tableHeaderRowIndex = aoa.length;
-    aoa.push(["Pelanggan", "Nama Barang", "Satuan", "Kuantitas", "Penjualan"]);
+    aoa.push(["Tanggal", "Pelanggan", "Nama Barang", "Satuan", "Kuantitas", "Penjualan"]);
 
     const merges: XLSX.Range[] = [];
     const isMultiDay = reportData.dates.length > 1;
@@ -224,10 +224,10 @@ export default function SalesByCustomerItemsReportPage() {
       if (isMultiDay) {
         // Date separator row
         const dateHeaderRowIdx = aoa.length;
-        aoa.push([`TANGGAL: ${formatDate(d.tanggal)}`, "", "", "", ""]);
+        aoa.push([`TANGGAL: ${formatDate(d.tanggal)}`, "", "", "", "", ""]);
         merges.push({
           s: { r: dateHeaderRowIdx, c: 0 },
-          e: { r: dateHeaderRowIdx, c: 4 },
+          e: { r: dateHeaderRowIdx, c: 5 },
         });
       }
 
@@ -237,6 +237,7 @@ export default function SalesByCustomerItemsReportPage() {
         // Render each item
         cust.items.forEach((item, itemIdx) => {
           aoa.push([
+            itemIdx === 0 ? formatDate(d.tanggal) : "",
             itemIdx === 0 ? cust.customer_name : "",
             item.nama_barang,
             item.satuan,
@@ -249,16 +250,21 @@ export default function SalesByCustomerItemsReportPage() {
         const subtotalRowIdx = aoa.length;
         aoa.push([
           "",
+          "",
           "Total Nama Barang",
           "",
           cust.total_kuantitas,
           cust.total_penjualan,
         ]);
 
-        // Merge customer name column vertically across items + subtotal row
+        // Merge tanggal and customer name columns vertically across items + subtotal row
         merges.push({
           s: { r: custStartRow, c: 0 },
           e: { r: subtotalRowIdx, c: 0 },
+        });
+        merges.push({
+          s: { r: custStartRow, c: 1 },
+          e: { r: subtotalRowIdx, c: 1 },
         });
       }
 
@@ -266,6 +272,7 @@ export default function SalesByCustomerItemsReportPage() {
         // Subtotal for the day
         aoa.push([
           `SUBTOTAL TANGGAL ${formatDate(d.tanggal)}`,
+          "",
           "",
           "",
           d.total_kuantitas,
@@ -280,6 +287,7 @@ export default function SalesByCustomerItemsReportPage() {
       "GRAND TOTAL KESELURUHAN",
       "",
       "",
+      "",
       reportData.summary.grand_total_qty,
       reportData.summary.grand_total_sales,
     ]);
@@ -288,8 +296,9 @@ export default function SalesByCustomerItemsReportPage() {
 
     // Apply column widths
     ws["!cols"] = [
-      { wch: 28 }, // Pelanggan
-      { wch: 38 }, // Nama Barang
+      { wch: 16 }, // Tanggal
+      { wch: 26 }, // Pelanggan
+      { wch: 36 }, // Nama Barang
       { wch: 10 }, // Satuan
       { wch: 14 }, // Kuantitas
       { wch: 20 }, // Penjualan
@@ -598,19 +607,22 @@ export default function SalesByCustomerItemsReportPage() {
                   >
                     <thead>
                       <tr style={{ background: "#dbeafe", color: "#1e3a8a", borderBottom: "2px solid #93c5fd" }}>
-                        <th style={{ padding: "8px 12px", textAlign: "left", width: "25%", border: "1px solid #cbd5e1", fontWeight: 700 }}>
+                        <th style={{ padding: "8px 12px", textAlign: "center", width: "13%", border: "1px solid #cbd5e1", fontWeight: 700 }}>
+                          Tanggal
+                        </th>
+                        <th style={{ padding: "8px 12px", textAlign: "left", width: "23%", border: "1px solid #cbd5e1", fontWeight: 700 }}>
                           Pelanggan
                         </th>
-                        <th style={{ padding: "8px 12px", textAlign: "left", width: "35%", border: "1px solid #cbd5e1", fontWeight: 700 }}>
+                        <th style={{ padding: "8px 12px", textAlign: "left", width: "32%", border: "1px solid #cbd5e1", fontWeight: 700 }}>
                           Nama Barang
                         </th>
-                        <th style={{ padding: "8px 12px", textAlign: "center", width: "12%", border: "1px solid #cbd5e1", fontWeight: 700 }}>
+                        <th style={{ padding: "8px 12px", textAlign: "center", width: "10%", border: "1px solid #cbd5e1", fontWeight: 700 }}>
                           Satuan
                         </th>
-                        <th style={{ padding: "8px 12px", textAlign: "center", width: "12%", border: "1px solid #cbd5e1", fontWeight: 700 }}>
+                        <th style={{ padding: "8px 12px", textAlign: "center", width: "10%", border: "1px solid #cbd5e1", fontWeight: 700 }}>
                           Kuantitas
                         </th>
-                        <th style={{ padding: "8px 12px", textAlign: "right", width: "16%", border: "1px solid #cbd5e1", fontWeight: 700 }}>
+                        <th style={{ padding: "8px 12px", textAlign: "right", width: "12%", border: "1px solid #cbd5e1", fontWeight: 700 }}>
                           Penjualan
                         </th>
                       </tr>
@@ -621,29 +633,47 @@ export default function SalesByCustomerItemsReportPage() {
                           {cust.items.map((item, itIdx) => (
                             <tr key={itIdx} style={{ background: "white" }}>
                               {itIdx === 0 && (
-                                <td
-                                  rowSpan={cust.items.length + 1}
-                                  style={{
-                                    padding: "8px 12px",
-                                    border: "1px solid #cbd5e1",
-                                    verticalAlign: "top",
-                                    fontWeight: 700,
-                                    color: "#111827",
-                                    background: "#f8fafc",
-                                  }}
-                                >
-                                  <div>{cust.customer_name}</div>
-                                  {cust.customer_phone && (
-                                    <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
-                                      {cust.customer_phone}
-                                    </div>
-                                  )}
-                                  {cust.channels.length > 0 && (
-                                    <div style={{ fontSize: 10, color: "#5005A6", marginTop: 4 }}>
-                                      {cust.channels.join(", ")}
-                                    </div>
-                                  )}
-                                </td>
+                                <>
+                                  <td
+                                    rowSpan={cust.items.length + 1}
+                                    style={{
+                                      padding: "8px 12px",
+                                      border: "1px solid #cbd5e1",
+                                      verticalAlign: "top",
+                                      textAlign: "center",
+                                      fontSize: 12,
+                                      color: "#4b5563",
+                                      background: "#f8fafc",
+                                      whiteSpace: "nowrap",
+                                      fontWeight: 600,
+                                    }}
+                                  >
+                                    {formatDate(d.tanggal)}
+                                  </td>
+                                  <td
+                                    rowSpan={cust.items.length + 1}
+                                    style={{
+                                      padding: "8px 12px",
+                                      border: "1px solid #cbd5e1",
+                                      verticalAlign: "top",
+                                      fontWeight: 700,
+                                      color: "#111827",
+                                      background: "#f8fafc",
+                                    }}
+                                  >
+                                    <div>{cust.customer_name}</div>
+                                    {cust.customer_phone && (
+                                      <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
+                                        {cust.customer_phone}
+                                      </div>
+                                    )}
+                                    {cust.channels.length > 0 && (
+                                      <div style={{ fontSize: 10, color: "#5005A6", marginTop: 4 }}>
+                                        {cust.channels.join(", ")}
+                                      </div>
+                                    )}
+                                  </td>
+                                </>
                               )}
                               <td
                                 style={{
@@ -707,7 +737,7 @@ export default function SalesByCustomerItemsReportPage() {
                     {reportData.dates.length > 1 && (
                       <tfoot>
                         <tr style={{ background: "#f1f5f9", fontWeight: 800, borderTop: "2px solid #64748b" }}>
-                          <td colSpan={3} style={{ padding: "10px 12px", textAlign: "right", border: "1px solid #cbd5e1" }}>
+                          <td colSpan={4} style={{ padding: "10px 12px", textAlign: "right", border: "1px solid #cbd5e1" }}>
                             TOTAL TANGGAL {formatDate(d.tanggal)}:
                           </td>
                           <td style={{ padding: "10px 12px", textAlign: "center", border: "1px solid #cbd5e1" }}>
