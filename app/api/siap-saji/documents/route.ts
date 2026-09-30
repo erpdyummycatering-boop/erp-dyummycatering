@@ -4,7 +4,10 @@ import pool from "@/lib/db";
 export async function GET(req: NextRequest) {
   const { searchParams: p } = new URL(req.url);
   const type = p.get("type") || "produksi"; // produksi | pengiriman | rekap_cs
-  const tanggal = p.get("tanggal") || new Date().toISOString().split("T")[0];
+  const dateFrom = p.get("date_from") || p.get("tanggal") || new Date().toISOString().split("T")[0];
+  const dateTo = p.get("date_to") || dateFrom;
+  const tanggalLabel = dateFrom === dateTo ? dateFrom : `${dateFrom} s/d ${dateTo}`;
+
   const channelParam = p.get("channel") || "";
   const channelList = channelParam
     ? channelParam.split(",").map((s) => s.trim()).filter(Boolean)
@@ -17,12 +20,13 @@ export async function GET(req: NextRequest) {
       const wheres: string[] = [
         "o.lini = 'siap_saji'",
         "o.status_order <> 'Dibatalkan'",
-        "(o.delivery_date::date = $1::date OR o.order_date::date = $1::date)"
+        "COALESCE(o.delivery_date::date, o.order_date::date) >= $1::date",
+        "COALESCE(o.delivery_date::date, o.order_date::date) <= $2::date",
       ];
-      const vals: any[] = [tanggal];
+      const vals: any[] = [dateFrom, dateTo];
 
       if (channelList.length > 0) {
-        wheres.push("ch.name = ANY($2::text[])");
+        wheres.push("ch.name = ANY($3::text[])");
         vals.push(channelList);
       }
 
@@ -48,7 +52,9 @@ export async function GET(req: NextRequest) {
 
       return NextResponse.json({
         type: "produksi",
-        tanggal,
+        tanggal: tanggalLabel,
+        date_from: dateFrom,
+        date_to: dateTo,
         channel: channelDisplay,
         total_qty: totalQty,
         data: res.rows,
@@ -59,12 +65,13 @@ export async function GET(req: NextRequest) {
       const wheres: string[] = [
         "o.lini = 'siap_saji'",
         "o.status_order <> 'Dibatalkan'",
-        "(o.delivery_date::date = $1::date OR o.order_date::date = $1::date)"
+        "COALESCE(o.delivery_date::date, o.order_date::date) >= $1::date",
+        "COALESCE(o.delivery_date::date, o.order_date::date) <= $2::date",
       ];
-      const vals: any[] = [tanggal];
+      const vals: any[] = [dateFrom, dateTo];
 
       if (channelList.length > 0) {
-        wheres.push("ch.name = ANY($2::text[])");
+        wheres.push("ch.name = ANY($3::text[])");
         vals.push(channelList);
       }
 
@@ -111,7 +118,9 @@ export async function GET(req: NextRequest) {
 
         return NextResponse.json({
           type: "rekap_pengiriman",
-          tanggal,
+          tanggal: tanggalLabel,
+          date_from: dateFrom,
+          date_to: dateTo,
           channel: channelDisplay,
           data: res.rows,
         });
@@ -150,7 +159,9 @@ export async function GET(req: NextRequest) {
 
       return NextResponse.json({
         type: "pengiriman",
-        tanggal,
+        tanggal: tanggalLabel,
+        date_from: dateFrom,
+        date_to: dateTo,
         channel: channelDisplay,
         data: res.rows,
       });
@@ -160,12 +171,13 @@ export async function GET(req: NextRequest) {
       const wheres: string[] = [
         "o.lini = 'siap_saji'",
         "o.status_order <> 'Dibatalkan'",
-        "(o.delivery_date::date = $1::date OR o.order_date::date = $1::date)"
+        "COALESCE(o.delivery_date::date, o.order_date::date) >= $1::date",
+        "COALESCE(o.delivery_date::date, o.order_date::date) <= $2::date",
       ];
-      const vals: any[] = [tanggal];
+      const vals: any[] = [dateFrom, dateTo];
 
       if (channelList.length > 0) {
-        wheres.push("ch.name = ANY($2::text[])");
+        wheres.push("ch.name = ANY($3::text[])");
         vals.push(channelList);
       }
 
@@ -196,7 +208,9 @@ export async function GET(req: NextRequest) {
 
       return NextResponse.json({
         type: "rekap_cs",
-        tanggal,
+        tanggal: tanggalLabel,
+        date_from: dateFrom,
+        date_to: dateTo,
         channel: channelDisplay,
         total_omset: totalOmset,
         total_ongkir: totalOngkir,

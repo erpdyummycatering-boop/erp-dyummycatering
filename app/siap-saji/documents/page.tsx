@@ -10,7 +10,8 @@ import { formatDate } from "@/lib/utils";
 
 export default function SiapSajiDocumentsPage() {
   const [activeTab, setActiveTab] = useState<"produksi" | "pengiriman" | "rekap_pengiriman" | "rekap_cs">("produksi");
-  const [tanggal, setTanggal] = useState(() => new Date().toISOString().split("T")[0]); // default date: Hari Ini
+  const [dateFrom, setDateFrom] = useState(() => new Date().toISOString().split("T")[0]);
+  const [dateTo, setDateTo] = useState(() => new Date().toISOString().split("T")[0]);
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
   const [channels, setChannels] = useState<{ id: number; name: string }[]>([]);
 
@@ -24,6 +25,9 @@ export default function SiapSajiDocumentsPage() {
   const [docData, setDocData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  // Helper date display
+  const dateLabel = dateFrom === dateTo ? formatDate(dateFrom) : `${formatDate(dateFrom)} s/d ${formatDate(dateTo)}`;
+
   // Fetch channels for filter
   useEffect(() => {
     fetch("/api/siap-saji/master")
@@ -32,13 +36,14 @@ export default function SiapSajiDocumentsPage() {
       .catch((e) => console.error(e));
   }, []);
 
-  // Fetch document data when tab, date, or channel filter changes
+  // Fetch document data when tab, date range, or channel filter changes
   const fetchDoc = async () => {
     setLoading(true);
     try {
       const q = new URLSearchParams();
       q.append("type", activeTab);
-      q.append("tanggal", tanggal);
+      q.append("date_from", dateFrom);
+      q.append("date_to", dateTo);
       if (selectedChannels.length > 0) {
         q.append("channel", selectedChannels.join(","));
       }
@@ -54,6 +59,10 @@ export default function SiapSajiDocumentsPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchDoc();
+  }, [activeTab, dateFrom, dateTo, selectedChannels]);
 
   // Sorting calculation for Rekap CS
   const sortedRekapData = useMemo(() => {
@@ -248,11 +257,18 @@ export default function SiapSajiDocumentsPage() {
       <div style={{ background: "white", borderRadius: 12, padding: "12px 16px", border: "1px solid #e5e7eb", marginBottom: 20, display: "flex", gap: 16, alignItems: "center", overflowX: "auto", whiteSpace: "nowrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
           <Calendar size={16} color="#6b7280" />
-          <label style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>Tanggal:</label>
+          <label style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>Dari:</label>
           <input
             type="date"
-            value={tanggal}
-            onChange={(e) => setTanggal(e.target.value)}
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13 }}
+          />
+          <span style={{ fontSize: 13, color: "#9ca3af" }}>s/d</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
             style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13 }}
           />
         </div>
@@ -277,7 +293,7 @@ export default function SiapSajiDocumentsPage() {
           <p style={{ textAlign: "center", padding: 40, color: "#9ca3af" }}>Memuat dokumen...</p>
         ) : !docData || !docData.data || docData.data.length === 0 ? (
           <p style={{ textAlign: "center", padding: 40, color: "#9ca3af" }}>
-            Tidak ada data untuk tanggal {tanggal} ({selectedChannels.length > 0 ? selectedChannels.join(", ") : "Semua Channel"}).
+            Tidak ada data untuk tanggal {dateLabel} ({selectedChannels.length > 0 ? selectedChannels.join(", ") : "Semua Channel"}).
           </p>
         ) : activeTab === "produksi" ? (
           /* TAB 1: LAPORAN PRODUKSI DAPUR */
@@ -288,11 +304,11 @@ export default function SiapSajiDocumentsPage() {
                   LAPORAN PENJUALAN HARIAN — PRODUKSI DAPUR
                 </h2>
                 <p style={{ fontSize: 13, color: "#4b5563", marginTop: 4, margin: 0 }}>
-                  DYUMMY CATERING | Tanggal: <strong>{formatDate(tanggal)}</strong> | Channel: <strong>{docData.channel}</strong>
+                  DYUMMY CATERING | Tanggal: <strong>{dateLabel}</strong> | Channel: <strong>{docData.channel}</strong>
                 </p>
               </div>
               <button
-                onClick={() => window.open(`/api/siap-saji/orders/recap-pdf?date_from=${tanggal}&date_to=${tanggal}`, "_blank")}
+                onClick={() => window.open(`/api/siap-saji/orders/recap-pdf?date_from=${dateFrom}&date_to=${dateTo}`, "_blank")}
                 style={{
                   padding: "8px 14px",
                   background: "#378ADD",
@@ -382,7 +398,7 @@ export default function SiapSajiDocumentsPage() {
                   REKAP PENGIRIMAN HARIAN KURIR / GOJEK OFFLINE
                 </h2>
                 <p style={{ fontSize: 13, color: "#4b5563", marginTop: 4, margin: 0 }}>
-                  DYUMMY CATERING | Tanggal: <strong>{formatDate(tanggal)}</strong> | Channel: <strong>{docData.channel}</strong>
+                  DYUMMY CATERING | Tanggal: <strong>{dateLabel}</strong> | Channel: <strong>{docData.channel}</strong>
                 </p>
               </div>
               <div style={{ display: "flex", gap: 10 }}>
@@ -405,7 +421,7 @@ export default function SiapSajiDocumentsPage() {
                   🚚 Buka Monitoring Pengiriman Real-time
                 </a>
                 <button
-                  onClick={() => window.open(`/api/siap-saji/orders/recap-shipping-pdf?date_from=${tanggal}&date_to=${tanggal}`, "_blank")}
+                  onClick={() => window.open(`/api/siap-saji/orders/recap-shipping-pdf?date_from=${dateFrom}&date_to=${dateTo}`, "_blank")}
                   style={{
                     padding: "8px 16px",
                     background: "linear-gradient(135deg, #5005A6 0%, #B10FBD 100%)",
@@ -512,7 +528,7 @@ export default function SiapSajiDocumentsPage() {
                 DAFTAR ORDER PENGIRIMAN HARIAN
               </h2>
               <p style={{ fontSize: 13, color: "#4b5563", marginTop: 4 }}>
-                DYUMMY CATERING | Tanggal: <strong>{formatDate(tanggal)}</strong> | Channel: <strong>{docData.channel}</strong>
+                DYUMMY CATERING | Tanggal: <strong>{dateLabel}</strong> | Channel: <strong>{docData.channel}</strong>
               </p>
             </div>
 
@@ -580,7 +596,7 @@ export default function SiapSajiDocumentsPage() {
                 REKAP TABEL HARIAN — CUSTOMER SERVICE
               </h2>
               <p style={{ fontSize: 13, color: "#4b5563", marginTop: 4, margin: 0 }}>
-                Format Sheet Manual CS | Tanggal: <strong>{formatDate(tanggal)}</strong> | Channel: <strong>{docData.channel}</strong>
+                Format Sheet Manual CS | Tanggal: <strong>{dateLabel}</strong> | Channel: <strong>{docData.channel}</strong>
               </p>
             </div>
 

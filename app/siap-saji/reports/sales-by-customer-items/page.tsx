@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   FileSpreadsheet,
   Printer,
@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { formatDate } from "@/lib/utils";
 import { MultiSelectCheckbox } from "@/components/ui/MultiSelectCheckbox";
+import { Pagination } from "@/components/ui/Pagination";
 
 interface ItemRow {
   nama_barang: string;
@@ -69,6 +70,10 @@ export default function SalesByCustomerItemsReportPage() {
 
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Pagination state (default: 10 per page)
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
 
   // Fetch channels for filter
   useEffect(() => {
@@ -130,6 +135,7 @@ export default function SalesByCustomerItemsReportPage() {
       if (!res.ok) throw new Error("Gagal mengambil laporan penjualan per barang");
       const json = await res.json();
       setReportData(json);
+      setPage(1); // Reset page on new fetch
     } catch (err: any) {
       toast.error(err.message || "Gagal memuat laporan");
     } finally {
@@ -140,6 +146,43 @@ export default function SalesByCustomerItemsReportPage() {
   useEffect(() => {
     fetchReport();
   }, [dateFrom, dateTo, selectedChannels]);
+
+  // Flatten customer entries across all dates to paginate by customer
+  const allCustomerEntries = useMemo(() => {
+    if (!reportData?.dates) return [];
+    const list: Array<{
+      dateKey: string;
+      customer: CustomerGroup;
+    }> = [];
+    for (const d of reportData.dates) {
+      for (const c of d.customers) {
+        list.push({ dateKey: d.tanggal, customer: c });
+      }
+    }
+    return list;
+  }, [reportData?.dates]);
+
+  // Sliced for pagination on web view
+  const pagedEntries = useMemo(() => {
+    return allCustomerEntries.slice((page - 1) * limit, page * limit);
+  }, [allCustomerEntries, page, limit]);
+
+  // Re-group paged entries by date for structured table display
+  const pagedDateGroups = useMemo(() => {
+    const map = new Map<string, CustomerGroup[]>();
+    for (const entry of pagedEntries) {
+      if (!map.has(entry.dateKey)) {
+        map.set(entry.dateKey, []);
+      }
+      map.get(entry.dateKey)!.push(entry.customer);
+    }
+    return Array.from(map.entries()).map(([tanggal, customers]) => ({
+      tanggal,
+      customers,
+      total_kuantitas: customers.reduce((sum, c) => sum + c.total_kuantitas, 0),
+      total_penjualan: customers.reduce((sum, c) => sum + c.total_penjualan, 0),
+    }));
+  }, [pagedEntries]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -530,8 +573,8 @@ export default function SalesByCustomerItemsReportPage() {
           </p>
         ) : (
           <div>
-            {reportData.dates.map((d, dIdx) => (
-              <div key={d.tanggal} style={{ marginBottom: reportData.dates.length > 1 ? 32 : 12 }}>
+            {pagedDateGroups.map((d, dIdx) => (
+              <div key={d.tanggal} style={{ marginBottom: pagedDateGroups.length > 1 ? 32 : 12 }}>
                 {/* Date Header for multi-day */}
                 {reportData.dates.length > 1 && (
                   <div style={{ background: "#f1f5f9", padding: "8px 14px", borderRadius: 8, marginBottom: 10, display: "flex", justifyContent: "space-between", alignItems: "center", borderLeft: "4px solid #5005A6" }}>
@@ -539,7 +582,7 @@ export default function SalesByCustomerItemsReportPage() {
                       📅 Tanggal: {formatDate(d.tanggal)}
                     </span>
                     <span style={{ fontSize: 12, color: "#64748b" }}>
-                      {d.customers.length} Pelanggan • {d.total_kuantitas} item • Rp {d.total_penjualan.toLocaleString("id-ID")}
+                      {d.customers.length} Pelanggan halaman ini • {d.total_kuantitas} item • Rp {d.total_penjualan.toLocaleString("id-ID")}
                     </span>
                   </div>
                 )}
@@ -712,6 +755,21 @@ export default function SalesByCustomerItemsReportPage() {
                   Total Penjualan: Rp {reportData.summary.grand_total_sales.toLocaleString("id-ID")}
                 </span>
               </div>
+            </div>
+
+            {/* Pagination Controls */}
+            <div className="no-print" style={{ marginTop: 18 }}>
+              <Pagination
+                page={page}
+                totalPages={Math.ceil(allCustomerEntries.length / limit) || 1}
+                total={allCustomerEntries.length}
+                limit={limit}
+                onChange={(p) => setPage(p)}
+                onLimitChange={(lim) => {
+                  setLimit(lim);
+                  setPage(1);
+                }}
+              />
             </div>
           </div>
         )}
