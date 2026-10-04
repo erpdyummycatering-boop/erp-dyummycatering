@@ -244,6 +244,94 @@ export async function PUT(
       );
     }
 
+    // 6. Update Accounting Journal & Kas Mutasi if exists
+    if (existingOrder.journal_id) {
+      // Lookup Coa Accounts for update in case bank changed
+      let debitKode = "1-1002";
+      if (paymentBankName.toUpperCase().includes("MANDIRI")) debitKode = "1-1003";
+      else if (paymentBankName.toUpperCase().includes("KAS")) debitKode = "1-1001";
+
+      const coaDebitRes = await client.query(
+        "SELECT id FROM coa WHERE kode_akun = $1 AND lini = 'siap_saji' LIMIT 1",
+        [debitKode]
+      );
+
+      if (coaDebitRes.rows.length > 0) {
+        await client.query(
+          `UPDATE journals
+           SET akun_debit = $1,
+               nominal = $2,
+               keterangan = $3
+           WHERE id = $4`,
+          [
+            coaDebitRes.rows[0].id,
+            grandTotal,
+            `Penjualan Siap Saji ${existingOrder.no_struk} - ${paymentBankName}`,
+            existingOrder.journal_id,
+          ]
+        );
+      } else {
+        await client.query(
+          `UPDATE journals
+           SET nominal = $1,
+               keterangan = $2
+           WHERE id = $3`,
+          [
+            grandTotal,
+            `Penjualan Siap Saji ${existingOrder.no_struk} - ${paymentBankName}`,
+            existingOrder.journal_id,
+          ]
+        );
+      }
+    }
+
+    // Update Kas Mutasi & Adjust Saldo Kas Bank
+    const oldMutasiRes = await client.query(
+      "SELECT * FROM kas_mutasi WHERE ref_type = 'penjualan' AND ref_id = $1 LIMIT 1",
+      [orderId]
+    );
+
+    if (oldMutasiRes.rows.length > 0) {
+      const oldM = oldMutasiRes.rows[0];
+      const targetKasBankId = kas_bank_id ? Number(kas_bank_id) : oldM.kas_bank_id;
+
+      if (targetKasBankId === oldM.kas_bank_id) {
+        // Same bank: adjust difference
+        const diffNominal = grandTotal - Number(oldM.nominal);
+        await client.query(
+          `UPDATE kas_mutasi
+           SET nominal = $1,
+               keterangan = $2
+           WHERE id = $3`,
+          [grandTotal, `Penjualan SS ${existingOrder.no_struk}`, oldM.id]
+        );
+        if (diffNominal !== 0) {
+          await client.query(
+            "UPDATE kas_bank SET saldo_kini = saldo_kini + $1, updated_at = NOW() WHERE id = $2",
+            [diffNominal, oldM.kas_bank_id]
+          );
+        }
+      } else {
+        // Different bank: revert old bank, apply to new bank
+        await client.query(
+          "UPDATE kas_bank SET saldo_kini = saldo_kini - $1, updated_at = NOW() WHERE id = $2",
+          [oldM.nominal, oldM.kas_bank_id]
+        );
+        await client.query(
+          `UPDATE kas_mutasi
+           SET kas_bank_id = $1,
+               nominal = $2,
+               keterangan = $3
+           WHERE id = $4`,
+          [targetKasBankId, grandTotal, `Penjualan SS ${existingOrder.no_struk}`, oldM.id]
+        );
+        await client.query(
+          "UPDATE kas_bank SET saldo_kini = saldo_kini + $1, updated_at = NOW() WHERE id = $2",
+          [grandTotal, targetKasBankId]
+        );
+      }
+    }
+
     await client.query("COMMIT");
 
     return NextResponse.json({
