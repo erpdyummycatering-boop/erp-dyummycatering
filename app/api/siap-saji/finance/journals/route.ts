@@ -36,23 +36,50 @@ export async function POST(req: NextRequest) {
       [tgl, refStr, Number(akun_debit), Number(akun_kredit), numNominal, ketStr]
     );
 
-    // If either account is linked to Kas/Bank, update Kas Mutasi as well
-    const kasDebitCheck = await client.query("SELECT * FROM kas_bank WHERE coa_id = $1 LIMIT 1", [akun_debit]);
-    const kasKreditCheck = await client.query("SELECT * FROM kas_bank WHERE coa_id = $1 LIMIT 1", [akun_kredit]);
+    // If either account is linked to Kas/Bank, update Kas Mutasi and update saldo_kini as well
+    const findKasBankByCoaId = async (coaId: number) => {
+      const res = await client.query(
+        `SELECT kb.* 
+         FROM kas_bank kb
+         JOIN coa c ON c.id = $1
+         WHERE kb.lini = 'siap_saji' 
+           AND (
+             (c.kode_akun = '1-1001' AND kb.jenis = 'Kas') OR
+             (c.kode_akun = '1-1002' AND (kb.nama_bank ILIKE '%BCA%' OR kb.nama_rekening ILIKE '%BCA%')) OR
+             (c.kode_akun = '1-1003' AND (kb.nama_bank ILIKE '%MANDIRI%' OR kb.nama_rekening ILIKE '%MANDIRI%'))
+           )
+         LIMIT 1`,
+        [coaId]
+      );
+      return res.rows[0] || null;
+    };
 
-    if (kasDebitCheck.rows.length > 0) {
-      // Kas Masuk
+    const kasDebit = await findKasBankByCoaId(Number(akun_debit));
+    const kasKredit = await findKasBankByCoaId(Number(akun_kredit));
+
+    if (kasDebit) {
+      // Kas Masuk (Debit Kas/Bank)
       await client.query(
         `INSERT INTO kas_mutasi (kas_bank_id, lini, mutasi_date, jenis, nominal, ref_type, ref_id, keterangan)
          VALUES ($1, 'siap_saji', $2, 'Masuk', $3, 'koreksi', $4, $5)`,
-        [kasDebitCheck.rows[0].id, tgl, numNominal, journalRes.rows[0].id, `[JU] ${ketStr}`]
+        [kasDebit.id, tgl, numNominal, journalRes.rows[0].id, `[JU] ${ketStr}`]
       );
-    } else if (kasKreditCheck.rows.length > 0) {
-      // Kas Keluar
+      await client.query(
+        "UPDATE kas_bank SET saldo_kini = saldo_kini + $1, updated_at = NOW() WHERE id = $2",
+        [numNominal, kasDebit.id]
+      );
+    }
+    
+    if (kasKredit) {
+      // Kas Keluar (Kredit Kas/Bank)
       await client.query(
         `INSERT INTO kas_mutasi (kas_bank_id, lini, mutasi_date, jenis, nominal, ref_type, ref_id, keterangan)
          VALUES ($1, 'siap_saji', $2, 'Keluar', $3, 'koreksi', $4, $5)`,
-        [kasKreditCheck.rows[0].id, tgl, numNominal, journalRes.rows[0].id, `[JU] ${ketStr}`]
+        [kasKredit.id, tgl, numNominal, journalRes.rows[0].id, `[JU] ${ketStr}`]
+      );
+      await client.query(
+        "UPDATE kas_bank SET saldo_kini = saldo_kini - $1, updated_at = NOW() WHERE id = $2",
+        [numNominal, kasKredit.id]
       );
     }
 

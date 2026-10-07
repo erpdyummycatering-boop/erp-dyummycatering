@@ -26,13 +26,18 @@ export async function POST(req: NextRequest) {
     const kasBank = kbRes.rows[0];
 
     // Find linked COA for this Kas/Bank
-    let kasCoaId = kasBank.coa_id;
-    if (!kasCoaId) {
-      const coaKasRes = await client.query(
-        "SELECT id FROM coa WHERE (kode_akun LIKE '1-100%' OR nama_akun ILIKE '%kas%') AND lini = 'siap_saji' LIMIT 1"
-      );
-      kasCoaId = coaKasRes.rows[0]?.id;
+    let kasKode = "1-1001"; // Kas Tunai default
+    const bName = ((kasBank.nama_bank || "") + " " + (kasBank.nama_rekening || "")).toUpperCase();
+    if (bName.includes("BCA")) {
+      kasKode = "1-1002";
+    } else if (bName.includes("MANDIRI")) {
+      kasKode = "1-1003";
     }
+    const coaKasRes = await client.query(
+      "SELECT id FROM coa WHERE kode_akun = $1 AND lini = 'siap_saji' LIMIT 1",
+      [kasKode]
+    );
+    let kasCoaId = coaKasRes.rows[0]?.id;
 
     const tgl = mutasi_date || new Date().toISOString().split("T")[0];
     const ket = keterangan ? String(keterangan).trim() : (jenis === "Keluar" ? "Kas Keluar (Prive / Lainya)" : "Kas Masuk (Modal / Lainnya)");
