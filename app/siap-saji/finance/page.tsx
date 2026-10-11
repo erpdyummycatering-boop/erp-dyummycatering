@@ -8,10 +8,36 @@ import { formatDate } from "@/lib/utils";
 import * as XLSX from "xlsx";
 
 export default function SiapSajiFinancePage() {
-  const [activeTab, setActiveTab] = useState<"pl" | "purchases" | "expenses" | "kas_bank" | "journals" | "coa" | "neraca">("pl");
+  const [activeTab, setActiveTab] = useState<"pl" | "purchases" | "expenses" | "kas_bank" | "journals" | "ledger" | "coa" | "neraca">("pl");
 
   const [loading, setLoading] = useState(true);
   const [neracaData, setNeracaData] = useState<any[]>([]);
+
+  // ── State Modal List Transaksi Keuangan (Drill-down dari P&L dan Neraca) ──
+  const [drillModalOpen, setDrillModalOpen] = useState(false);
+  const [drillModalTitle, setDrillModalTitle] = useState("");
+  const [drillModalCoaId, setDrillModalCoaId] = useState<number | null>(null);
+  const [drillModalCoaCode, setDrillModalCoaCode] = useState("");
+  const [drillModalCoaName, setDrillModalCoaName] = useState("");
+  const [drillDateFrom, setDrillDateFrom] = useState("");
+  const [drillDateTo, setDrillDateTo] = useState("");
+  const [drillSearch, setDrillSearch] = useState("");
+  const [drillPage, setDrillPage] = useState(1);
+  const [drillLimit, setDrillLimit] = useState(10);
+  const [drillData, setDrillData] = useState<any[]>([]);
+  const [drillTotal, setDrillTotal] = useState(0);
+  const [drillTotalNominal, setDrillTotalNominal] = useState(0);
+  const [drillLoading, setDrillLoading] = useState(false);
+
+  // ── State Tab Buku Besar (General Ledger) ──
+  const [ledgerCoaId, setLedgerCoaId] = useState<number | "">("");
+  const [ledgerDateFrom, setLedgerDateFrom] = useState(new Date().toISOString().split("T")[0]);
+  const [ledgerDateTo, setLedgerDateTo] = useState(new Date().toISOString().split("T")[0]);
+  const [ledgerPreset, setLedgerPreset] = useState("today");
+  const [ledgerPage, setLedgerPage] = useState(1);
+  const [ledgerLimit, setLedgerLimit] = useState(25);
+  const [ledgerData, setLedgerData] = useState<any>(null);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
 
   // Thousand Separator Formatter Helpers
   const formatThousand = (val: number | string) => {
@@ -43,6 +69,40 @@ export default function SiapSajiFinancePage() {
   const [plYear, setPlYear] = useState<string>(String(new Date().getFullYear()));
   const [plDateFrom, setPlDateFrom] = useState<string>(new Date().toISOString().split("T")[0]);
   const [plDateTo, setPlDateTo] = useState<string>(new Date().toISOString().split("T")[0]);
+
+  // Tab 7: Neraca Date & Cutoff Filters
+  const [neracaPreset, setNeracaPreset] = useState<string>("today"); // "today" | "yesterday" | "this_month" | "last_month" | "this_year" | "all" | "custom"
+  const [neracaDateTo, setNeracaDateTo] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [neracaMonth, setNeracaMonth] = useState<string>(String(new Date().getMonth() + 1));
+  const [neracaYear, setNeracaYear] = useState<string>(String(new Date().getFullYear()));
+
+  const handleNeracaShortcutChange = (preset: string) => {
+    setNeracaPreset(preset);
+    const today = new Date();
+    const fmt = (d: Date) => d.toISOString().split("T")[0];
+
+    if (preset === "today") {
+      setNeracaDateTo(fmt(today));
+    } else if (preset === "yesterday") {
+      const y = new Date();
+      y.setDate(today.getDate() - 1);
+      setNeracaDateTo(fmt(y));
+    } else if (preset === "this_month") {
+      // End of current month or today
+      const lastDayThisMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      setNeracaDateTo(fmt(lastDayThisMonth));
+    } else if (preset === "last_month") {
+      // End of previous month
+      const lastDayPrevMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+      setNeracaDateTo(fmt(lastDayPrevMonth));
+    } else if (preset === "this_year") {
+      // End of current year
+      const endYear = new Date(today.getFullYear(), 11, 31);
+      setNeracaDateTo(fmt(endYear));
+    } else if (preset === "all") {
+      setNeracaDateTo("");
+    }
+  };
 
   // Tab 2: Purchases Data & Filters
   const [purchases, setPurchases] = useState<any[]>([]);
@@ -272,14 +332,172 @@ export default function SiapSajiFinancePage() {
             setCoaList((prev) => (prev && prev.length > 0 ? prev : json.data));
           }
         }
+      } else if (activeTab === "ledger") {
+        await fetchLedgerData();
       } else if (activeTab === "neraca") {
-        const res = await fetch("/api/siap-saji/finance/reports?type=neraca");
+        const qObj: Record<string, string> = { type: "neraca" };
+        if (neracaDateTo) qObj.date_to = neracaDateTo;
+        const q = new URLSearchParams(qObj).toString();
+        const res = await fetch(`/api/siap-saji/finance/reports?${q}`);
         if (res.ok) setNeracaData(await res.json());
       }
     } catch (err: any) {
       toast.error(err.message || "Gagal memuat data keuangan");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Fetch data Buku Besar (General Ledger)
+  const fetchLedgerData = async (targetCoaId = ledgerCoaId, page = ledgerPage, lim = ledgerLimit, from = ledgerDateFrom, to = ledgerDateTo) => {
+    if (!targetCoaId) {
+      setLedgerData(null);
+      return;
+    }
+    setLedgerLoading(true);
+    try {
+      const q = new URLSearchParams({
+        type: "ledger",
+        coa_id: String(targetCoaId),
+        date_from: from,
+        date_to: to,
+        page: String(page),
+        limit: String(lim),
+      }).toString();
+      const res = await fetch(`/api/siap-saji/finance/reports?${q}`);
+      if (res.ok) {
+        const json = await res.json();
+        setLedgerData(json);
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Gagal memuat buku besar");
+    } finally {
+      setLedgerLoading(false);
+    }
+  };
+
+  const handleLedgerShortcutChange = (preset: string) => {
+    setLedgerPreset(preset);
+    const today = new Date();
+    const fmt = (d: Date) => d.toISOString().split("T")[0];
+
+    let from = "";
+    let to = "";
+    if (preset === "today") {
+      from = fmt(today);
+      to = fmt(today);
+    } else if (preset === "yesterday") {
+      const y = new Date();
+      y.setDate(today.getDate() - 1);
+      from = fmt(y);
+      to = fmt(y);
+    } else if (preset === "this_month") {
+      const startM = new Date(today.getFullYear(), today.getMonth(), 1);
+      const endM = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      from = fmt(startM);
+      to = fmt(endM);
+    } else if (preset === "last_month") {
+      const startM = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      const endM = new Date(today.getFullYear(), today.getMonth(), 0);
+      from = fmt(startM);
+      to = fmt(endM);
+    } else if (preset === "this_year") {
+      from = `${today.getFullYear()}-01-01`;
+      to = `${today.getFullYear()}-12-31`;
+    } else if (preset === "all") {
+      from = "";
+      to = "";
+    }
+    setLedgerDateFrom(from);
+    setLedgerDateTo(to);
+    setLedgerPage(1);
+    if (ledgerCoaId) {
+      fetchLedgerData(ledgerCoaId, 1, ledgerLimit, from, to);
+    }
+  };
+
+  // ── Drill-Down Modal Transaksi Keuangan (dari item P&L atau Neraca) ──
+  const handleOpenDrillModal = (account: { id?: number; kode_akun: string; nama_akun: string }, customFrom?: string, customTo?: string) => {
+    let resolvedId = account.id;
+    if (!resolvedId) {
+      const master = coaListAll.length > 0 ? coaListAll : coaList;
+      const found = master.find((c: any) => c.kode_akun === account.kode_akun || c.nama_akun.toLowerCase() === account.nama_akun.toLowerCase());
+      if (found) resolvedId = found.id;
+    }
+
+    setDrillModalCoaId(resolvedId || null);
+    setDrillModalCoaCode(account.kode_akun);
+    setDrillModalCoaName(account.nama_akun);
+    setDrillModalTitle(`Rincian Transaksi: (${account.kode_akun}) ${account.nama_akun}`);
+
+    // Compute default date range if not passed
+    let from = customFrom !== undefined ? customFrom : "";
+    let to = customTo !== undefined ? customTo : "";
+
+    if (customFrom === undefined && customTo === undefined) {
+      if (activeTab === "pl") {
+        if (plPeriodMode === "date") {
+          from = plDateFrom;
+          to = plDateTo;
+        } else {
+          // plPeriodMode === "month"
+          const y = Number(plYear) || new Date().getFullYear();
+          if (plMonth && plMonth !== "all") {
+            const m = Number(plMonth);
+            from = `${y}-${String(m).padStart(2, "0")}-01`;
+            const lastDay = new Date(y, m, 0).getDate();
+            to = `${y}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+          } else {
+            from = `${y}-01-01`;
+            to = `${y}-12-31`;
+          }
+        }
+      } else if (activeTab === "neraca") {
+        from = "";
+        to = neracaDateTo || "";
+      }
+    }
+
+    setDrillDateFrom(from);
+    setDrillDateTo(to);
+    setDrillSearch("");
+    setDrillPage(1);
+    setDrillModalOpen(true);
+
+    fetchDrillData(resolvedId, from, to, "", 1, drillLimit);
+  };
+
+  const fetchDrillData = async (coaId = drillModalCoaId, from = drillDateFrom, to = drillDateTo, search = drillSearch, page = drillPage, lim = drillLimit) => {
+    setDrillLoading(true);
+    try {
+      const qObj: Record<string, string> = {
+        type: "journals",
+        page: String(page),
+        limit: String(lim),
+      };
+      if (coaId) qObj.account_id = String(coaId);
+      if (from) qObj.date_from = from;
+      if (to) qObj.date_to = to;
+      if (search) qObj.search = search;
+
+      const q = new URLSearchParams(qObj).toString();
+      const res = await fetch(`/api/siap-saji/finance/reports?${q}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (Array.isArray(json)) {
+          setDrillData(json);
+          setDrillTotal(json.length);
+          setDrillTotalNominal(json.reduce((acc: number, it: any) => acc + Number(it.nominal || 0), 0));
+        } else {
+          setDrillData(json.data || []);
+          setDrillTotal(json.total || 0);
+          setDrillTotalNominal(json.total_nominal || 0);
+        }
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Gagal memuat rincian transaksi");
+    } finally {
+      setDrillLoading(false);
     }
   };
 
@@ -389,6 +607,8 @@ export default function SiapSajiFinancePage() {
     mutSearch, mutJenisFilter, mutDateFrom, mutDateTo,
     jouPage, jouLimit, jouSearch, jouTypeFilter, jouDateFrom, jouDateTo,
     coaSearch, coaKelompokFilter, coaKlasifikasiPlFilter,
+    neracaDateTo,
+    ledgerCoaId, ledgerDateFrom, ledgerDateTo, ledgerPage, ledgerLimit,
   ]);
 
   // Submit HPP Purchase
@@ -810,6 +1030,116 @@ export default function SiapSajiFinancePage() {
     window.open(`/print/siap-saji/pl?${q.toString()}`, "_blank");
   };
 
+  // Export Neraca Keuangan ke Excel (.xlsx)
+  const handleExportNeracaXLSX = () => {
+    if (!neracaData || neracaData.length === 0) {
+      return toast.error("Data Neraca belum tersedia untuk diekspor");
+    }
+
+    const asetRows = neracaData.filter((r) => r.kelompok === "Aset");
+    const liabRows = neracaData.filter((r) => r.kelompok === "Liabilitas");
+    const ekuitasRows = neracaData.filter((r) => r.kelompok === "Ekuitas");
+    const pendRows = neracaData.filter((r) => r.kelompok === "Pendapatan");
+    const bebanRows = neracaData.filter((r) => r.kelompok === "Beban");
+
+    const totalAset = asetRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0);
+    const totalLiabilitas = Math.abs(liabRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0));
+    const totalEkuitasAwal = Math.abs(ekuitasRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0));
+    const totalPendapatan = Math.abs(pendRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0));
+    const totalBeban = bebanRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0);
+    const labaBerjalan = totalPendapatan - totalBeban;
+    const totalEkuitasTotal = totalEkuitasAwal + labaBerjalan;
+    const totalPassiva = totalLiabilitas + totalEkuitasTotal;
+
+    const kasBankRows = asetRows.filter((r) => r.kode_akun.startsWith("1-1001") || r.kode_akun.startsWith("1-1002") || r.kode_akun.startsWith("1-1003") || r.nama_akun.toLowerCase().includes("kas") || r.nama_akun.toLowerCase().includes("bank"));
+    const asetLancarLainRows = asetRows.filter((r) => (r.sub_kelompok === "Aset Lancar" || !r.sub_kelompok) && !kasBankRows.includes(r));
+    const asetTetapRows = asetRows.filter((r) => r.sub_kelompok === "Aset Tetap");
+    const asetLainnyaRows = asetRows.filter((r) => r.sub_kelompok === "Aset Lainnya");
+
+    const totalKasBank = kasBankRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0);
+    const totalAsetLancarLain = asetLancarLainRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0);
+    const totalAsetLancar = totalKasBank + totalAsetLancarLain;
+    const totalAsetTetap = asetTetapRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0);
+    const totalAsetLainnya = asetLainnyaRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0);
+
+    const liabLancarRows = liabRows.filter((r) => r.sub_kelompok === "Liabilitas Lancar" || !r.sub_kelompok);
+    const liabJangkaPanjangRows = liabRows.filter((r) => r.sub_kelompok === "Liabilitas Jangka Panjang");
+    const totalLiabLancar = Math.abs(liabLancarRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0));
+    const totalLiabJangkaPanjang = Math.abs(liabJangkaPanjangRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0));
+
+    const cutoffLabel = neracaDateTo
+      ? new Date(neracaDateTo).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })
+      : "Semua Waktu (Kumulatif)";
+
+    const rows: (string | number)[][] = [
+      ["DYUMMY CATERING — SIAP SAJI"],
+      ["NERACA KEUANGAN (BALANCE SHEET)"],
+      [`Per Tanggal: ${cutoffLabel}`],
+      ["Mata Uang: Indonesian Rupiah (IDR)"],
+      [],
+      ["DESKRIPSI AKUN", "SALDO (RP)"],
+      ["1. ASET (AKTIVA)", ""],
+      ["  Kas & Bank", ""],
+    ];
+
+    kasBankRows.forEach((r) => rows.push([`    (${r.kode_akun}) ${r.nama_akun}`, Number(r.saldo || 0)]));
+    rows.push(["  Total Kas & Bank", totalKasBank]);
+    rows.push([]);
+
+    rows.push(["  Aset Lancar Lainnya", ""]);
+    asetLancarLainRows.forEach((r) => rows.push([`    (${r.kode_akun}) ${r.nama_akun}`, Number(r.saldo || 0)]));
+    rows.push(["  Total Aset Lancar Lainnya", totalAsetLancarLain]);
+    rows.push(["JUMLAH ASET LANCAR", totalAsetLancar]);
+    rows.push([]);
+
+    rows.push(["  Aset Tetap", ""]);
+    asetTetapRows.forEach((r) => rows.push([`    (${r.kode_akun}) ${r.nama_akun}`, Number(r.saldo || 0)]));
+    rows.push(["JUMLAH ASET TETAP", totalAsetTetap]);
+    rows.push([]);
+
+    if (asetLainnyaRows.length > 0) {
+      rows.push(["  Aset Lainnya", ""]);
+      asetLainnyaRows.forEach((r) => rows.push([`    (${r.kode_akun}) ${r.nama_akun}`, Number(r.saldo || 0)]));
+      rows.push(["JUMLAH ASET LAINNYA", totalAsetLainnya]);
+      rows.push([]);
+    }
+
+    rows.push(["TOTAL ASET (AKTIVA)", totalAset]);
+    rows.push([]);
+
+    rows.push(["2. LIABILITAS (KEWAJIBAN)", ""], ["  Liabilitas Jangka Pendek (Utang Lancar)", ""]);
+    liabLancarRows.forEach((r) => rows.push([`    (${r.kode_akun}) ${r.nama_akun}`, Math.abs(Number(r.saldo || 0))]));
+    rows.push(["  Total Liabilitas Jangka Pendek", totalLiabLancar]);
+
+    if (liabJangkaPanjangRows.length > 0) {
+      rows.push(["  Liabilitas Jangka Panjang", ""]);
+      liabJangkaPanjangRows.forEach((r) => rows.push([`    (${r.kode_akun}) ${r.nama_akun}`, Math.abs(Number(r.saldo || 0))]));
+      rows.push(["  Total Liabilitas Jangka Panjang", totalLiabJangkaPanjang]);
+    }
+    rows.push(["JUMLAH LIABILITAS", totalLiabilitas]);
+    rows.push([]);
+
+    rows.push(["3. EKUITAS (MODAL)", ""]);
+    ekuitasRows.forEach((r) => rows.push([`    (${r.kode_akun}) ${r.nama_akun}`, Math.abs(Number(r.saldo || 0))]));
+    rows.push(["    (3-2001) Laba Bersih Berjalan (P&L)", labaBerjalan]);
+    rows.push(["JUMLAH EKUITAS", totalEkuitasTotal]);
+    rows.push([]);
+
+    rows.push(["TOTAL LIABILITAS & EKUITAS (PASSIVA)", totalPassiva]);
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws["!cols"] = [{ wch: 45 }, { wch: 25 }];
+    XLSX.utils.book_append_sheet(wb, ws, "Neraca Keuangan");
+    const safeDate = (neracaDateTo || "kumulatif").replace(/[^a-zA-Z0-9_-]/g, "_");
+    XLSX.writeFile(wb, `Neraca_Keuangan_DYummy_Catering_${safeDate}.xlsx`);
+    toast.success("Laporan Neraca berhasil diexport ke Excel (.xlsx)!");
+  };
+
+  const handlePrintNeracaPDF = () => {
+    window.print();
+  };
+
   // Handlers for Kas Masuk / Keluar & Jurnal Umum Manual
   const handleOpenKasMutasiModal = (jenis: "Masuk" | "Keluar") => {
     setKasMutasiJenis(jenis);
@@ -1175,6 +1505,33 @@ export default function SiapSajiFinancePage() {
         </button>
 
         <button
+          onClick={() => {
+            setActiveTab("ledger");
+            if (!ledgerCoaId && coaListAll.length > 0) {
+              setLedgerCoaId(coaListAll[0].id);
+            }
+          }}
+          style={{
+            padding: "10px 14px",
+            background: "none",
+            border: "none",
+            borderBottom: activeTab === "ledger" ? "3px solid #5005A6" : "3px solid transparent",
+            color: activeTab === "ledger" ? "#5005A6" : "#6b7280",
+            fontSize: 13,
+            fontWeight: activeTab === "ledger" ? 700 : 500,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            marginBottom: -2,
+            whiteSpace: "nowrap",
+            flexShrink: 0,
+          }}
+        >
+          <BookOpen size={15} /> Buku Besar (Ledger)
+        </button>
+
+        <button
           onClick={() => setActiveTab("neraca")}
           style={{
             padding: "10px 14px",
@@ -1441,8 +1798,25 @@ export default function SiapSajiFinancePage() {
                   const isNegative = nominal < 0;
                   const accPct = totalPendapatan > 0 ? ((nominal / totalPendapatan) * 100).toFixed(1) : "0.0";
                   return (
-                    <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, color: isNegative ? "#dc2626" : "#374151" }}>
-                      <span>({acc.kode_akun}) {acc.nama_akun}</span>
+                    <div
+                      key={i}
+                      onClick={() => handleOpenDrillModal(acc)}
+                      title={`Klik untuk melihat rincian transaksi akun ${acc.nama_akun}`}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        fontSize: 13,
+                        color: isNegative ? "#dc2626" : "#374151",
+                        cursor: "pointer",
+                        padding: "3px 6px",
+                        borderRadius: 6,
+                        transition: "background 0.15s ease",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "#f3f4f6")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                    >
+                      <span style={{ textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}>({acc.kode_akun}) {acc.nama_akun}</span>
                       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                         <span style={{ fontWeight: 600, fontFamily: "monospace", color: isNegative ? "#dc2626" : undefined }}>
                           {isNegative ? `-Rp ${Math.abs(nominal).toLocaleString("id-ID")}` : `Rp ${nominal.toLocaleString("id-ID")}`}
@@ -1585,8 +1959,25 @@ export default function SiapSajiFinancePage() {
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 4, marginBottom: 8 }}>
                 {(plData?.details?.filter((d: any) => d.kelompok === "Beban" && d.sub_kelompok === "Beban Operasional" && Number(d.total_nominal || 0) !== 0) || []).map((acc: any, i: number) => (
-                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, color: "#374151" }}>
-                    <span>({acc.kode_akun}) {acc.nama_akun}</span>
+                  <div
+                    key={i}
+                    onClick={() => handleOpenDrillModal(acc)}
+                    title={`Klik untuk melihat rincian transaksi akun ${acc.nama_akun}`}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      fontSize: 13,
+                      color: "#374151",
+                      cursor: "pointer",
+                      padding: "3px 6px",
+                      borderRadius: 6,
+                      transition: "background 0.15s ease",
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#f3f4f6")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                  >
+                    <span style={{ textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}>({acc.kode_akun}) {acc.nama_akun}</span>
                     <span style={{ fontWeight: 600, fontFamily: "monospace" }}>Rp {Number(acc.total_nominal || 0).toLocaleString("id-ID")}</span>
                   </div>
                 ))}
@@ -1684,14 +2075,21 @@ export default function SiapSajiFinancePage() {
                       const isNegative = nom < 0;
                       const pct = totalPendapatan > 0 ? ((nom / totalPendapatan) * 100).toFixed(1) : "0.0";
                       return (
-                        <tr key={i}>
-                          <td style={{ padding: "2px 0 2px 28px", color: isNegative ? "#dc2626" : "#374151" }}>
+                        <tr
+                          key={i}
+                          onClick={() => handleOpenDrillModal(acc)}
+                          title={`Klik untuk melihat rincian transaksi (${acc.kode_akun}) ${acc.nama_akun}`}
+                          style={{ cursor: "pointer", transition: "background 0.15s ease" }}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = "#f8fafc")}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                        >
+                          <td style={{ padding: "4px 0 4px 28px", color: isNegative ? "#dc2626" : "#1d4ed8", textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}>
                             ({acc.kode_akun}) {acc.nama_akun}
                           </td>
-                          <td style={{ textAlign: "right", padding: "2px 12px 2px 0", fontFamily: "monospace", color: isNegative ? "#dc2626" : undefined }}>
+                          <td style={{ textAlign: "right", padding: "4px 12px 4px 0", fontFamily: "monospace", color: isNegative ? "#dc2626" : undefined }}>
                             {isNegative ? `-${Math.abs(nom).toLocaleString("id-ID")}` : nom.toLocaleString("id-ID")}
                           </td>
-                          <td style={{ textAlign: "right", padding: "2px 0", color: isNegative ? "#dc2626" : "#15803d", fontWeight: 600, fontSize: 12 }}>
+                          <td style={{ textAlign: "right", padding: "4px 0", color: isNegative ? "#dc2626" : "#15803d", fontWeight: 600, fontSize: 12 }}>
                             {pct}%
                           </td>
                         </tr>
@@ -1726,14 +2124,21 @@ export default function SiapSajiFinancePage() {
                       const nom = Number(acc.total_nominal || 0);
                       const pct = totalPendapatan > 0 ? ((nom / totalPendapatan) * 100).toFixed(1) : "0.0";
                       return (
-                        <tr key={`fc-${i}`}>
-                          <td style={{ padding: "2px 0 2px 28px", color: "#374151" }}>
+                        <tr
+                          key={`fc-${i}`}
+                          onClick={() => handleOpenDrillModal(acc)}
+                          title={`Klik untuk melihat rincian transaksi (${acc.kode_akun}) ${acc.nama_akun}`}
+                          style={{ cursor: "pointer", transition: "background 0.15s ease" }}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = "#f8fafc")}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                        >
+                          <td style={{ padding: "4px 0 4px 28px", color: "#15803d", textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}>
                             ({acc.kode_akun}) {acc.nama_akun}
                           </td>
-                          <td style={{ textAlign: "right", padding: "2px 12px 2px 0", fontFamily: "monospace" }}>
+                          <td style={{ textAlign: "right", padding: "4px 12px 4px 0", fontFamily: "monospace" }}>
                             {nom.toLocaleString("id-ID")}
                           </td>
-                          <td style={{ textAlign: "right", padding: "2px 0", color: "#6b7280", fontSize: 12 }}>
+                          <td style={{ textAlign: "right", padding: "4px 0", color: "#6b7280", fontSize: 12 }}>
                             {pct}%
                           </td>
                         </tr>
@@ -1770,14 +2175,21 @@ export default function SiapSajiFinancePage() {
                       const nom = Number(acc.total_nominal || 0);
                       const pct = totalPendapatan > 0 ? ((nom / totalPendapatan) * 100).toFixed(1) : "0.0";
                       return (
-                        <tr key={`ov-${i}`}>
-                          <td style={{ padding: "2px 0 2px 28px", color: "#374151" }}>
+                        <tr
+                          key={`ov-${i}`}
+                          onClick={() => handleOpenDrillModal(acc)}
+                          title={`Klik untuk melihat rincian transaksi (${acc.kode_akun}) ${acc.nama_akun}`}
+                          style={{ cursor: "pointer", transition: "background 0.15s ease" }}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = "#f8fafc")}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                        >
+                          <td style={{ padding: "4px 0 4px 28px", color: "#b45309", textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}>
                             ({acc.kode_akun}) {acc.nama_akun}
                           </td>
-                          <td style={{ textAlign: "right", padding: "2px 12px 2px 0", fontFamily: "monospace" }}>
+                          <td style={{ textAlign: "right", padding: "4px 12px 4px 0", fontFamily: "monospace" }}>
                             {nom.toLocaleString("id-ID")}
                           </td>
-                          <td style={{ textAlign: "right", padding: "2px 0", color: "#6b7280", fontSize: 12 }}>
+                          <td style={{ textAlign: "right", padding: "4px 0", color: "#6b7280", fontSize: 12 }}>
                             {pct}%
                           </td>
                         </tr>
@@ -1845,14 +2257,21 @@ export default function SiapSajiFinancePage() {
                       const nom = Number(acc.total_nominal || 0);
                       const pct = totalPendapatan > 0 ? ((nom / totalPendapatan) * 100).toFixed(1) : "0.0";
                       return (
-                        <tr key={i}>
-                          <td style={{ padding: "2px 0 2px 28px", color: "#374151" }}>
+                        <tr
+                          key={i}
+                          onClick={() => handleOpenDrillModal(acc)}
+                          title={`Klik untuk melihat rincian transaksi (${acc.kode_akun}) ${acc.nama_akun}`}
+                          style={{ cursor: "pointer", transition: "background 0.15s ease" }}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = "#f8fafc")}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                        >
+                          <td style={{ padding: "4px 0 4px 28px", color: "#374151", textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}>
                             ({acc.kode_akun}) {acc.nama_akun}
                           </td>
-                          <td style={{ textAlign: "right", padding: "2px 12px 2px 0", fontFamily: "monospace" }}>
+                          <td style={{ textAlign: "right", padding: "4px 12px 4px 0", fontFamily: "monospace" }}>
                             {nom.toLocaleString("id-ID")}
                           </td>
-                          <td style={{ textAlign: "right", padding: "2px 0", color: "#6b7280", fontSize: 12 }}>
+                          <td style={{ textAlign: "right", padding: "4px 0", color: "#6b7280", fontSize: 12 }}>
                             {pct}%
                           </td>
                         </tr>
@@ -3761,6 +4180,189 @@ export default function SiapSajiFinancePage() {
       {/* ── TAB 7: NERACA KEUANGAN (BALANCE SHEET) ───────────────────── */}
       {activeTab === "neraca" && (
         <div>
+          {/* Filter Toolbar Rentang / Cutoff Waktu Neraca */}
+          <div
+            style={{
+              background: "white",
+              borderRadius: 14,
+              padding: "12px 18px",
+              border: "1px solid #e5e7eb",
+              marginBottom: 20,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 12,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <Calendar size={16} color="#5005A6" />
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#374151" }}>Posisi Neraca Per Tanggal (Cut-off):</span>
+              </div>
+
+              {/* Preset Shortcuts */}
+              <div style={{ background: "#f3f4f6", padding: 3, borderRadius: 8, display: "flex", gap: 3, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={() => handleNeracaShortcutChange("today")}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 6,
+                    border: "none",
+                    background: neracaPreset === "today" ? "#5005A6" : "transparent",
+                    color: neracaPreset === "today" ? "white" : "#4b5563",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Hari Ini
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleNeracaShortcutChange("yesterday")}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 6,
+                    border: "none",
+                    background: neracaPreset === "yesterday" ? "#5005A6" : "transparent",
+                    color: neracaPreset === "yesterday" ? "white" : "#4b5563",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Kemarin
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleNeracaShortcutChange("this_month")}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 6,
+                    border: "none",
+                    background: neracaPreset === "this_month" ? "#5005A6" : "transparent",
+                    color: neracaPreset === "this_month" ? "white" : "#4b5563",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Akhir Bulan Ini
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleNeracaShortcutChange("last_month")}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 6,
+                    border: "none",
+                    background: neracaPreset === "last_month" ? "#5005A6" : "transparent",
+                    color: neracaPreset === "last_month" ? "white" : "#4b5563",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Akhir Bulan Lalu
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleNeracaShortcutChange("this_year")}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 6,
+                    border: "none",
+                    background: neracaPreset === "this_year" ? "#5005A6" : "transparent",
+                    color: neracaPreset === "this_year" ? "white" : "#4b5563",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Tahun Ini
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleNeracaShortcutChange("all")}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 6,
+                    border: "none",
+                    background: neracaPreset === "all" ? "#5005A6" : "transparent",
+                    color: neracaPreset === "all" ? "white" : "#4b5563",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Semua Waktu
+                </button>
+              </div>
+
+              {/* Date Input */}
+              <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#f9fafb", padding: "4px 10px", borderRadius: 8, border: "1px solid #d1d5db" }}>
+                <span style={{ fontSize: 12, color: "#6b7280", fontWeight: 600 }}>Per:</span>
+                <input
+                  type="date"
+                  value={neracaDateTo}
+                  onChange={(e) => {
+                    setNeracaDateTo(e.target.value);
+                    setNeracaPreset("custom");
+                  }}
+                  style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #d1d5db", fontSize: 12, outline: "none" }}
+                />
+              </div>
+            </div>
+
+            {/* Action Buttons: Export Excel & PDF */}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                type="button"
+                onClick={handleExportNeracaXLSX}
+                style={{
+                  padding: "7px 14px",
+                  background: "#f0fdf4",
+                  color: "#15803d",
+                  border: "1px solid #bbf7d0",
+                  borderRadius: 8,
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+                title="Export Neraca Keuangan ke Excel (.xlsx)"
+              >
+                <FileSpreadsheet size={15} /> Export Excel
+              </button>
+
+              <button
+                type="button"
+                onClick={handlePrintNeracaPDF}
+                style={{
+                  padding: "7px 14px",
+                  background: "#5005A6",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 8,
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  boxShadow: "0 2px 6px rgba(80, 5, 166, 0.2)",
+                }}
+                title="Cetak atau simpan Neraca Keuangan sebagai PDF"
+              >
+                <Printer size={15} /> Cetak / Unduh PDF
+              </button>
+            </div>
+          </div>
+
           {loading ? (
             <div style={{ background: "white", borderRadius: 16, border: "1px solid #e5e7eb", padding: 60, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
               <RefreshCw size={36} className="animate-spin" style={{ color: "#5005A6", marginBottom: 16 }} />
@@ -3840,6 +4442,10 @@ export default function SiapSajiFinancePage() {
                   const totalLiabLancar = Math.abs(liabLancarRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0));
                   const totalLiabJangkaPanjang = Math.abs(liabJangkaPanjangRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0));
 
+                  const cutoffDisplay = neracaDateTo
+                    ? new Date(neracaDateTo).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })
+                    : "Semua Waktu (Kumulatif)";
+
                   return (
                     <div style={{ background: "white", borderRadius: 14, border: "1px solid #e5e7eb", padding: "24px 28px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
                       <div style={{ textAlign: "center", borderBottom: "2px solid #e5e7eb", paddingBottom: 16, marginBottom: 20 }}>
@@ -3850,7 +4456,7 @@ export default function SiapSajiFinancePage() {
                           SIAP SAJI — DYUMMY CATERING
                         </p>
                         <p style={{ fontSize: 12, color: "#9ca3af", margin: "2px 0 0" }}>
-                          Per Tanggal: {new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })} | Mata Uang: Rupiah (IDR)
+                          Per Tanggal: {cutoffDisplay} | Mata Uang: Rupiah (IDR)
                         </p>
                       </div>
 
@@ -3878,12 +4484,19 @@ export default function SiapSajiFinancePage() {
                             </td>
                           </tr>
                           {kasBankRows.map((r) => (
-                            <tr key={r.kode_akun}>
-                              <td style={{ padding: "3px 0 3px 28px", color: "#374151" }}>
-                                <span style={{ fontFamily: "monospace", color: "#6b7280", marginRight: 8 }}>({r.kode_akun})</span>
-                                {r.nama_akun}
+                            <tr
+                              key={r.kode_akun}
+                              onClick={() => handleOpenDrillModal(r, "", neracaDateTo)}
+                              title={`Klik untuk melihat rincian transaksi (${r.kode_akun}) ${r.nama_akun}`}
+                              style={{ cursor: "pointer", transition: "background 0.15s ease" }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = "#eff6ff")}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                            >
+                              <td style={{ padding: "4px 0 4px 28px", color: "#1d4ed8" }}>
+                                <span style={{ fontFamily: "monospace", color: "#3b82f6", marginRight: 8, textDecoration: "underline", textDecorationStyle: "dotted" }}>({r.kode_akun})</span>
+                                <span style={{ textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}>{r.nama_akun}</span>
                               </td>
-                              <td style={{ textAlign: "right", padding: "3px 0", fontFamily: "monospace", fontWeight: 600 }}>
+                              <td style={{ textAlign: "right", padding: "4px 0", fontFamily: "monospace", fontWeight: 600 }}>
                                 {Number(r.saldo || 0).toLocaleString("id-ID")}
                               </td>
                             </tr>
@@ -3904,12 +4517,19 @@ export default function SiapSajiFinancePage() {
                             </td>
                           </tr>
                           {asetLancarLainRows.map((r) => (
-                            <tr key={r.kode_akun}>
-                              <td style={{ padding: "3px 0 3px 28px", color: "#374151" }}>
-                                <span style={{ fontFamily: "monospace", color: "#6b7280", marginRight: 8 }}>({r.kode_akun})</span>
-                                {r.nama_akun}
+                            <tr
+                              key={r.kode_akun}
+                              onClick={() => handleOpenDrillModal(r, "", neracaDateTo)}
+                              title={`Klik untuk melihat rincian transaksi (${r.kode_akun}) ${r.nama_akun}`}
+                              style={{ cursor: "pointer", transition: "background 0.15s ease" }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = "#eff6ff")}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                            >
+                              <td style={{ padding: "4px 0 4px 28px", color: "#1d4ed8" }}>
+                                <span style={{ fontFamily: "monospace", color: "#3b82f6", marginRight: 8, textDecoration: "underline", textDecorationStyle: "dotted" }}>({r.kode_akun})</span>
+                                <span style={{ textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}>{r.nama_akun}</span>
                               </td>
-                              <td style={{ textAlign: "right", padding: "3px 0", fontFamily: "monospace", fontWeight: 600 }}>
+                              <td style={{ textAlign: "right", padding: "4px 0", fontFamily: "monospace", fontWeight: 600 }}>
                                 {Number(r.saldo || 0).toLocaleString("id-ID")}
                               </td>
                             </tr>
@@ -3940,12 +4560,19 @@ export default function SiapSajiFinancePage() {
                             </td>
                           </tr>
                           {asetTetapRows.map((r) => (
-                            <tr key={r.kode_akun}>
-                              <td style={{ padding: "3px 0 3px 28px", color: "#374151" }}>
-                                <span style={{ fontFamily: "monospace", color: "#6b7280", marginRight: 8 }}>({r.kode_akun})</span>
-                                {r.nama_akun}
+                            <tr
+                              key={r.kode_akun}
+                              onClick={() => handleOpenDrillModal(r, "", neracaDateTo)}
+                              title={`Klik untuk melihat rincian transaksi (${r.kode_akun}) ${r.nama_akun}`}
+                              style={{ cursor: "pointer", transition: "background 0.15s ease" }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = "#eff6ff")}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                            >
+                              <td style={{ padding: "4px 0 4px 28px", color: "#1d4ed8" }}>
+                                <span style={{ fontFamily: "monospace", color: "#3b82f6", marginRight: 8, textDecoration: "underline", textDecorationStyle: "dotted" }}>({r.kode_akun})</span>
+                                <span style={{ textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}>{r.nama_akun}</span>
                               </td>
-                              <td style={{ textAlign: "right", padding: "3px 0", fontFamily: "monospace", fontWeight: 600 }}>
+                              <td style={{ textAlign: "right", padding: "4px 0", fontFamily: "monospace", fontWeight: 600 }}>
                                 {Number(r.saldo || 0).toLocaleString("id-ID")}
                               </td>
                             </tr>
@@ -3968,12 +4595,19 @@ export default function SiapSajiFinancePage() {
                                 </td>
                               </tr>
                               {asetLainnyaRows.map((r) => (
-                                <tr key={r.kode_akun}>
-                                  <td style={{ padding: "3px 0 3px 28px", color: "#374151" }}>
-                                    <span style={{ fontFamily: "monospace", color: "#6b7280", marginRight: 8 }}>({r.kode_akun})</span>
-                                    {r.nama_akun}
+                                <tr
+                                  key={r.kode_akun}
+                                  onClick={() => handleOpenDrillModal(r, "", neracaDateTo)}
+                                  title={`Klik untuk melihat rincian transaksi (${r.kode_akun}) ${r.nama_akun}`}
+                                  style={{ cursor: "pointer", transition: "background 0.15s ease" }}
+                                  onMouseEnter={(e) => (e.currentTarget.style.background = "#eff6ff")}
+                                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                                >
+                                  <td style={{ padding: "4px 0 4px 28px", color: "#1d4ed8" }}>
+                                    <span style={{ fontFamily: "monospace", color: "#3b82f6", marginRight: 8, textDecoration: "underline", textDecorationStyle: "dotted" }}>({r.kode_akun})</span>
+                                    <span style={{ textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}>{r.nama_akun}</span>
                                   </td>
-                                  <td style={{ textAlign: "right", padding: "3px 0", fontFamily: "monospace", fontWeight: 600 }}>
+                                  <td style={{ textAlign: "right", padding: "4px 0", fontFamily: "monospace", fontWeight: 600 }}>
                                     {Number(r.saldo || 0).toLocaleString("id-ID")}
                                   </td>
                                 </tr>
@@ -4015,12 +4649,19 @@ export default function SiapSajiFinancePage() {
                             </td>
                           </tr>
                           {liabLancarRows.map((r) => (
-                            <tr key={r.kode_akun}>
-                              <td style={{ padding: "3px 0 3px 28px", color: "#374151" }}>
-                                <span style={{ fontFamily: "monospace", color: "#6b7280", marginRight: 8 }}>({r.kode_akun})</span>
-                                {r.nama_akun}
+                            <tr
+                              key={r.kode_akun}
+                              onClick={() => handleOpenDrillModal(r, "", neracaDateTo)}
+                              title={`Klik untuk melihat rincian transaksi (${r.kode_akun}) ${r.nama_akun}`}
+                              style={{ cursor: "pointer", transition: "background 0.15s ease" }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = "#fef2f2")}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                            >
+                              <td style={{ padding: "4px 0 4px 28px", color: "#991b1b" }}>
+                                <span style={{ fontFamily: "monospace", color: "#dc2626", marginRight: 8, textDecoration: "underline", textDecorationStyle: "dotted" }}>({r.kode_akun})</span>
+                                <span style={{ textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}>{r.nama_akun}</span>
                               </td>
-                              <td style={{ textAlign: "right", padding: "3px 0", fontFamily: "monospace", fontWeight: 600 }}>
+                              <td style={{ textAlign: "right", padding: "4px 0", fontFamily: "monospace", fontWeight: 600 }}>
                                 {Math.abs(Number(r.saldo || 0)).toLocaleString("id-ID")}
                               </td>
                             </tr>
@@ -4043,12 +4684,19 @@ export default function SiapSajiFinancePage() {
                                 </td>
                               </tr>
                               {liabJangkaPanjangRows.map((r) => (
-                                <tr key={r.kode_akun}>
-                                  <td style={{ padding: "3px 0 3px 28px", color: "#374151" }}>
-                                    <span style={{ fontFamily: "monospace", color: "#6b7280", marginRight: 8 }}>({r.kode_akun})</span>
-                                    {r.nama_akun}
+                                <tr
+                                  key={r.kode_akun}
+                                  onClick={() => handleOpenDrillModal(r, "", neracaDateTo)}
+                                  title={`Klik untuk melihat rincian transaksi (${r.kode_akun}) ${r.nama_akun}`}
+                                  style={{ cursor: "pointer", transition: "background 0.15s ease" }}
+                                  onMouseEnter={(e) => (e.currentTarget.style.background = "#fef2f2")}
+                                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                                >
+                                  <td style={{ padding: "4px 0 4px 28px", color: "#991b1b" }}>
+                                    <span style={{ fontFamily: "monospace", color: "#dc2626", marginRight: 8, textDecoration: "underline", textDecorationStyle: "dotted" }}>({r.kode_akun})</span>
+                                    <span style={{ textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}>{r.nama_akun}</span>
                                   </td>
-                                  <td style={{ textAlign: "right", padding: "3px 0", fontFamily: "monospace", fontWeight: 600 }}>
+                                  <td style={{ textAlign: "right", padding: "4px 0", fontFamily: "monospace", fontWeight: 600 }}>
                                     {Math.abs(Number(r.saldo || 0)).toLocaleString("id-ID")}
                                   </td>
                                 </tr>
@@ -4083,21 +4731,32 @@ export default function SiapSajiFinancePage() {
                             </td>
                           </tr>
                           {ekuitasRows.map((r) => (
-                            <tr key={r.kode_akun}>
-                              <td style={{ padding: "3px 0 3px 28px", color: "#374151" }}>
-                                <span style={{ fontFamily: "monospace", color: "#6b7280", marginRight: 8 }}>({r.kode_akun})</span>
-                                {r.nama_akun}
+                            <tr
+                              key={r.kode_akun}
+                              onClick={() => handleOpenDrillModal(r, "", neracaDateTo)}
+                              title={`Klik untuk melihat rincian transaksi (${r.kode_akun}) ${r.nama_akun}`}
+                              style={{ cursor: "pointer", transition: "background 0.15s ease" }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = "#f0fdf4")}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                            >
+                              <td style={{ padding: "4px 0 4px 28px", color: "#166534" }}>
+                                <span style={{ fontFamily: "monospace", color: "#15803d", marginRight: 8, textDecoration: "underline", textDecorationStyle: "dotted" }}>({r.kode_akun})</span>
+                                <span style={{ textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}>{r.nama_akun}</span>
                               </td>
-                              <td style={{ textAlign: "right", padding: "3px 0", fontFamily: "monospace", fontWeight: 600 }}>
+                              <td style={{ textAlign: "right", padding: "4px 0", fontFamily: "monospace", fontWeight: 600 }}>
                                 {Math.abs(Number(r.saldo || 0)).toLocaleString("id-ID")}
                               </td>
                             </tr>
                           ))}
                           {/* Laba Bersih Berjalan P&L */}
-                          <tr style={{ background: "#f0fdf4" }}>
+                          <tr
+                            onClick={() => setActiveTab("pl")}
+                            title="Klik untuk membuka Laporan Laba/Rugi (P&L)"
+                            style={{ background: "#f0fdf4", cursor: "pointer" }}
+                          >
                             <td style={{ padding: "5px 0 5px 28px", fontWeight: 700, color: "#15803d" }}>
                               <span style={{ fontFamily: "monospace", color: "#16a34a", marginRight: 8 }}>(3-2001)</span>
-                              Laba Bersih Berjalan (P&L)
+                              <span style={{ textDecoration: "underline", textDecorationStyle: "dotted" }}>Laba Bersih Berjalan (P&L) ↗</span>
                             </td>
                             <td style={{ textAlign: "right", padding: "5px 0", fontWeight: 800, color: "#15803d", fontFamily: "monospace" }}>
                               Rp{labaBerjalan.toLocaleString("id-ID")}
@@ -4132,6 +4791,465 @@ export default function SiapSajiFinancePage() {
             );
           })()}
           </>
+          )}
+        </div>
+      )}
+
+      {/* ── TAB BUKU BESAR (GENERAL LEDGER) ───────────────────────────── */}
+      {activeTab === "ledger" && (
+        <div>
+          {/* Filter Toolbar: COA Selector & Periode Waktu */}
+          <div
+            style={{
+              background: "white",
+              borderRadius: 14,
+              padding: "16px 20px",
+              border: "1px solid #e5e7eb",
+              marginBottom: 20,
+              display: "flex",
+              flexDirection: "column",
+              gap: 14,
+              boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flex: "1 1 320px" }}>
+                <BookOpen size={18} color="#5005A6" />
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 3 }}>
+                    Pilih Akun Buku Besar (COA):
+                  </label>
+                  <select
+                    value={ledgerCoaId}
+                    onChange={(e) => {
+                      const cid = Number(e.target.value) || "";
+                      setLedgerCoaId(cid);
+                      setLedgerPage(1);
+                      if (cid) fetchLedgerData(cid, 1, ledgerLimit, ledgerDateFrom, ledgerDateTo);
+                    }}
+                    style={{
+                      width: "100%",
+                      padding: "8px 12px",
+                      borderRadius: 8,
+                      border: "1.5px solid #5005A6",
+                      fontSize: 13.5,
+                      fontWeight: 700,
+                      color: "#1e3a8a",
+                      background: "#faf5ff",
+                      outline: "none",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <option value="">-- Pilih Akun COA --</option>
+                    {(coaListAll.length > 0 ? coaListAll : coaList).map((c) => (
+                      <option key={c.id} value={c.id}>
+                        [{c.kode_akun}] {c.nama_akun} ({c.kelompok} - {c.sub_kelompok})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Action Buttons: Refresh, Export Excel, Print PDF */}
+              <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+                <button
+                  type="button"
+                  onClick={() => fetchLedgerData(ledgerCoaId, ledgerPage, ledgerLimit, ledgerDateFrom, ledgerDateTo)}
+                  style={{
+                    padding: "7px 12px",
+                    background: "#f9fafb",
+                    color: "#374151",
+                    border: "1px solid #d1d5db",
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5,
+                  }}
+                  title="Muat ulang data buku besar"
+                >
+                  <RefreshCw size={13} className={ledgerLoading ? "animate-spin" : ""} /> Refresh
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!ledgerData?.entries || ledgerData.entries.length === 0) {
+                      toast.error("Tidak ada data transaksi untuk diexport");
+                      return;
+                    }
+                    const exportRows = ledgerData.entries.map((it: any) => ({
+                      Tanggal: it.journal_date ? new Date(it.journal_date).toLocaleDateString("id-ID") : "-",
+                      No_Ref: it.ref_no || "-",
+                      Tipe: it.ref_type || "-",
+                      Keterangan: it.keterangan || "-",
+                      Akun_Lawan: it.akun_lawan || "-",
+                      Debit: Number(it.debit || 0),
+                      Kredit: Number(it.kredit || 0),
+                    }));
+                    const ws = XLSX.utils.json_to_sheet(exportRows);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, "Buku_Besar");
+                    XLSX.writeFile(wb, `Buku_Besar_${ledgerData.account?.kode_akun || "ledger"}_${ledgerDateFrom || "all"}.xlsx`);
+                  }}
+                  style={{
+                    padding: "7px 12px",
+                    background: "#f0fdf4",
+                    color: "#15803d",
+                    border: "1px solid #bbf7d0",
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5,
+                  }}
+                  title="Export data buku besar ke Excel (.xlsx)"
+                >
+                  <FileSpreadsheet size={14} /> Export Excel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  style={{
+                    padding: "7px 14px",
+                    background: "#5005A6",
+                    color: "white",
+                    border: "none",
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5,
+                    boxShadow: "0 2px 6px rgba(80, 5, 166, 0.2)",
+                  }}
+                  title="Cetak Buku Besar"
+                >
+                  <Printer size={14} /> Cetak PDF
+                </button>
+              </div>
+            </div>
+
+            {/* Filter Rentang Tanggal Toolbar */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, paddingTop: 10, borderTop: "1px solid #f3f4f6" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#4b5563" }}>Rentang Waktu:</span>
+                <div style={{ background: "#f3f4f6", padding: 3, borderRadius: 8, display: "flex", gap: 3, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    onClick={() => handleLedgerShortcutChange("today")}
+                    style={{
+                      padding: "5px 10px",
+                      borderRadius: 6,
+                      border: "none",
+                      background: ledgerPreset === "today" ? "#5005A6" : "transparent",
+                      color: ledgerPreset === "today" ? "white" : "#4b5563",
+                      fontSize: 11.5,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Hari Ini
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleLedgerShortcutChange("yesterday")}
+                    style={{
+                      padding: "5px 10px",
+                      borderRadius: 6,
+                      border: "none",
+                      background: ledgerPreset === "yesterday" ? "#5005A6" : "transparent",
+                      color: ledgerPreset === "yesterday" ? "white" : "#4b5563",
+                      fontSize: 11.5,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Kemarin
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleLedgerShortcutChange("this_month")}
+                    style={{
+                      padding: "5px 10px",
+                      borderRadius: 6,
+                      border: "none",
+                      background: ledgerPreset === "this_month" ? "#5005A6" : "transparent",
+                      color: ledgerPreset === "this_month" ? "white" : "#4b5563",
+                      fontSize: 11.5,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Bulan Ini
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleLedgerShortcutChange("last_month")}
+                    style={{
+                      padding: "5px 10px",
+                      borderRadius: 6,
+                      border: "none",
+                      background: ledgerPreset === "last_month" ? "#5005A6" : "transparent",
+                      color: ledgerPreset === "last_month" ? "white" : "#4b5563",
+                      fontSize: 11.5,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Bulan Lalu
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleLedgerShortcutChange("this_year")}
+                    style={{
+                      padding: "5px 10px",
+                      borderRadius: 6,
+                      border: "none",
+                      background: ledgerPreset === "this_year" ? "#5005A6" : "transparent",
+                      color: ledgerPreset === "this_year" ? "white" : "#4b5563",
+                      fontSize: 11.5,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Tahun Ini
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleLedgerShortcutChange("all")}
+                    style={{
+                      padding: "5px 10px",
+                      borderRadius: 6,
+                      border: "none",
+                      background: ledgerPreset === "all" ? "#5005A6" : "transparent",
+                      color: ledgerPreset === "all" ? "white" : "#4b5563",
+                      fontSize: 11.5,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Semua Waktu
+                  </button>
+                </div>
+              </div>
+
+              {/* Custom Date Range Inputs */}
+              <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#f9fafb", padding: "4px 10px", borderRadius: 8, border: "1px solid #d1d5db" }}>
+                <input
+                  type="date"
+                  value={ledgerDateFrom}
+                  onChange={(e) => {
+                    setLedgerDateFrom(e.target.value);
+                    setLedgerPreset("custom");
+                  }}
+                  style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #d1d5db", fontSize: 12, outline: "none" }}
+                />
+                <span style={{ fontSize: 12, color: "#6b7280" }}>s/d</span>
+                <input
+                  type="date"
+                  value={ledgerDateTo}
+                  onChange={(e) => {
+                    setLedgerDateTo(e.target.value);
+                    setLedgerPreset("custom");
+                  }}
+                  style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #d1d5db", fontSize: 12, outline: "none" }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLedgerPage(1);
+                    if (ledgerCoaId) fetchLedgerData(ledgerCoaId, 1, ledgerLimit, ledgerDateFrom, ledgerDateTo);
+                  }}
+                  style={{ padding: "4px 10px", background: "#5005A6", color: "white", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                >
+                  Terapkan
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Ledger Cards & Table Display */}
+          {ledgerLoading ? (
+            <div style={{ background: "white", borderRadius: 16, border: "1px solid #e5e7eb", padding: 60, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+              <RefreshCw size={36} className="animate-spin" style={{ color: "#5005A6", marginBottom: 16 }} />
+              <p style={{ fontSize: 15, fontWeight: 700, color: "#111827", margin: 0 }}>Memuat Buku Besar Akun...</p>
+              <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>Menghitung saldo awal, mutasi debit/kredit, dan saldo akhir akun</p>
+            </div>
+          ) : !ledgerCoaId ? (
+            <div style={{ background: "white", borderRadius: 14, border: "1px dashed #d1d5db", padding: 48, textAlign: "center", color: "#6b7280" }}>
+              <BookOpen size={42} style={{ margin: "0 auto 12px", color: "#9ca3af" }} />
+              <div style={{ fontSize: 16, fontWeight: 800, color: "#111827" }}>Silakan Pilih Akun COA di Atas</div>
+              <p style={{ fontSize: 13, marginTop: 4 }}>Pilih akun untuk menampilkan buku besar, rincian mutasi, dan saldo kumulatifnya.</p>
+            </div>
+          ) : (
+            <div>
+              {/* Summary Scorecards: Saldo Awal, Total Debit, Total Kredit, Saldo Akhir */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, marginBottom: 20 }}>
+                <div style={{ background: "white", borderRadius: 12, padding: "16px 20px", border: "1px solid #e5e7eb" }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#6b7280", textTransform: "uppercase" }}>Saldo Awal (Sebelum Periode)</span>
+                  <div style={{ fontSize: 20, fontWeight: 900, color: "#1f2937", marginTop: 4, fontFamily: "monospace" }}>
+                    Rp{Number(ledgerData?.initial_balance || 0).toLocaleString("id-ID")}
+                  </div>
+                  <span style={{ fontSize: 11, color: "#9ca3af" }}>Normal: {ledgerData?.account?.kelompok === "Aset" || ledgerData?.account?.kelompok === "Beban" ? "Debit" : "Kredit"}</span>
+                </div>
+
+                <div style={{ background: "white", borderRadius: 12, padding: "16px 20px", border: "1px solid #e5e7eb" }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#1d4ed8", textTransform: "uppercase" }}>Total Mutasi Debit</span>
+                  <div style={{ fontSize: 20, fontWeight: 900, color: "#1e40af", marginTop: 4, fontFamily: "monospace" }}>
+                    Rp{Number(ledgerData?.total_debit || 0).toLocaleString("id-ID")}
+                  </div>
+                  <span style={{ fontSize: 11, color: "#60a5fa" }}>Periode yang dipilih</span>
+                </div>
+
+                <div style={{ background: "white", borderRadius: 12, padding: "16px 20px", border: "1px solid #e5e7eb" }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#b45309", textTransform: "uppercase" }}>Total Mutasi Kredit</span>
+                  <div style={{ fontSize: 20, fontWeight: 900, color: "#b45309", marginTop: 4, fontFamily: "monospace" }}>
+                    Rp{Number(ledgerData?.total_kredit || 0).toLocaleString("id-ID")}
+                  </div>
+                  <span style={{ fontSize: 11, color: "#fbbf24" }}>Periode yang dipilih</span>
+                </div>
+
+                <div style={{ background: "#faf5ff", borderRadius: 12, padding: "16px 20px", border: "1.5px solid #d8b4fe" }}>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: "#5005A6", textTransform: "uppercase" }}>Saldo Akhir (Per Penutupan)</span>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: "#5005A6", marginTop: 4, fontFamily: "monospace" }}>
+                    Rp{Number(ledgerData?.ending_balance || 0).toLocaleString("id-ID")}
+                  </div>
+                  <span style={{ fontSize: 11, color: "#7e22ce", fontWeight: 600 }}>Saldo Awal + Net Pergerakan</span>
+                </div>
+              </div>
+
+              {/* Table Entries */}
+              <div style={{ background: "white", borderRadius: 14, border: "1px solid #e5e7eb", overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+                <div style={{ padding: "14px 18px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <h3 style={{ fontSize: 15, fontWeight: 800, color: "#111827", margin: 0 }}>
+                      Buku Besar: [{ledgerData?.account?.kode_akun}] {ledgerData?.account?.nama_akun}
+                    </h3>
+                    <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>
+                      Kelompok: {ledgerData?.account?.kelompok} &bull; Sub: {ledgerData?.account?.sub_kelompok} &bull; Total: {ledgerData?.total || 0} Baris Jurnal
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                    <thead>
+                      <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", color: "#475569", fontWeight: 700 }}>
+                        <th style={{ padding: "10px 14px", textAlign: "left" }}>TANGGAL</th>
+                        <th style={{ padding: "10px 14px", textAlign: "left" }}>NO. REF / TIPE</th>
+                        <th style={{ padding: "10px 14px", textAlign: "left" }}>KETERANGAN</th>
+                        <th style={{ padding: "10px 14px", textAlign: "left" }}>AKUN LAWAN</th>
+                        <th style={{ padding: "10px 14px", textAlign: "right" }}>DEBIT (RP)</th>
+                        <th style={{ padding: "10px 14px", textAlign: "right" }}>KREDIT (RP)</th>
+                        <th style={{ padding: "10px 14px", textAlign: "center" }}>STATUS</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {/* Baris Saldo Awal */}
+                      <tr style={{ background: "#f8fafc", fontWeight: 700, borderBottom: "1px dashed #e2e8f0" }}>
+                        <td style={{ padding: "10px 14px", color: "#64748b" }}>{ledgerDateFrom ? formatDate(ledgerDateFrom) : "-"}</td>
+                        <td style={{ padding: "10px 14px", color: "#64748b" }}>-</td>
+                        <td style={{ padding: "10px 14px", color: "#0f172a" }}>[SALDO AWAL SEBELUM PERIODE]</td>
+                        <td style={{ padding: "10px 14px", color: "#64748b" }}>-</td>
+                        <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace" }}>-</td>
+                        <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace" }}>-</td>
+                        <td style={{ padding: "10px 14px", textAlign: "center" }}>
+                          <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, background: "#e2e8f0", color: "#475569" }}>
+                            Saldo Awal: Rp{Number(ledgerData?.initial_balance || 0).toLocaleString("id-ID")}
+                          </span>
+                        </td>
+                      </tr>
+
+                      {(!ledgerData?.entries || ledgerData.entries.length === 0) ? (
+                        <tr>
+                          <td colSpan={7} style={{ padding: "36px 14px", textAlign: "center", color: "#9ca3af" }}>
+                            Tidak ada transaksi mutasi buku besar pada rentang tanggal ini.
+                          </td>
+                        </tr>
+                      ) : (
+                        ledgerData.entries.map((item: any, idx: number) => {
+                          const isDebit = Number(item.debit || 0) > 0;
+                          return (
+                            <tr
+                              key={item.id || idx}
+                              style={{ borderBottom: "1px solid #f1f5f9" }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = "#fafafa")}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                            >
+                              <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }}>
+                                {item.journal_date ? formatDate(item.journal_date) : "-"}
+                              </td>
+                              <td style={{ padding: "10px 14px" }}>
+                                <div style={{ fontWeight: 700, color: "#1e3a8a", fontFamily: "monospace" }}>{item.ref_no || "-"}</div>
+                                <span style={{ fontSize: 11, color: "#6b7280" }}>{item.ref_type || "Jurnal"}</span>
+                              </td>
+                              <td style={{ padding: "10px 14px", maxWidth: 280 }}>
+                                <div style={{ color: "#1f2937" }}>{item.keterangan || "-"}</div>
+                              </td>
+                              <td style={{ padding: "10px 14px", color: "#4b5563" }}>
+                                {item.akun_lawan ? (
+                                  <span style={{ background: "#f3f4f6", padding: "2px 8px", borderRadius: 4, fontSize: 12 }}>
+                                    {item.akun_lawan}
+                                  </span>
+                                ) : "-"}
+                              </td>
+                              <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontWeight: isDebit ? 700 : 400, color: isDebit ? "#1e40af" : "#94a3b8" }}>
+                                {isDebit ? Number(item.debit).toLocaleString("id-ID") : "-"}
+                              </td>
+                              <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontWeight: !isDebit ? 700 : 400, color: !isDebit ? "#b45309" : "#94a3b8" }}>
+                                {!isDebit ? Number(item.kredit).toLocaleString("id-ID") : "-"}
+                              </td>
+                              <td style={{ padding: "10px 14px", textAlign: "center" }}>
+                                <span
+                                  style={{
+                                    fontSize: 11,
+                                    padding: "2px 8px",
+                                    borderRadius: 4,
+                                    fontWeight: 700,
+                                    background: item.status === "dibatalkan" ? "#fee2e2" : "#dcfce7",
+                                    color: item.status === "dibatalkan" ? "#dc2626" : "#16a34a",
+                                  }}
+                                >
+                                  {item.status || "posted"}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Ledger Pagination */}
+                {ledgerData && ledgerData.total > 0 && (
+                  <div style={{ padding: "12px 18px", borderTop: "1px solid #e5e7eb" }}>
+                    <Pagination
+                      page={ledgerPage}
+                      totalPages={ledgerData.totalPages || Math.ceil(ledgerData.total / ledgerLimit) || 1}
+                      total={ledgerData.total}
+                      limit={ledgerLimit}
+                      onChange={(p: number) => {
+                        setLedgerPage(p);
+                        if (ledgerCoaId) fetchLedgerData(ledgerCoaId, p, ledgerLimit, ledgerDateFrom, ledgerDateTo);
+                      }}
+                      onLimitChange={(l: number) => {
+                        setLedgerLimit(l);
+                        setLedgerPage(1);
+                        if (ledgerCoaId) fetchLedgerData(ledgerCoaId, 1, l, ledgerDateFrom, ledgerDateTo);
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
           )}
         </div>
       )}
@@ -4872,6 +5990,284 @@ export default function SiapSajiFinancePage() {
                 }}
               >
                 {isSubmittingCancelItem ? "Memproses..." : "Konfirmasi Pembatalan"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL LIST TRANSAKSI KEUANGAN (DRILL-DOWN DARI P&L DAN NERACA) ── */}
+      {drillModalOpen && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 110, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div
+            style={{
+              background: "white",
+              borderRadius: 16,
+              width: "100%",
+              maxWidth: 960,
+              maxHeight: "90vh",
+              display: "flex",
+              flexDirection: "column",
+              boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)",
+              overflow: "hidden",
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{ padding: "18px 24px", borderBottom: "1.5px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f8fafc" }}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 13, background: "#ede9fe", color: "#5005A6", fontWeight: 800, padding: "2px 8px", borderRadius: 6, fontFamily: "monospace" }}>
+                    {drillModalCoaCode || "AKUN"}
+                  </span>
+                  <h3 style={{ fontSize: 17, fontWeight: 900, color: "#111827", margin: 0 }}>
+                    {drillModalCoaName || "Rincian Transaksi Keuangan"}
+                  </h3>
+                </div>
+                <p style={{ fontSize: 12, color: "#6b7280", margin: "4px 0 0" }}>
+                  Daftar seluruh jurnal pembukuan yang memuat akun ini &bull; Total: <strong>{drillTotal} Transaksi</strong> &bull; Akumulasi Nominal: <strong>Rp{drillTotalNominal.toLocaleString("id-ID")}</strong>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDrillModalOpen(false)}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280", padding: 6, borderRadius: 6 }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Filter Toolbar */}
+            <div style={{ padding: "12px 24px", borderBottom: "1px solid #f1f5f9", background: "white", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", flex: "1 1 320px" }}>
+                <div style={{ position: "relative", flex: "1 1 200px" }}>
+                  <Search size={15} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
+                  <input
+                    type="text"
+                    placeholder="Cari Ref No, Keterangan, Akun Lawan..."
+                    value={drillSearch}
+                    onChange={(e) => setDrillSearch(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        setDrillPage(1);
+                        fetchDrillData(drillModalCoaId, drillDateFrom, drillDateTo, drillSearch, 1, drillLimit);
+                      }
+                    }}
+                    style={{ width: "100%", padding: "6px 10px 6px 32px", borderRadius: 7, border: "1px solid #d1d5db", fontSize: 12.5, outline: "none" }}
+                  />
+                </div>
+
+                {/* Filter Tanggal */}
+                <div style={{ display: "flex", alignItems: "center", gap: 5, background: "#f9fafb", padding: "3px 8px", borderRadius: 7, border: "1px solid #d1d5db" }}>
+                  <span style={{ fontSize: 11.5, color: "#6b7280", fontWeight: 600 }}>Periode:</span>
+                  <input
+                    type="date"
+                    value={drillDateFrom}
+                    onChange={(e) => setDrillDateFrom(e.target.value)}
+                    style={{ padding: "3px 6px", borderRadius: 5, border: "1px solid #d1d5db", fontSize: 11.5, outline: "none" }}
+                  />
+                  <span style={{ fontSize: 11.5, color: "#6b7280" }}>s/d</span>
+                  <input
+                    type="date"
+                    value={drillDateTo}
+                    onChange={(e) => setDrillDateTo(e.target.value)}
+                    style={{ padding: "3px 6px", borderRadius: 5, border: "1px solid #d1d5db", fontSize: 11.5, outline: "none" }}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDrillPage(1);
+                    fetchDrillData(drillModalCoaId, drillDateFrom, drillDateTo, drillSearch, 1, drillLimit);
+                  }}
+                  style={{ padding: "6px 12px", background: "#5005A6", color: "white", border: "none", borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                >
+                  Terapkan
+                </button>
+
+                {(drillSearch || drillDateFrom || drillDateTo) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDrillSearch("");
+                      setDrillDateFrom("");
+                      setDrillDateTo("");
+                      setDrillPage(1);
+                      fetchDrillData(drillModalCoaId, "", "", "", 1, drillLimit);
+                    }}
+                    style={{ padding: "6px 10px", background: "#f3f4f6", color: "#4b5563", border: "none", borderRadius: 7, fontSize: 12, cursor: "pointer" }}
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+
+              {/* Export Excel Button for this account */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (drillData.length === 0) {
+                    toast.error("Tidak ada data untuk diexport");
+                    return;
+                  }
+                  const exportRows = drillData.map((it: any) => ({
+                    Tanggal: it.journal_date ? new Date(it.journal_date).toLocaleDateString("id-ID") : "-",
+                    No_Ref: it.ref_no || "-",
+                    Tipe: it.ref_type || "-",
+                    Keterangan: it.keterangan || "-",
+                    Debit_Akun: it.debit_nama ? `(${it.debit_kode}) ${it.debit_nama}` : "-",
+                    Kredit_Akun: it.kredit_nama ? `(${it.kredit_kode}) ${it.kredit_nama}` : "-",
+                    Nominal: Number(it.nominal || 0),
+                    Status: it.status || "posted",
+                  }));
+                  const ws = XLSX.utils.json_to_sheet(exportRows);
+                  const wb = XLSX.utils.book_new();
+                  XLSX.utils.book_append_sheet(wb, ws, "Transaksi");
+                  XLSX.writeFile(wb, `Transaksi_${drillModalCoaCode || "akun"}.xlsx`);
+                }}
+                style={{
+                  padding: "6px 12px",
+                  background: "#f0fdf4",
+                  color: "#15803d",
+                  border: "1px solid #bbf7d0",
+                  borderRadius: 7,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                }}
+              >
+                <FileSpreadsheet size={13} /> Export Excel
+              </button>
+            </div>
+
+            {/* Modal Body / Table */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "16px 24px" }}>
+              {drillLoading ? (
+                <div style={{ padding: "60px 0", textAlign: "center" }}>
+                  <RefreshCw size={32} className="animate-spin" style={{ color: "#5005A6", margin: "0 auto 12px" }} />
+                  <p style={{ fontSize: 14, fontWeight: 700, color: "#111827", margin: 0 }}>Memuat transaksi keuangan...</p>
+                </div>
+              ) : drillData.length === 0 ? (
+                <div style={{ padding: "50px 0", textAlign: "center", color: "#9ca3af" }}>
+                  <FileText size={40} style={{ margin: "0 auto 10px", color: "#cbd5e1" }} />
+                  <div style={{ fontSize: 15, fontWeight: 700, color: "#374151" }}>Belum Ada Transaksi</div>
+                  <p style={{ fontSize: 12.5, marginTop: 4 }}>Tidak ada jurnal pembukuan untuk akun ini pada filter yang dipilih.</p>
+                </div>
+              ) : (
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                  <thead>
+                    <tr style={{ background: "#f8fafc", borderBottom: "1.5px solid #e2e8f0", color: "#475569", fontWeight: 700 }}>
+                      <th style={{ padding: "9px 12px", textAlign: "left" }}>TANGGAL</th>
+                      <th style={{ padding: "9px 12px", textAlign: "left" }}>REF NO / TIPE</th>
+                      <th style={{ padding: "9px 12px", textAlign: "left" }}>KETERANGAN</th>
+                      <th style={{ padding: "9px 12px", textAlign: "left" }}>AKUN LAWAN</th>
+                      <th style={{ padding: "9px 12px", textAlign: "center" }}>POSISI</th>
+                      <th style={{ padding: "9px 12px", textAlign: "right" }}>NOMINAL (RP)</th>
+                      <th style={{ padding: "9px 12px", textAlign: "center" }}>STATUS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {drillData.map((row: any, i: number) => {
+                      const isTargetDebit = row.akun_debit === drillModalCoaId || row.debit_kode === drillModalCoaCode;
+                      const lawanNama = isTargetDebit ? row.kredit_nama : row.debit_nama;
+                      const lawanKode = isTargetDebit ? row.kredit_kode : row.debit_kode;
+                      return (
+                        <tr
+                          key={row.id || i}
+                          style={{ borderBottom: "1px solid #f1f5f9" }}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = "#fafafa")}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                        >
+                          <td style={{ padding: "9px 12px", whiteSpace: "nowrap", color: "#374151" }}>
+                            {row.journal_date ? formatDate(row.journal_date) : "-"}
+                          </td>
+                          <td style={{ padding: "9px 12px" }}>
+                            <div style={{ fontWeight: 700, color: "#1e3a8a", fontFamily: "monospace" }}>{row.ref_no || "-"}</div>
+                            <span style={{ fontSize: 11, color: "#6b7280" }}>{row.ref_type || "Jurnal"}</span>
+                          </td>
+                          <td style={{ padding: "9px 12px", maxWidth: 260 }}>
+                            <div style={{ color: "#111827" }}>{row.keterangan || "-"}</div>
+                          </td>
+                          <td style={{ padding: "9px 12px", color: "#4b5563" }}>
+                            {lawanNama ? (
+                              <div>
+                                <span style={{ fontSize: 11, color: "#6b7280", fontFamily: "monospace" }}>({lawanKode}) </span>
+                                <span>{lawanNama}</span>
+                              </div>
+                            ) : "-"}
+                          </td>
+                          <td style={{ padding: "9px 12px", textAlign: "center" }}>
+                            <span
+                              style={{
+                                fontSize: 11,
+                                padding: "2px 7px",
+                                borderRadius: 4,
+                                fontWeight: 800,
+                                background: isTargetDebit ? "#eff6ff" : "#fef3c7",
+                                color: isTargetDebit ? "#1d4ed8" : "#b45309",
+                              }}
+                            >
+                              {isTargetDebit ? "DEBIT" : "KREDIT"}
+                            </span>
+                          </td>
+                          <td style={{ padding: "9px 12px", textAlign: "right", fontFamily: "monospace", fontWeight: 700, color: "#111827" }}>
+                            {Number(row.nominal || 0).toLocaleString("id-ID")}
+                          </td>
+                          <td style={{ padding: "9px 12px", textAlign: "center" }}>
+                            <span
+                              style={{
+                                fontSize: 11,
+                                padding: "2px 7px",
+                                borderRadius: 4,
+                                fontWeight: 700,
+                                background: row.status === "dibatalkan" ? "#fee2e2" : "#dcfce7",
+                                color: row.status === "dibatalkan" ? "#dc2626" : "#16a34a",
+                              }}
+                            >
+                              {row.status || "posted"}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Modal Footer / Pagination */}
+            <div style={{ padding: "12px 24px", borderTop: "1.5px solid #e5e7eb", background: "#f8fafc", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+              <div style={{ fontSize: 12.5, color: "#4b5563" }}>
+                Total <strong>{drillTotal}</strong> transaksi &bull; Halaman <strong>{drillPage}</strong> dari <strong>{Math.ceil(drillTotal / drillLimit) || 1}</strong>
+              </div>
+
+              {drillTotal > 0 && (
+                <Pagination
+                  page={drillPage}
+                  totalPages={Math.ceil(drillTotal / drillLimit) || 1}
+                  total={drillTotal}
+                  limit={drillLimit}
+                  onChange={(p: number) => {
+                    setDrillPage(p);
+                    fetchDrillData(drillModalCoaId, drillDateFrom, drillDateTo, drillSearch, p, drillLimit);
+                  }}
+                  onLimitChange={(l: number) => {
+                    setDrillLimit(l);
+                    setDrillPage(1);
+                    fetchDrillData(drillModalCoaId, drillDateFrom, drillDateTo, drillSearch, 1, l);
+                  }}
+                />
+              )}
+
+              <button
+                type="button"
+                onClick={() => setDrillModalOpen(false)}
+                style={{ padding: "6px 16px", borderRadius: 7, border: "1px solid #d1d5db", background: "white", fontSize: 13, cursor: "pointer", fontWeight: 600 }}
+              >
+                Tutup
               </button>
             </div>
           </div>
