@@ -94,10 +94,19 @@ export async function GET(req: NextRequest) {
     const summaryRes = await client.query(
       `SELECT 
         COALESCE(SUM(oi.quantity), 0) AS total_pcs_terjual,
-        COALESCE(SUM(oi.subtotal), 0) AS total_penjualan,
+        COALESCE(SUM(oi.subtotal), 0) AS total_penjualan_produk,
         COALESCE(ROUND(AVG(oi.price)), 0) AS rata_rata_harga
        FROM order_items oi
        JOIN orders o ON oi.order_id = o.id
+       WHERE o.lini = 'siap_saji' AND o.status_order <> 'Dibatalkan' ${dateFilter}`
+    );
+
+    const orderSummaryRes = await client.query(
+      `SELECT 
+        COALESCE(SUM(o.grand_total), 0) AS total_penjualan,
+        COALESCE(SUM(o.shipping_fee), 0) AS total_shipping_fee,
+        COUNT(o.id) AS total_orders
+       FROM orders o
        WHERE o.lini = 'siap_saji' AND o.status_order <> 'Dibatalkan' ${dateFilter}`
     );
 
@@ -108,7 +117,9 @@ export async function GET(req: NextRequest) {
       all_products: allProductsRes.rows,
       summary: {
         total_pcs_terjual: Number(summaryRes.rows[0]?.total_pcs_terjual || 0),
-        total_penjualan: Number(summaryRes.rows[0]?.total_penjualan || 0),
+        total_penjualan: Number(orderSummaryRes.rows[0]?.total_penjualan || summaryRes.rows[0]?.total_penjualan_produk || 0),
+        total_penjualan_produk: Number(summaryRes.rows[0]?.total_penjualan_produk || 0),
+        total_shipping_fee: Number(orderSummaryRes.rows[0]?.total_shipping_fee || 0),
         rata_rata_harga: Number(summaryRes.rows[0]?.rata_rata_harga || 0),
       },
     });

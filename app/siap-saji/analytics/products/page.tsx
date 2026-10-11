@@ -410,6 +410,11 @@ export default function SiapSajiProductAnalyticsPage() {
           <p style={{ fontSize: 26, fontWeight: 900, color: "#15803d", margin: "6px 0 0" }}>
             Rp {Number(data?.summary?.total_penjualan || 0).toLocaleString("id-ID")}
           </p>
+          {Number(data?.summary?.total_shipping_fee || 0) > 0 && (
+            <span style={{ fontSize: 11, color: "#6b7280", marginTop: 4, display: "block" }}>
+              (Produk: Rp {Number(data?.summary?.total_penjualan_produk || 0).toLocaleString("id-ID")} + Ongkir: Rp {Number(data?.summary?.total_shipping_fee || 0).toLocaleString("id-ID")})
+            </span>
+          )}
         </div>
 
         <div style={{ background: "white", borderRadius: 14, padding: 20, border: "1px solid #e5e7eb" }}>

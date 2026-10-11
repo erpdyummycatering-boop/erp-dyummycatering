@@ -447,10 +447,17 @@ export async function POST(req: NextRequest) {
 
     // 9. Accounting Journal & Kas Mutasi
     // Lookup Accounts:
-    // Credit Account: Pendapatan Penjualan SS (4-1001)
-    const coaKreditRes = await client.query(
-      "SELECT id FROM coa WHERE kode_akun = '4-1001' AND lini = 'siap_saji' LIMIT 1"
+    // 4-1001 Pendapatan Penjualan SS, 4-1002 Pendapatan Ongkir SS, 4-40100 Diskon Penjualan
+    const coaAccountsRes = await client.query(
+      "SELECT id, kode_akun FROM coa WHERE kode_akun IN ('4-1001', '4-1002', '4-40100') AND lini = 'siap_saji'"
     );
+    const coaMap: Record<string, number> = {};
+    for (const r of coaAccountsRes.rows) {
+      coaMap[r.kode_akun] = Number(r.id);
+    }
+    const salesCoaId = coaMap["4-1001"];
+    const ongkirCoaId = coaMap["4-1002"];
+    const discountCoaId = coaMap["4-40100"];
 
     // Debit Account: Depends on payment status & bank
     // If Belum Lunas -> Piutang Usaha (1-1004) or default cash/piutang
@@ -474,27 +481,68 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (coaDebitRes.rows.length > 0 && coaKreditRes.rows.length > 0) {
+    if (coaDebitRes.rows.length > 0 && salesCoaId) {
       const debitId = coaDebitRes.rows[0].id;
-      const kreditId = coaKreditRes.rows[0].id;
+      let primaryJournalId: number | null = null;
 
-      const journalRes = await client.query(
-        `INSERT INTO journals (lini, journal_date, ref_type, ref_id, ref_no, akun_debit, akun_kredit, nominal, keterangan)
-         VALUES ('siap_saji', $1, 'penjualan', $2, $3, $4, $5, $6, $7)
-         RETURNING id`,
-        [
-          finalOrderDate,
-          orderId,
-          noStruk,
-          debitId,
-          kreditId,
-          grandTotal,
-          `Penjualan Siap Saji ${noStruk} - ${isLunas ? paymentBankName : "Belum Bayar (Piutang)"}`,
-        ]
-      );
+      // 1. Jurnal Penjualan Produk (Kredit: 4-1001 Pendapatan Penjualan SS)
+      if (itemsSubtotal > 0) {
+        const jRes = await client.query(
+          `INSERT INTO journals (lini, journal_date, ref_type, ref_id, ref_no, akun_debit, akun_kredit, nominal, keterangan)
+           VALUES ('siap_saji', $1, 'penjualan', $2, $3, $4, $5, $6, $7)
+           RETURNING id`,
+          [
+            finalOrderDate,
+            orderId,
+            noStruk,
+            debitId,
+            salesCoaId,
+            itemsSubtotal,
+            `Penjualan Siap Saji ${noStruk} - ${isLunas ? paymentBankName : "Belum Bayar (Piutang)"}`,
+          ]
+        );
+        primaryJournalId = Number(jRes.rows[0].id);
+      }
 
-      const journalId = journalRes.rows[0].id;
-      await client.query("UPDATE orders SET journal_id = $1 WHERE id = $2", [journalId, orderId]);
+      // 2. Jurnal Ongkos Kirim (Kredit: 4-1002 Pendapatan Ongkir SS)
+      if (finalShippingFee > 0 && ongkirCoaId) {
+        const jOngkirRes = await client.query(
+          `INSERT INTO journals (lini, journal_date, ref_type, ref_id, ref_no, akun_debit, akun_kredit, nominal, keterangan)
+           VALUES ('siap_saji', $1, 'penjualan', $2, $3, $4, $5, $6, $7)
+           RETURNING id`,
+          [
+            finalOrderDate,
+            orderId,
+            noStruk,
+            debitId,
+            ongkirCoaId,
+            finalShippingFee,
+            `Pendapatan Ongkir SS ${noStruk}`,
+          ]
+        );
+        if (!primaryJournalId) primaryJournalId = Number(jOngkirRes.rows[0].id);
+      }
+
+      // 3. Jurnal Diskon Penjualan (Debet: 4-40100 Diskon Penjualan, Kredit: Kas/Bank/Piutang)
+      if (orderDiscount > 0 && discountCoaId) {
+        await client.query(
+          `INSERT INTO journals (lini, journal_date, ref_type, ref_id, ref_no, akun_debit, akun_kredit, nominal, keterangan)
+           VALUES ('siap_saji', $1, 'penjualan', $2, $3, $4, $5, $6, $7)`,
+          [
+            finalOrderDate,
+            orderId,
+            noStruk,
+            discountCoaId,
+            debitId,
+            orderDiscount,
+            `Diskon Penjualan SS ${noStruk}`,
+          ]
+        );
+      }
+
+      if (primaryJournalId) {
+        await client.query("UPDATE orders SET journal_id = $1 WHERE id = $2", [primaryJournalId, orderId]);
+      }
     }
 
     // Kas Mutasi (Hanya dicatat jika pembayaran sudah Lunas)

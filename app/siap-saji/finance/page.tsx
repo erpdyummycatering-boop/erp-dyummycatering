@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, Fragment } from "react";
-import { CreditCard, DollarSign, Plus, FileText, PieChart, BookOpen, ArrowUpRight, ArrowDownLeft, X, CheckCircle, RefreshCw, Search, Edit3, Trash2, Calendar, Printer, Download, FileSpreadsheet } from "lucide-react";
+import { CreditCard, DollarSign, Plus, FileText, PieChart, BookOpen, ArrowUpRight, ArrowDownLeft, X, CheckCircle, RefreshCw, Search, Edit3, Trash2, Calendar, Printer, Download, FileSpreadsheet, Eye, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/ui/Pagination";
 import { formatDate } from "@/lib/utils";
@@ -51,11 +51,23 @@ export default function SiapSajiFinancePage() {
   const [purchaseNotaRef, setPurchaseNotaRef] = useState("");
   const [purchaseKeterangan, setPurchaseKeterangan] = useState("");
   const [purchaseAmount, setPurchaseAmount] = useState<number>(0);
+  const [purchasePaidAmount, setPurchasePaidAmount] = useState<number>(0); // Pembayaran Parsial / DP
   const [purchaseCoaId, setPurchaseCoaId] = useState<number | "">("");
   const [purchaseKasBankId, setPurchaseKasBankId] = useState<number | "hutang" | "">("");
   const [purSearch, setPurSearch] = useState("");
   const [purDateFrom, setPurDateFrom] = useState("");
   const [purDateTo, setPurDateTo] = useState("");
+
+  // Edit Purchase State
+  const [isEditPurchaseModalOpen, setIsEditPurchaseModalOpen] = useState(false);
+  const [editPurchaseId, setEditPurchaseId] = useState<number | null>(null);
+  const [editPurDate, setEditPurDate] = useState("");
+  const [editPurNotaRef, setEditPurNotaRef] = useState("");
+  const [editPurKeterangan, setEditPurKeterangan] = useState("");
+  const [editPurTotalAmount, setEditPurTotalAmount] = useState<number>(0);
+  const [editPurPaidAmount, setEditPurPaidAmount] = useState<number>(0);
+  const [editPurCoaId, setEditPurCoaId] = useState<number | "">("");
+  const [editPurKasBankId, setEditPurKasBankId] = useState<number | "hutang" | "">("");
 
   // Tab 3: Expenses Data & Filters
   const [expenses, setExpenses] = useState<any[]>([]);
@@ -63,6 +75,7 @@ export default function SiapSajiFinancePage() {
   const [expenseDate, setExpenseDate] = useState(new Date().toISOString().split("T")[0]);
   const [expenseKeterangan, setExpenseKeterangan] = useState("");
   const [expenseAmount, setExpenseAmount] = useState<number>(0);
+  const [expensePaidAmount, setExpensePaidAmount] = useState<number>(0); // Pembayaran Parsial / DP
   const [expenseCoaId, setExpenseCoaId] = useState<number | "">("");
   const [expenseKasBankId, setExpenseKasBankId] = useState<number | "hutang" | "">("");
   const [expSearch, setExpSearch] = useState("");
@@ -75,8 +88,25 @@ export default function SiapSajiFinancePage() {
   const [editExpDate, setEditExpDate] = useState("");
   const [editExpKeterangan, setEditExpKeterangan] = useState("");
   const [editExpNominal, setEditExpNominal] = useState<number>(0);
+  const [editExpPaidAmount, setEditExpPaidAmount] = useState<number>(0);
   const [editExpCoaId, setEditExpCoaId] = useState<number | "">("");
   const [editExpKasBankId, setEditExpKasBankId] = useState<number | "hutang" | "">("");
+
+  // Shared Detail Modal State (Purchases & Expenses)
+  const [detailModalItem, setDetailModalItem] = useState<{ type: "purchase" | "expense"; data: any } | null>(null);
+
+  // Shared Pay Debt / Installment Modal State
+  const [payDebtModalItem, setPayDebtModalItem] = useState<{ type: "purchase" | "expense"; data: any } | null>(null);
+  const [payDebtNominal, setPayDebtNominal] = useState<number>(0);
+  const [payDebtKasBankId, setPayDebtKasBankId] = useState<number | "">("");
+  const [payDebtDate, setPayDebtDate] = useState(new Date().toISOString().split("T")[0]);
+  const [payDebtKeterangan, setPayDebtKeterangan] = useState("");
+  const [isSubmittingPayDebt, setIsSubmittingPayDebt] = useState(false);
+
+  // Shared Cancel Modal State with Mandatory Reason
+  const [cancelModalItem, setCancelModalItem] = useState<{ type: "purchase" | "expense"; data: any } | null>(null);
+  const [cancelReasonInput, setCancelReasonInput] = useState("");
+  const [isSubmittingCancelItem, setIsSubmittingCancelItem] = useState(false);
 
   // Tab 4: Kas & Bank Data & Filters
   const [accounts, setAccounts] = useState<any[]>([]);
@@ -368,6 +398,9 @@ export default function SiapSajiFinancePage() {
 
     setIsSubmitting(true);
     try {
+      const isHutang = String(purchaseKasBankId) === "hutang" || String(purchaseKasBankId) === "0";
+      const paid = isHutang ? 0 : (purchasePaidAmount !== undefined && purchasePaidAmount !== null ? purchasePaidAmount : purchaseAmount);
+
       const res = await fetch("/api/siap-saji/finance/purchases", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -376,6 +409,7 @@ export default function SiapSajiFinancePage() {
           nota_ref: purchaseNotaRef,
           keterangan: purchaseKeterangan,
           total_amount: purchaseAmount,
+          dibayar: paid,
           coa_id: purchaseCoaId,
           kas_bank_id: purchaseKasBankId,
         }),
@@ -391,10 +425,63 @@ export default function SiapSajiFinancePage() {
       setPurchaseKeterangan("");
       setPurchaseNotaRef("");
       setPurchaseAmount(0);
+      setPurchasePaidAmount(0);
       fetchTabData();
       fetchKasBankMaster();
     } catch (err: any) {
       toast.error(err.message || "Gagal mencatat HPP");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Open Edit Purchase Modal
+  const handleOpenEditPurchase = (item: any) => {
+    setEditPurchaseId(item.id);
+    setEditPurDate(item.purchase_date ? item.purchase_date.split("T")[0] : new Date().toISOString().split("T")[0]);
+    setEditPurNotaRef(item.nota_ref || "");
+    setEditPurKeterangan(item.keterangan || "");
+    const tot = Number(item.total_amount || 0);
+    const dib = Number(item.dibayar !== undefined && item.dibayar !== null ? item.dibayar : tot);
+    setEditPurTotalAmount(tot);
+    setEditPurPaidAmount(dib);
+    setEditPurCoaId(item.coa_id || "");
+    setEditPurKasBankId(item.kas_bank_id || (item.status === "Hutang" ? "hutang" : (accounts.length > 0 ? accounts[0].id : "")));
+    setIsEditPurchaseModalOpen(true);
+  };
+
+  const handleSaveEditPurchase = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editPurchaseId || !editPurDate || !editPurKeterangan || !editPurTotalAmount) {
+      return toast.error("Tanggal, Keterangan, dan Total Nominal wajib diisi.");
+    }
+    setIsSubmitting(true);
+    try {
+      const isHutang = String(editPurKasBankId) === "hutang" || String(editPurKasBankId) === "0";
+      const paid = isHutang ? 0 : (editPurPaidAmount !== undefined && editPurPaidAmount !== null ? editPurPaidAmount : editPurTotalAmount);
+
+      const res = await fetch("/api/siap-saji/finance/purchases", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: editPurchaseId,
+          purchase_date: editPurDate,
+          nota_ref: editPurNotaRef,
+          keterangan: editPurKeterangan,
+          total_amount: editPurTotalAmount,
+          dibayar: paid,
+          coa_id: editPurCoaId,
+          kas_bank_id: editPurKasBankId,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Gagal memperbarui nota HPP");
+      toast.success("Nota HPP berhasil diperbarui!");
+      setIsEditPurchaseModalOpen(false);
+      fetchTabData();
+      fetchKasBankMaster();
+    } catch (err: any) {
+      toast.error(err.message || "Gagal memperbarui nota HPP");
     } finally {
       setIsSubmitting(false);
     }
@@ -409,6 +496,9 @@ export default function SiapSajiFinancePage() {
 
     setIsSubmitting(true);
     try {
+      const isHutang = String(expenseKasBankId) === "hutang" || String(expenseKasBankId) === "0";
+      const paid = isHutang ? 0 : (expensePaidAmount !== undefined && expensePaidAmount !== null ? expensePaidAmount : expenseAmount);
+
       const res = await fetch("/api/siap-saji/finance/expenses", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -416,6 +506,7 @@ export default function SiapSajiFinancePage() {
           expense_date: expenseDate,
           keterangan: expenseKeterangan,
           nominal: expenseAmount,
+          dibayar: paid,
           coa_id: expenseCoaId,
           kas_bank_id: expenseKasBankId,
         }),
@@ -430,6 +521,7 @@ export default function SiapSajiFinancePage() {
       setIsExpenseModalOpen(false);
       setExpenseKeterangan("");
       setExpenseAmount(0);
+      setExpensePaidAmount(0);
       fetchTabData();
       fetchKasBankMaster();
     } catch (err: any) {
@@ -443,7 +535,10 @@ export default function SiapSajiFinancePage() {
     setEditExpenseId(item.id);
     setEditExpDate(item.journal_date ? item.journal_date.split("T")[0] : new Date().toISOString().split("T")[0]);
     setEditExpKeterangan(item.keterangan ? item.keterangan.replace(/^Biaya Operasional:\s*/i, "") : "");
-    setEditExpNominal(Number(item.nominal || 0));
+    const tot = Number(item.nominal || 0);
+    const dib = Number(item.dibayar !== undefined && item.dibayar !== null ? item.dibayar : tot);
+    setEditExpNominal(tot);
+    setEditExpPaidAmount(dib);
     setEditExpCoaId(item.akun_debit || "");
     setEditExpKasBankId(item.kas_bank_id || (item.kredit_nama?.toLowerCase().includes("utang") ? "hutang" : (accounts.length > 0 ? accounts[0].id : "")));
     setIsEditExpenseModalOpen(true);
@@ -456,6 +551,9 @@ export default function SiapSajiFinancePage() {
     }
     setIsSubmitting(true);
     try {
+      const isHutang = String(editExpKasBankId) === "hutang" || String(editExpKasBankId) === "0";
+      const paid = isHutang ? 0 : (editExpPaidAmount !== undefined && editExpPaidAmount !== null ? editExpPaidAmount : editExpNominal);
+
       const res = await fetch("/api/siap-saji/finance/expenses", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -464,6 +562,7 @@ export default function SiapSajiFinancePage() {
           expense_date: editExpDate,
           keterangan: editExpKeterangan,
           nominal: editExpNominal,
+          dibayar: paid,
           coa_id: editExpCoaId,
           kas_bank_id: editExpKasBankId,
         }),
@@ -481,17 +580,78 @@ export default function SiapSajiFinancePage() {
     }
   };
 
-  const handleDeleteExpense = async (id: number, ket: string) => {
-    if (!confirm(`Apakah Anda yakin ingin menghapus biaya "${ket}"? Saldo kas/bank akan dikembalikan otomatis.`)) return;
+  // Open Pay Debt Modal (Shared for HPP & Expense)
+  const handleOpenPayDebtModal = (type: "purchase" | "expense", item: any) => {
+    setPayDebtModalItem({ type, data: item });
+    const sisa = Number(item.sisa_hutang !== undefined && item.sisa_hutang !== null ? item.sisa_hutang : (type === "purchase" ? item.total_amount : item.nominal));
+    setPayDebtNominal(sisa);
+    setPayDebtDate(new Date().toISOString().split("T")[0]);
+    setPayDebtKeterangan(`Pembayaran Cicilan/Pelunasan Hutang`);
+    setPayDebtKasBankId(accounts.length > 0 ? accounts[0].id : "");
+  };
+
+  // Submit Pay Debt (Installment / Full)
+  const handleSubmitPayDebt = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!payDebtModalItem || !payDebtNominal || !payDebtKasBankId) {
+      return toast.error("Nominal bayar dan Rekening Kas/Bank wajib dipilih.");
+    }
+    setIsSubmittingPayDebt(true);
     try {
-      const res = await fetch(`/api/siap-saji/finance/expenses?id=${id}`, { method: "DELETE" });
+      const endpoint = payDebtModalItem.type === "purchase" ? "/api/siap-saji/finance/purchases" : "/api/siap-saji/finance/expenses";
+      const res = await fetch(endpoint, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: payDebtModalItem.data.id,
+          nominal_bayar: payDebtNominal,
+          kas_bank_id: payDebtKasBankId,
+          tanggal_bayar: payDebtDate,
+          keterangan: payDebtKeterangan,
+        }),
+      });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Gagal menghapus biaya operasional");
-      toast.success("Biaya operasional berhasil dihapus dan saldo kas diperbarui.");
+      if (!res.ok) throw new Error(data.error || "Gagal mencatat pembayaran hutang");
+      toast.success("Pembayaran cicilan/pelunasan hutang berhasil dicatat!");
+      setPayDebtModalItem(null);
       fetchTabData();
       fetchKasBankMaster();
     } catch (err: any) {
-      toast.error(err.message || "Gagal menghapus biaya");
+      toast.error(err.message || "Gagal membayar hutang");
+    } finally {
+      setIsSubmittingPayDebt(false);
+    }
+  };
+
+  // Open Cancel Modal (Mandatory reason)
+  const handleOpenCancelModal = (type: "purchase" | "expense", item: any) => {
+    setCancelModalItem({ type, data: item });
+    setCancelReasonInput("");
+  };
+
+  // Confirm Cancellation
+  const handleConfirmCancelItem = async () => {
+    if (!cancelModalItem) return;
+    if (!cancelReasonInput.trim() || cancelReasonInput.trim().length < 5) {
+      return toast.error("Alasan pembatalan wajib diisi (minimal 5 karakter).");
+    }
+    setIsSubmittingCancelItem(true);
+    try {
+      const endpoint = cancelModalItem.type === "purchase"
+        ? `/api/siap-saji/finance/purchases?id=${cancelModalItem.data.id}&reason=${encodeURIComponent(cancelReasonInput.trim())}`
+        : `/api/siap-saji/finance/expenses?id=${cancelModalItem.data.id}&reason=${encodeURIComponent(cancelReasonInput.trim())}`;
+
+      const res = await fetch(endpoint, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Gagal membatalkan transaksi");
+      toast.success("Transaksi berhasil dibatalkan dan saldo kas dikembalikan!");
+      setCancelModalItem(null);
+      fetchTabData();
+      fetchKasBankMaster();
+    } catch (err: any) {
+      toast.error(err.message || "Gagal membatalkan transaksi");
+    } finally {
+      setIsSubmittingCancelItem(false);
     }
   };
 
@@ -1263,24 +1423,29 @@ export default function SiapSajiFinancePage() {
                     </span>
                   </div>
                   <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>
-                    Pendapatan Penjualan, Catering Umum/Regular, & Pengurang Penjualan
+                    Pendapatan Penjualan, Pendapatan Ongkir, & Diskon Penjualan
                   </div>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <div style={{ fontWeight: 800, color: "#15803d", fontSize: 16 }}>Rp {totalPendapatan.toLocaleString("id-ID")}</div>
+                  <div style={{ fontWeight: 800, color: totalPendapatan >= 0 ? "#15803d" : "#dc2626", fontSize: 16 }}>
+                    {totalPendapatan < 0 ? `-Rp ${Math.abs(totalPendapatan).toLocaleString("id-ID")}` : `Rp ${totalPendapatan.toLocaleString("id-ID")}`}
+                  </div>
                   <div style={{ fontSize: 11, color: "#16a34a", fontWeight: 700 }}>100.0%</div>
                 </div>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 4 }}>
                 {(plData?.details?.filter((d: any) => d.kelompok === "Pendapatan" && Number(d.total_nominal || 0) !== 0) || []).map((acc: any, i: number) => {
                   const nominal = Number(acc.total_nominal || 0);
+                  const isNegative = nominal < 0;
                   const accPct = totalPendapatan > 0 ? ((nominal / totalPendapatan) * 100).toFixed(1) : "0.0";
                   return (
-                    <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, color: "#374151" }}>
+                    <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, color: isNegative ? "#dc2626" : "#374151" }}>
                       <span>({acc.kode_akun}) {acc.nama_akun}</span>
                       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <span style={{ fontWeight: 600, fontFamily: "monospace" }}>Rp {nominal.toLocaleString("id-ID")}</span>
-                        <span style={{ fontSize: 11, color: "#6b7280", minWidth: 42, textAlign: "right" }}>{accPct}%</span>
+                        <span style={{ fontWeight: 600, fontFamily: "monospace", color: isNegative ? "#dc2626" : undefined }}>
+                          {isNegative ? `-Rp ${Math.abs(nominal).toLocaleString("id-ID")}` : `Rp ${nominal.toLocaleString("id-ID")}`}
+                        </span>
+                        <span style={{ fontSize: 11, color: isNegative ? "#dc2626" : "#6b7280", minWidth: 42, textAlign: "right" }}>{accPct}%</span>
                       </div>
                     </div>
                   );
@@ -1514,16 +1679,17 @@ export default function SiapSajiFinancePage() {
                     </tr>
                     {(plData?.details?.filter((d: any) => d.kelompok === "Pendapatan") || []).map((acc: any, i: number) => {
                       const nom = Number(acc.total_nominal || 0);
+                      const isNegative = nom < 0;
                       const pct = totalPendapatan > 0 ? ((nom / totalPendapatan) * 100).toFixed(1) : "0.0";
                       return (
                         <tr key={i}>
-                          <td style={{ padding: "2px 0 2px 28px", color: "#374151" }}>
+                          <td style={{ padding: "2px 0 2px 28px", color: isNegative ? "#dc2626" : "#374151" }}>
                             ({acc.kode_akun}) {acc.nama_akun}
                           </td>
-                          <td style={{ textAlign: "right", padding: "2px 12px 2px 0", fontFamily: "monospace" }}>
-                            {nom.toLocaleString("id-ID")}
+                          <td style={{ textAlign: "right", padding: "2px 12px 2px 0", fontFamily: "monospace", color: isNegative ? "#dc2626" : undefined }}>
+                            {isNegative ? `-${Math.abs(nom).toLocaleString("id-ID")}` : nom.toLocaleString("id-ID")}
                           </td>
-                          <td style={{ textAlign: "right", padding: "2px 0", color: "#15803d", fontWeight: 600, fontSize: 12 }}>
+                          <td style={{ textAlign: "right", padding: "2px 0", color: isNegative ? "#dc2626" : "#15803d", fontWeight: 600, fontSize: 12 }}>
                             {pct}%
                           </td>
                         </tr>
@@ -1787,41 +1953,183 @@ export default function SiapSajiFinancePage() {
                   <th style={{ padding: "12px 16px" }}>Ref Nota</th>
                   <th style={{ padding: "12px 16px" }}>Keterangan Belanja</th>
                   <th style={{ padding: "12px 16px" }}>Kategori HPP</th>
-                  <th style={{ padding: "12px 16px" }}>Rekening Kas/Bank</th>
-                  <th style={{ padding: "12px 16px", textAlign: "right" }}>Nominal</th>
+                  <th style={{ padding: "12px 16px" }}>Rekening / Sumber</th>
+                  <th style={{ padding: "12px 16px", textAlign: "center" }}>Status Bayar</th>
+                  <th style={{ padding: "12px 16px", textAlign: "right" }}>Total Nota</th>
+                  <th style={{ padding: "12px 16px", textAlign: "right" }}>Dibayar</th>
+                  <th style={{ padding: "12px 16px", textAlign: "right" }}>Sisa Hutang</th>
+                  <th style={{ padding: "12px 16px", textAlign: "center", width: 140 }}>Aksi</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                    <td colSpan={11} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
                       Memuat data nota HPP...
                     </td>
                   </tr>
                 ) : purchases.length === 0 ? (
                   <tr>
-                    <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                    <td colSpan={11} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
                       Belum ada riwayat pembelian HPP.
                     </td>
                   </tr>
                 ) : (
-                  purchases.slice((purPage - 1) * purLimit, purPage * purLimit).map((p, idx) => (
-                    <tr key={p.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                      <td style={{ padding: "14px 16px", color: "#6b7280" }}>{(purPage - 1) * purLimit + idx + 1}</td>
-                      <td style={{ padding: "14px 16px", fontWeight: 600 }}>{formatDate(p.purchase_date)}</td>
-                      <td style={{ padding: "14px 16px", fontFamily: "monospace", color: "#5005A6" }}>
-                        {p.nota_ref || `NOTA-${p.id}`}
-                      </td>
-                      <td style={{ padding: "14px 16px", color: "#111827", fontWeight: 600 }}>{p.keterangan}</td>
-                      <td style={{ padding: "14px 16px", color: "#4b5563" }}>
-                        {p.coa_kode} - {p.coa_nama}
-                      </td>
-                      <td style={{ padding: "14px 16px", color: "#374151" }}>{p.kas_bank_nama}</td>
-                      <td style={{ padding: "14px 16px", textAlign: "right", fontWeight: 800, color: "#E24B4A" }}>
-                        Rp {Number(p.total_amount).toLocaleString("id-ID")}
-                      </td>
-                    </tr>
-                  ))
+                  purchases.slice((purPage - 1) * purLimit, purPage * purLimit).map((p, idx) => {
+                    const isCancelled = p.status === "Dibatalkan" || p.status_pembayaran === "Dibatalkan";
+                    const sisa = Number(p.sisa_hutang || 0);
+                    const dibayar = Number(p.dibayar || 0);
+                    const total = Number(p.total_amount || 0);
+                    const statusBayar = isCancelled ? "Dibatalkan" : (p.status_pembayaran || (sisa > 0 ? (dibayar > 0 ? "Sebagian" : "Belum Lunas") : "Lunas"));
+
+                    return (
+                      <tr key={p.id} style={{ borderBottom: "1px solid #f3f4f6", opacity: isCancelled ? 0.6 : 1 }}>
+                        <td style={{ padding: "14px 16px", color: "#6b7280" }}>{(purPage - 1) * purLimit + idx + 1}</td>
+                        <td style={{ padding: "14px 16px", fontWeight: 600 }}>{formatDate(p.purchase_date)}</td>
+                        <td style={{ padding: "14px 16px", fontFamily: "monospace", color: "#5005A6", fontWeight: 700 }}>
+                          {p.nota_ref || `NOTA-${p.id}`}
+                        </td>
+                        <td style={{ padding: "14px 16px", color: "#111827", fontWeight: 600, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis" }}>
+                          <div>{p.keterangan}</div>
+                          {isCancelled && p.cancel_reason && (
+                            <div style={{ fontSize: 11, color: "#dc2626", fontStyle: "italic", marginTop: 2 }}>
+                              Alasan Batal: &ldquo;{p.cancel_reason}&rdquo;
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: "14px 16px", color: "#4b5563" }}>
+                          {p.coa_kode} - {p.coa_nama}
+                        </td>
+                        <td style={{ padding: "14px 16px", color: "#374151" }}>{p.kas_bank_nama || "Hutang Usaha"}</td>
+                        <td style={{ padding: "14px 16px", textAlign: "center" }}>
+                          <span
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 800,
+                              padding: "3px 8px",
+                              borderRadius: 6,
+                              background: isCancelled
+                                ? "#fee2e2"
+                                : statusBayar === "Lunas"
+                                ? "#f0fdf4"
+                                : statusBayar === "Sebagian"
+                                ? "#fef3c7"
+                                : "#fee2e2",
+                              color: isCancelled
+                                ? "#991b1b"
+                                : statusBayar === "Lunas"
+                                ? "#15803d"
+                                : statusBayar === "Sebagian"
+                                ? "#b45309"
+                                : "#b91c1c",
+                              border: isCancelled
+                                ? "1px solid #fecaca"
+                                : statusBayar === "Lunas"
+                                ? "1px solid #bbf7d0"
+                                : statusBayar === "Sebagian"
+                                ? "1px solid #fde68a"
+                                : "1px solid #fecaca",
+                            }}
+                          >
+                            {statusBayar}
+                          </span>
+                        </td>
+                        <td style={{ padding: "14px 16px", textAlign: "right", fontWeight: 800, color: isCancelled ? "#9ca3af" : "#111827", textDecoration: isCancelled ? "line-through" : "none" }}>
+                          Rp {total.toLocaleString("id-ID")}
+                        </td>
+                        <td style={{ padding: "14px 16px", textAlign: "right", fontWeight: 700, color: isCancelled ? "#9ca3af" : "#15803d" }}>
+                          Rp {dibayar.toLocaleString("id-ID")}
+                        </td>
+                        <td style={{ padding: "14px 16px", textAlign: "right", fontWeight: 800, color: isCancelled ? "#9ca3af" : (sisa > 0 ? "#E24B4A" : "#6b7280") }}>
+                          Rp {sisa.toLocaleString("id-ID")}
+                        </td>
+                        <td style={{ padding: "14px 16px", textAlign: "center" }}>
+                          <div style={{ display: "flex", justifyContent: "center", gap: 5 }}>
+                            {/* Detail */}
+                            <button
+                              onClick={() => setDetailModalItem({ type: "purchase", data: p })}
+                              style={{
+                                padding: "6px 8px",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                background: "#f9fafb",
+                                color: "#374151",
+                                cursor: "pointer",
+                                display: "inline-flex",
+                                alignItems: "center",
+                              }}
+                              title="Lihat Detail Nota"
+                            >
+                              <Eye size={14} />
+                            </button>
+
+                            {/* Bayar Hutang / Cicilan (if not cancelled & sisa > 0) */}
+                            {!isCancelled && sisa > 0 && (
+                              <button
+                                onClick={() => handleOpenPayDebtModal("purchase", p)}
+                                style={{
+                                  padding: "6px 9px",
+                                  borderRadius: 6,
+                                  border: "none",
+                                  background: "#639922",
+                                  color: "white",
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  cursor: "pointer",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: 3,
+                                }}
+                                title="Bayar Cicilan / Pelunasan Hutang"
+                              >
+                                <DollarSign size={13} /> Bayar
+                              </button>
+                            )}
+
+                            {/* Edit (if not cancelled) */}
+                            {!isCancelled && (
+                              <button
+                                onClick={() => handleOpenEditPurchase(p)}
+                                style={{
+                                  padding: "6px 8px",
+                                  borderRadius: 6,
+                                  border: "1px solid #d1d5db",
+                                  background: "#f9fafb",
+                                  color: "#4b5563",
+                                  cursor: "pointer",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                }}
+                                title="Edit Nota HPP"
+                              >
+                                <Edit3 size={14} />
+                              </button>
+                            )}
+
+                            {/* Batal dengan Alasan */}
+                            {!isCancelled && (
+                              <button
+                                onClick={() => handleOpenCancelModal("purchase", p)}
+                                style={{
+                                  padding: "6px 8px",
+                                  borderRadius: 6,
+                                  border: "1px solid #fecaca",
+                                  background: "#fef2f2",
+                                  color: "#dc2626",
+                                  cursor: "pointer",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                }}
+                                title="Batalkan Nota HPP"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -1889,75 +2197,180 @@ export default function SiapSajiFinancePage() {
                 <th style={{ padding: "12px 16px" }}>Tanggal</th>
                 <th style={{ padding: "12px 16px" }}>Keterangan Biaya</th>
                 <th style={{ padding: "12px 16px" }}>Kategori Beban</th>
-                <th style={{ padding: "12px 16px" }}>Sumber Dana</th>
-                <th style={{ padding: "12px 16px", textAlign: "right" }}>Nominal</th>
-                <th style={{ padding: "12px 16px", textAlign: "center", width: 90 }}>Aksi</th>
+                <th style={{ padding: "12px 16px" }}>Sumber / Rekening</th>
+                <th style={{ padding: "12px 16px", textAlign: "center" }}>Status Bayar</th>
+                <th style={{ padding: "12px 16px", textAlign: "right" }}>Total Biaya</th>
+                <th style={{ padding: "12px 16px", textAlign: "right" }}>Dibayar</th>
+                <th style={{ padding: "12px 16px", textAlign: "right" }}>Sisa Hutang</th>
+                <th style={{ padding: "12px 16px", textAlign: "center", width: 140 }}>Aksi</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                  <td colSpan={10} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
                     Memuat biaya operasional...
                   </td>
                 </tr>
               ) : expenses.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                  <td colSpan={10} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
                     Belum ada riwayat biaya operasional.
                   </td>
                 </tr>
               ) : (
-                expenses.slice((expPage - 1) * expLimit, expPage * expLimit).map((e, idx) => (
-                  <tr key={e.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                    <td style={{ padding: "14px 16px", color: "#6b7280" }}>{(expPage - 1) * expLimit + idx + 1}</td>
-                    <td style={{ padding: "14px 16px", fontWeight: 600 }}>{formatDate(e.journal_date)}</td>
-                    <td style={{ padding: "14px 16px", color: "#111827", fontWeight: 600 }}>{e.keterangan}</td>
-                    <td style={{ padding: "14px 16px", color: "#4b5563" }}>
-                      ({e.beban_kode}) {e.beban_nama}
-                    </td>
-                    <td style={{ padding: "14px 16px", color: "#374151" }}>{e.kredit_nama}</td>
-                    <td style={{ padding: "14px 16px", textAlign: "right", fontWeight: 800, color: "#E24B4A" }}>
-                      Rp {Number(e.nominal).toLocaleString("id-ID")}
-                    </td>
-                    <td style={{ padding: "14px 16px", textAlign: "center" }}>
-                      <div style={{ display: "flex", justifyContent: "center", gap: 6 }}>
-                        <button
-                          onClick={() => handleOpenEditExpense(e)}
+                expenses.slice((expPage - 1) * expLimit, expPage * expLimit).map((e, idx) => {
+                  const isCancelled = e.status === "dibatalkan" || e.status_pembayaran === "Dibatalkan";
+                  const sisa = Number(e.sisa_hutang || 0);
+                  const dibayar = Number(e.dibayar || 0);
+                  const total = Number(e.nominal || 0);
+                  const statusBayar = isCancelled ? "Dibatalkan" : (e.status_pembayaran || (sisa > 0 ? (dibayar > 0 ? "Sebagian" : "Belum Lunas") : "Lunas"));
+
+                  return (
+                    <tr key={e.id} style={{ borderBottom: "1px solid #f3f4f6", opacity: isCancelled ? 0.6 : 1 }}>
+                      <td style={{ padding: "14px 16px", color: "#6b7280" }}>{(expPage - 1) * expLimit + idx + 1}</td>
+                      <td style={{ padding: "14px 16px", fontWeight: 600 }}>{formatDate(e.journal_date)}</td>
+                      <td style={{ padding: "14px 16px", color: "#111827", fontWeight: 600, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis" }}>
+                        <div>{e.keterangan}</div>
+                        {isCancelled && e.cancel_reason && (
+                          <div style={{ fontSize: 11, color: "#dc2626", fontStyle: "italic", marginTop: 2 }}>
+                            Alasan Batal: &ldquo;{e.cancel_reason}&rdquo;
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ padding: "14px 16px", color: "#4b5563" }}>
+                        ({e.beban_kode}) {e.beban_nama}
+                      </td>
+                      <td style={{ padding: "14px 16px", color: "#374151" }}>{e.kredit_nama || "Hutang Usaha"}</td>
+                      <td style={{ padding: "14px 16px", textAlign: "center" }}>
+                        <span
                           style={{
-                            padding: "6px 8px",
+                            fontSize: 11,
+                            fontWeight: 800,
+                            padding: "3px 8px",
                             borderRadius: 6,
-                            border: "1px solid #d1d5db",
-                            background: "#f9fafb",
-                            color: "#4b5563",
-                            cursor: "pointer",
-                            display: "inline-flex",
-                            alignItems: "center",
+                            background: isCancelled
+                              ? "#fee2e2"
+                              : statusBayar === "Lunas"
+                              ? "#f0fdf4"
+                              : statusBayar === "Sebagian"
+                              ? "#fef3c7"
+                              : "#fee2e2",
+                            color: isCancelled
+                              ? "#991b1b"
+                              : statusBayar === "Lunas"
+                              ? "#15803d"
+                              : statusBayar === "Sebagian"
+                              ? "#b45309"
+                              : "#b91c1c",
+                            border: isCancelled
+                              ? "1px solid #fecaca"
+                              : statusBayar === "Lunas"
+                              ? "1px solid #bbf7d0"
+                              : statusBayar === "Sebagian"
+                              ? "1px solid #fde68a"
+                              : "1px solid #fecaca",
                           }}
-                          title="Edit Biaya Operasional"
                         >
-                          <Edit3 size={14} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteExpense(e.id, e.keterangan)}
-                          style={{
-                            padding: "6px 8px",
-                            borderRadius: 6,
-                            border: "1px solid #fecaca",
-                            background: "#fef2f2",
-                            color: "#dc2626",
-                            cursor: "pointer",
-                            display: "inline-flex",
-                            alignItems: "center",
-                          }}
-                          title="Hapus Biaya Operasional"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                          {statusBayar}
+                        </span>
+                      </td>
+                      <td style={{ padding: "14px 16px", textAlign: "right", fontWeight: 800, color: isCancelled ? "#9ca3af" : "#111827", textDecoration: isCancelled ? "line-through" : "none" }}>
+                        Rp {total.toLocaleString("id-ID")}
+                      </td>
+                      <td style={{ padding: "14px 16px", textAlign: "right", fontWeight: 700, color: isCancelled ? "#9ca3af" : "#15803d" }}>
+                        Rp {dibayar.toLocaleString("id-ID")}
+                      </td>
+                      <td style={{ padding: "14px 16px", textAlign: "right", fontWeight: 800, color: isCancelled ? "#9ca3af" : (sisa > 0 ? "#E24B4A" : "#6b7280") }}>
+                        Rp {sisa.toLocaleString("id-ID")}
+                      </td>
+                      <td style={{ padding: "14px 16px", textAlign: "center" }}>
+                        <div style={{ display: "flex", justifyContent: "center", gap: 5 }}>
+                          {/* Detail */}
+                          <button
+                            onClick={() => setDetailModalItem({ type: "expense", data: e })}
+                            style={{
+                              padding: "6px 8px",
+                              borderRadius: 6,
+                              border: "1px solid #d1d5db",
+                              background: "#f9fafb",
+                              color: "#374151",
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                            }}
+                            title="Lihat Detail Biaya"
+                          >
+                            <Eye size={14} />
+                          </button>
+
+                          {/* Bayar Hutang / Cicilan (if not cancelled & sisa > 0) */}
+                          {!isCancelled && sisa > 0 && (
+                            <button
+                              onClick={() => handleOpenPayDebtModal("expense", e)}
+                              style={{
+                                padding: "6px 9px",
+                                borderRadius: 6,
+                                border: "none",
+                                background: "#639922",
+                                color: "white",
+                                fontSize: 11,
+                                fontWeight: 700,
+                                cursor: "pointer",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 3,
+                              }}
+                              title="Bayar Cicilan / Pelunasan Hutang"
+                            >
+                              <DollarSign size={13} /> Bayar
+                            </button>
+                          )}
+
+                          {/* Edit (if not cancelled) */}
+                          {!isCancelled && (
+                            <button
+                              onClick={() => handleOpenEditExpense(e)}
+                              style={{
+                                padding: "6px 8px",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                background: "#f9fafb",
+                                color: "#4b5563",
+                                cursor: "pointer",
+                                display: "inline-flex",
+                                alignItems: "center",
+                              }}
+                              title="Edit Biaya Operasional"
+                            >
+                              <Edit3 size={14} />
+                            </button>
+                          )}
+
+                          {/* Batal dengan Alasan */}
+                          {!isCancelled && (
+                            <button
+                              onClick={() => handleOpenCancelModal("expense", e)}
+                              style={{
+                                padding: "6px 8px",
+                                borderRadius: 6,
+                                border: "1px solid #fecaca",
+                                background: "#fef2f2",
+                                color: "#dc2626",
+                                cursor: "pointer",
+                                display: "inline-flex",
+                                alignItems: "center",
+                              }}
+                              title="Batalkan Biaya Operasional"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -2557,19 +2970,62 @@ export default function SiapSajiFinancePage() {
                 </select>
               </div>
 
-              <div style={{ marginBottom: 20 }}>
+              <div style={{ marginBottom: 12 }}>
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
-                  Total Nominal (Rp) *
+                  Total Nominal Belanja (Rp) *
                 </label>
                 <input
                   type="text"
                   placeholder="0"
                   value={formatThousand(purchaseAmount)}
-                  onChange={(e) => setPurchaseAmount(parseThousand(e.target.value))}
+                  onChange={(e) => {
+                    const val = parseThousand(e.target.value);
+                    setPurchaseAmount(val);
+                    if (purchaseKasBankId !== "hutang" && purchaseKasBankId !== 0 && purchaseKasBankId !== "") {
+                      setPurchasePaidAmount(val);
+                    }
+                  }}
                   required
-                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 16, fontWeight: 700, textAlign: "right" }}
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 15, fontWeight: 700, textAlign: "right" }}
                 />
               </div>
+
+              {/* Opsi Pembayaran Parsial / DP jika bukan Hutang murni */}
+              {purchaseKasBankId !== "hutang" && purchaseKasBankId !== 0 && purchaseKasBankId !== "" && (
+                <div style={{ marginBottom: 16, background: "#f8fafc", padding: "10px 14px", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>
+                      Nominal Dibayar (DP / Parsial) (Rp)
+                    </label>
+                    <span style={{ fontSize: 11, color: "#64748b" }}>
+                      Sisa Hutang: <strong>Rp {Math.max(0, purchaseAmount - (purchasePaidAmount || 0)).toLocaleString("id-ID")}</strong>
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="0"
+                    value={formatThousand(purchasePaidAmount)}
+                    onChange={(e) => setPurchasePaidAmount(Math.min(purchaseAmount, parseThousand(e.target.value)))}
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 14, fontWeight: 700, textAlign: "right", background: "white" }}
+                  />
+                  <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                    <button
+                      type="button"
+                      onClick={() => setPurchasePaidAmount(purchaseAmount)}
+                      style={{ fontSize: 11, padding: "2px 8px", background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 4, cursor: "pointer" }}
+                    >
+                      Bayar Lunas (100%)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPurchasePaidAmount(Math.round(purchaseAmount * 0.5))}
+                      style={{ fontSize: 11, padding: "2px 8px", background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 4, cursor: "pointer" }}
+                    >
+                      DP 50%
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
                 <button type="button" onClick={() => setIsPurchaseModalOpen(false)} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "white" }}>
@@ -2577,6 +3033,170 @@ export default function SiapSajiFinancePage() {
                 </button>
                 <button type="submit" disabled={isSubmitting} style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "#5005A6", color: "white", fontWeight: 700 }}>
                   {isSubmitting ? "Simpan..." : "Simpan Nota HPP"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: EDIT NOTA HPP ────────────────────────────── */}
+      {isEditPurchaseModalOpen && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: "white", borderRadius: 16, maxWidth: 480, width: "100%", padding: 24, maxHeight: "90vh", overflowY: "auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>Edit Nota Pembelian HPP</h3>
+              <button onClick={() => setIsEditPurchaseModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer" }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditPurchase}>
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                  Tanggal Belanja *
+                </label>
+                <input
+                  type="date"
+                  value={editPurDate}
+                  onChange={(e) => setEditPurDate(e.target.value)}
+                  required
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                  No. Ref / Struk Nota
+                </label>
+                <input
+                  type="text"
+                  value={editPurNotaRef}
+                  onChange={(e) => setEditPurNotaRef(e.target.value)}
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                  Keterangan Belanja *
+                </label>
+                <input
+                  type="text"
+                  value={editPurKeterangan}
+                  onChange={(e) => setEditPurKeterangan(e.target.value)}
+                  required
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                  Kategori HPP *
+                </label>
+                <select
+                  value={editPurCoaId}
+                  onChange={(e) => setEditPurCoaId(e.target.value ? Number(e.target.value) : "")}
+                  required
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                >
+                  <option value="">-- Pilih Kategori HPP --</option>
+                  {(() => {
+                    const master = coaListAll.length > 0 ? coaListAll : coaList;
+                    const filtered = master.filter((c) =>
+                      c.sub_kelompok === "Beban Pokok Penjualan" ||
+                      c.kode_akun?.startsWith("5-")
+                    );
+                    const listToRender = filtered.length > 0 ? filtered : master;
+                    return listToRender.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        ({c.kode_akun}) {c.nama_akun} - {c.sub_kelompok || c.kelompok}
+                      </option>
+                    ));
+                  })()}
+                </select>
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                  Rekening Pembayaran / Metode *
+                </label>
+                <select
+                  value={editPurKasBankId}
+                  onChange={(e) => setEditPurKasBankId(e.target.value === "hutang" ? "hutang" : Number(e.target.value))}
+                  required
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                >
+                  <option value="hutang">💳 Hutang Usaha / Tempo (Belum Dibayar)</option>
+                  {accounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.nama_rekening} (Saldo: Rp{Number(a.saldo_kini).toLocaleString("id-ID")})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                  Total Nominal (Rp) *
+                </label>
+                <input
+                  type="text"
+                  value={formatThousand(editPurTotalAmount)}
+                  onChange={(e) => {
+                    const val = parseThousand(e.target.value);
+                    setEditPurTotalAmount(val);
+                    if (editPurKasBankId !== "hutang" && editPurKasBankId !== 0 && editPurKasBankId !== "") {
+                      setEditPurPaidAmount(Math.min(val, editPurPaidAmount || val));
+                    }
+                  }}
+                  required
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 15, fontWeight: 700, textAlign: "right" }}
+                />
+              </div>
+
+              {/* Opsi Pembayaran Parsial di Edit */}
+              {editPurKasBankId !== "hutang" && editPurKasBankId !== 0 && editPurKasBankId !== "" && (
+                <div style={{ marginBottom: 16, background: "#f8fafc", padding: "10px 14px", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>
+                      Nominal Dibayar (DP / Parsial) (Rp)
+                    </label>
+                    <span style={{ fontSize: 11, color: "#64748b" }}>
+                      Sisa Hutang: <strong>Rp {Math.max(0, editPurTotalAmount - (editPurPaidAmount || 0)).toLocaleString("id-ID")}</strong>
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    value={formatThousand(editPurPaidAmount)}
+                    onChange={(e) => setEditPurPaidAmount(Math.min(editPurTotalAmount, parseThousand(e.target.value)))}
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 14, fontWeight: 700, textAlign: "right", background: "white" }}
+                  />
+                  <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                    <button
+                      type="button"
+                      onClick={() => setEditPurPaidAmount(editPurTotalAmount)}
+                      style={{ fontSize: 11, padding: "2px 8px", background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 4, cursor: "pointer" }}
+                    >
+                      Set Lunas (100%)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditPurPaidAmount(Math.round(editPurTotalAmount * 0.5))}
+                      style={{ fontSize: 11, padding: "2px 8px", background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 4, cursor: "pointer" }}
+                    >
+                      DP 50%
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                <button type="button" onClick={() => setIsEditPurchaseModalOpen(false)} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "white", cursor: "pointer" }}>
+                  Batal
+                </button>
+                <button type="submit" disabled={isSubmitting} style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "#5005A6", color: "white", fontWeight: 700, cursor: "pointer" }}>
+                  {isSubmitting ? "Menyimpan..." : "Simpan Perubahan"}
                 </button>
               </div>
             </form>
@@ -2670,19 +3290,61 @@ export default function SiapSajiFinancePage() {
                 </select>
               </div>
 
-              <div style={{ marginBottom: 20 }}>
+              <div style={{ marginBottom: 12 }}>
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
-                  Nominal Biaya (Rp) *
+                  Total Nominal Biaya (Rp) *
                 </label>
                 <input
                   type="text"
                   placeholder="0"
                   value={formatThousand(expenseAmount)}
-                  onChange={(e) => setExpenseAmount(parseThousand(e.target.value))}
+                  onChange={(e) => {
+                    const val = parseThousand(e.target.value);
+                    setExpenseAmount(val);
+                    if (expenseKasBankId !== "hutang" && expenseKasBankId !== 0 && expenseKasBankId !== "") {
+                      setExpensePaidAmount(val);
+                    }
+                  }}
                   required
-                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 16, fontWeight: 700, textAlign: "right" }}
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 15, fontWeight: 700, textAlign: "right" }}
                 />
               </div>
+
+              {/* Opsi Pembayaran Parsial di Expense Input */}
+              {expenseKasBankId !== "hutang" && expenseKasBankId !== 0 && expenseKasBankId !== "" && (
+                <div style={{ marginBottom: 16, background: "#f8fafc", padding: "10px 14px", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>
+                      Nominal Dibayar (DP / Parsial) (Rp)
+                    </label>
+                    <span style={{ fontSize: 11, color: "#64748b" }}>
+                      Sisa Hutang: <strong>Rp {Math.max(0, expenseAmount - (expensePaidAmount || 0)).toLocaleString("id-ID")}</strong>
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    value={formatThousand(expensePaidAmount)}
+                    onChange={(e) => setExpensePaidAmount(Math.min(expenseAmount, parseThousand(e.target.value)))}
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 14, fontWeight: 700, textAlign: "right", background: "white" }}
+                  />
+                  <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                    <button
+                      type="button"
+                      onClick={() => setExpensePaidAmount(expenseAmount)}
+                      style={{ fontSize: 11, padding: "2px 8px", background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 4, cursor: "pointer" }}
+                    >
+                      Bayar Lunas (100%)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setExpensePaidAmount(Math.round(expenseAmount * 0.5))}
+                      style={{ fontSize: 11, padding: "2px 8px", background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 4, cursor: "pointer" }}
+                    >
+                      DP 50%
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
                 <button type="button" onClick={() => setIsExpenseModalOpen(false)} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "white" }}>
@@ -2700,7 +3362,7 @@ export default function SiapSajiFinancePage() {
       {/* ── MODAL: EDIT EXPENSE ──────────────────────────────── */}
       {isEditExpenseModalOpen && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-          <div style={{ background: "white", borderRadius: 16, maxWidth: 480, width: "100%", padding: 24, boxShadow: "0 20px 25px -5px rgba(0,0,0,0.2)" }}>
+          <div style={{ background: "white", borderRadius: 16, maxWidth: 480, width: "100%", padding: 24, boxShadow: "0 20px 25px -5px rgba(0,0,0,0.2)", maxHeight: "90vh", overflowY: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <h3 style={{ fontSize: 18, fontWeight: 800, margin: 0, color: "#111827" }}>Edit Biaya Operasional</h3>
               <button onClick={() => setIsEditExpenseModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280" }}>
@@ -2783,18 +3445,60 @@ export default function SiapSajiFinancePage() {
                 </select>
               </div>
 
-              <div style={{ marginBottom: 20 }}>
+              <div style={{ marginBottom: 12 }}>
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
-                  Nominal (Rp) *
+                  Total Nominal Biaya (Rp) *
                 </label>
                 <input
                   type="text"
                   value={formatThousand(editExpNominal)}
-                  onChange={(e) => setEditExpNominal(parseThousand(e.target.value))}
+                  onChange={(e) => {
+                    const val = parseThousand(e.target.value);
+                    setEditExpNominal(val);
+                    if (editExpKasBankId !== "hutang" && editExpKasBankId !== 0 && editExpKasBankId !== "") {
+                      setEditExpPaidAmount(Math.min(val, editExpPaidAmount || val));
+                    }
+                  }}
                   required
-                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, fontWeight: 700 }}
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 15, fontWeight: 700, textAlign: "right" }}
                 />
               </div>
+
+              {/* Opsi Pembayaran Parsial di Edit Expense */}
+              {editExpKasBankId !== "hutang" && editExpKasBankId !== 0 && editExpKasBankId !== "" && (
+                <div style={{ marginBottom: 16, background: "#f8fafc", padding: "10px 14px", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>
+                      Nominal Dibayar (DP / Parsial) (Rp)
+                    </label>
+                    <span style={{ fontSize: 11, color: "#64748b" }}>
+                      Sisa Hutang: <strong>Rp {Math.max(0, editExpNominal - (editExpPaidAmount || 0)).toLocaleString("id-ID")}</strong>
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    value={formatThousand(editExpPaidAmount)}
+                    onChange={(e) => setEditExpPaidAmount(Math.min(editExpNominal, parseThousand(e.target.value)))}
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 14, fontWeight: 700, textAlign: "right", background: "white" }}
+                  />
+                  <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                    <button
+                      type="button"
+                      onClick={() => setEditExpPaidAmount(editExpNominal)}
+                      style={{ fontSize: 11, padding: "2px 8px", background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 4, cursor: "pointer" }}
+                    >
+                      Set Lunas (100%)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditExpPaidAmount(Math.round(editExpNominal * 0.5))}
+                      style={{ fontSize: 11, padding: "2px 8px", background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 4, cursor: "pointer" }}
+                    >
+                      DP 50%
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
                 <button type="button" onClick={() => setIsEditExpenseModalOpen(false)} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "white", cursor: "pointer" }}>
@@ -3589,6 +4293,289 @@ export default function SiapSajiFinancePage() {
                 }}
               >
                 {isSubmittingCancelJournal ? "Memproses..." : "Konfirmasi Pembatalan"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ── MODAL SHARED: DETAIL TRANSAKSI (HPP & BIAYA) ────────────── */}
+      {detailModalItem && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 120, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: "white", borderRadius: 16, maxWidth: 540, width: "100%", padding: 24, boxShadow: "0 20px 25px -5px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, borderBottom: "1px solid #e5e7eb", paddingBottom: 12 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 800, color: "#111827", margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                <FileText size={18} color="#5005A6" /> Detail {detailModalItem.type === "purchase" ? "Nota Pembelian HPP" : "Biaya Operasional"}
+              </h3>
+              <button onClick={() => setDetailModalItem(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280" }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16, fontSize: 13 }}>
+              <div>
+                <span style={{ color: "#6b7280", display: "block", fontSize: 11 }}>Tanggal Transaksi:</span>
+                <span style={{ fontWeight: 700, color: "#111827" }}>
+                  {formatDate(detailModalItem.type === "purchase" ? detailModalItem.data.purchase_date : detailModalItem.data.journal_date)}
+                </span>
+              </div>
+              <div>
+                <span style={{ color: "#6b7280", display: "block", fontSize: 11 }}>Nomor Ref / ID:</span>
+                <span style={{ fontWeight: 700, fontFamily: "monospace", color: "#5005A6" }}>
+                  {detailModalItem.type === "purchase" ? (detailModalItem.data.nota_ref || `NOTA-${detailModalItem.data.id}`) : (detailModalItem.data.ref_no || `EXP-${detailModalItem.data.id}`)}
+                </span>
+              </div>
+              <div style={{ gridColumn: "span 2" }}>
+                <span style={{ color: "#6b7280", display: "block", fontSize: 11 }}>Keterangan:</span>
+                <span style={{ fontWeight: 600, color: "#111827" }}>{detailModalItem.data.keterangan || "-"}</span>
+              </div>
+              <div>
+                <span style={{ color: "#6b7280", display: "block", fontSize: 11 }}>Akun Beban / CoA:</span>
+                <span style={{ fontWeight: 600, color: "#374151" }}>
+                  {detailModalItem.type === "purchase"
+                    ? `${detailModalItem.data.coa_kode || ""} ${detailModalItem.data.coa_nama || "-"}`
+                    : `(${detailModalItem.data.beban_kode || ""}) ${detailModalItem.data.beban_nama || "-"}`}
+                </span>
+              </div>
+              <div>
+                <span style={{ color: "#6b7280", display: "block", fontSize: 11 }}>Rekening Sumber / Metode:</span>
+                <span style={{ fontWeight: 600, color: "#374151" }}>
+                  {detailModalItem.type === "purchase"
+                    ? (detailModalItem.data.kas_bank_nama || "Hutang Usaha")
+                    : (detailModalItem.data.kredit_nama || "Hutang Usaha")}
+                </span>
+              </div>
+            </div>
+
+            {/* Rincian Finansial Card */}
+            <div style={{ background: "#f8fafc", borderRadius: 12, padding: 14, border: "1px solid #e2e8f0", marginBottom: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 13 }}>
+                <span style={{ color: "#64748b" }}>Total Nilai Transaksi:</span>
+                <strong style={{ color: "#111827", fontFamily: "monospace" }}>
+                  Rp {Number(detailModalItem.type === "purchase" ? detailModalItem.data.total_amount : detailModalItem.data.nominal || 0).toLocaleString("id-ID")}
+                </strong>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 13 }}>
+                <span style={{ color: "#64748b" }}>Sudah Dibayar:</span>
+                <strong style={{ color: "#15803d", fontFamily: "monospace" }}>
+                  Rp {Number(detailModalItem.data.dibayar || (detailModalItem.data.status_pembayaran === "Lunas" ? (detailModalItem.type === "purchase" ? detailModalItem.data.total_amount : detailModalItem.data.nominal) : 0)).toLocaleString("id-ID")}
+                </strong>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 6, borderTop: "1px dashed #cbd5e1", fontSize: 14 }}>
+                <span style={{ fontWeight: 700, color: "#334155" }}>Sisa Hutang:</span>
+                <strong style={{ color: Number(detailModalItem.data.sisa_hutang || 0) > 0 ? "#E24B4A" : "#64748b", fontFamily: "monospace", fontSize: 15 }}>
+                  Rp {Number(detailModalItem.data.sisa_hutang || 0).toLocaleString("id-ID")}
+                </strong>
+              </div>
+            </div>
+
+            {/* Status Info */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <span style={{ fontSize: 12, color: "#6b7280" }}>Status Pembayaran:</span>
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 800,
+                  padding: "3px 10px",
+                  borderRadius: 6,
+                  background: (detailModalItem.data.status === "Dibatalkan" || detailModalItem.data.status === "dibatalkan" || detailModalItem.data.status_pembayaran === "Dibatalkan")
+                    ? "#fee2e2"
+                    : detailModalItem.data.status_pembayaran === "Lunas"
+                    ? "#f0fdf4"
+                    : "#fef3c7",
+                  color: (detailModalItem.data.status === "Dibatalkan" || detailModalItem.data.status === "dibatalkan" || detailModalItem.data.status_pembayaran === "Dibatalkan")
+                    ? "#991b1b"
+                    : detailModalItem.data.status_pembayaran === "Lunas"
+                    ? "#15803d"
+                    : "#b45309",
+                }}
+              >
+                {(detailModalItem.data.status === "Dibatalkan" || detailModalItem.data.status === "dibatalkan" || detailModalItem.data.status_pembayaran === "Dibatalkan")
+                  ? "Dibatalkan"
+                  : (detailModalItem.data.status_pembayaran || "Lunas")}
+              </span>
+            </div>
+
+            {(detailModalItem.data.cancel_reason) && (
+              <div style={{ background: "#fef2f2", border: "1px solid #fee2e2", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#991b1b" }}>
+                <strong>Alasan Pembatalan:</strong> &ldquo;{detailModalItem.data.cancel_reason}&rdquo;
+              </div>
+            )}
+
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                onClick={() => setDetailModalItem(null)}
+                style={{ padding: "8px 20px", borderRadius: 8, border: "1px solid #d1d5db", background: "white", fontSize: 14, cursor: "pointer", fontWeight: 600 }}
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL SHARED: BAYAR CICILAN / PELUNASAN HUTANG ───────────── */}
+      {payDebtModalItem && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 120, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: "white", borderRadius: 16, maxWidth: 480, width: "100%", padding: 24, boxShadow: "0 20px 25px -5px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 800, color: "#111827", margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                <DollarSign size={18} color="#639922" /> Bayar Cicilan / Pelunasan Hutang
+              </h3>
+              <button onClick={() => setPayDebtModalItem(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280" }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "#166534" }}>
+              <div>Transaksi: <strong>{payDebtModalItem.type === "purchase" ? (payDebtModalItem.data.nota_ref || `NOTA-${payDebtModalItem.data.id}`) : `EXP-${payDebtModalItem.data.id}`}</strong></div>
+              <div style={{ fontSize: 12, marginTop: 2 }}>{payDebtModalItem.data.keterangan}</div>
+              <div style={{ marginTop: 6, fontWeight: 700, fontSize: 13 }}>
+                Sisa Hutang Saat Ini: Rp {Number(payDebtModalItem.data.sisa_hutang || (payDebtModalItem.type === "purchase" ? payDebtModalItem.data.total_amount : payDebtModalItem.data.nominal)).toLocaleString("id-ID")}
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmitPayDebt}>
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                  Tanggal Pembayaran *
+                </label>
+                <input
+                  type="date"
+                  value={payDebtDate}
+                  onChange={(e) => setPayDebtDate(e.target.value)}
+                  required
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                  Rekening Kas/Bank Pembayaran *
+                </label>
+                <select
+                  value={payDebtKasBankId}
+                  onChange={(e) => setPayDebtKasBankId(Number(e.target.value))}
+                  required
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                >
+                  <option value="">-- Pilih Rekening Kas/Bank --</option>
+                  {accounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.nama_rekening} (Saldo: Rp{Number(a.saldo_kini).toLocaleString("id-ID")})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                  Nominal Pembayaran (Rp) *
+                </label>
+                <input
+                  type="text"
+                  value={formatThousand(payDebtNominal)}
+                  onChange={(e) => {
+                    const maxSisa = Number(payDebtModalItem.data.sisa_hutang || (payDebtModalItem.type === "purchase" ? payDebtModalItem.data.total_amount : payDebtModalItem.data.nominal));
+                    setPayDebtNominal(Math.min(maxSisa, parseThousand(e.target.value)));
+                  }}
+                  required
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 15, fontWeight: 700, textAlign: "right" }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                  Catatan / Keterangan Pembayaran
+                </label>
+                <input
+                  type="text"
+                  placeholder="Cicilan ke-2, Pelunasan nota, transfer via BCA..."
+                  value={payDebtKeterangan}
+                  onChange={(e) => setPayDebtKeterangan(e.target.value)}
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                />
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setPayDebtModalItem(null)}
+                  style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "white", cursor: "pointer" }}
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingPayDebt}
+                  style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "#639922", color: "white", fontWeight: 700, cursor: "pointer" }}
+                >
+                  {isSubmittingPayDebt ? "Menyimpan..." : "Catat Pembayaran"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL SHARED: PEMBATALAN TRANSAKSI DENGAN ALASAN WAJIB ─── */}
+      {cancelModalItem && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 120, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: "white", borderRadius: 16, maxWidth: 480, width: "100%", padding: 24, boxShadow: "0 20px 25px -5px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 800, color: "#b91c1c", margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                <AlertTriangle size={20} color="#dc2626" /> Konfirmasi Pembatalan {cancelModalItem.type === "purchase" ? "Nota HPP" : "Biaya Operasional"}
+              </h3>
+              <button onClick={() => setCancelModalItem(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280" }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ background: "#fef2f2", border: "1px solid #fee2e2", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "#991b1b" }}>
+              <div>Transaksi: <strong>{cancelModalItem.type === "purchase" ? (cancelModalItem.data.nota_ref || `NOTA-${cancelModalItem.data.id}`) : `EXP-${cancelModalItem.data.id}`}</strong></div>
+              <div style={{ fontSize: 12, marginTop: 2 }}>{cancelModalItem.data.keterangan}</div>
+              <div style={{ marginTop: 6, fontSize: 11.5, color: "#b91c1c" }}>
+                ⚠️ Jika transaksi sudah dibayar via Kas/Bank, nominal pembayaran akan dikembalikan (refund) otomatis ke saldo kas terkait.
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 6 }}>
+                Alasan Pembatalan (Wajib diisi, min. 5 karakter) *
+              </label>
+              <textarea
+                rows={3}
+                placeholder="Contoh: Barang retur, salah input akun beban, dibatalkan supplier..."
+                value={cancelReasonInput}
+                onChange={(e) => setCancelReasonInput(e.target.value)}
+                style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, outline: "none" }}
+              />
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => setCancelModalItem(null)}
+                style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "white", fontSize: 14, cursor: "pointer" }}
+              >
+                Tutup
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmCancelItem}
+                disabled={isSubmittingCancelItem}
+                style={{
+                  padding: "8px 20px",
+                  borderRadius: 8,
+                  border: "none",
+                  background: "#dc2626",
+                  color: "white",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                {isSubmittingCancelItem ? "Memproses..." : "Konfirmasi Pembatalan"}
               </button>
             </div>
           </div>

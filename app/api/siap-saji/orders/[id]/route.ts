@@ -263,52 +263,104 @@ export async function PUT(
     }
 
     // 6. Update Accounting Journal & Kas Mutasi if exists
-    if (existingOrder.journal_id) {
-      // Lookup Coa Accounts for update in case bank / payment status changed
-      let debitKode = "1-1002";
-      if (!isLunas) {
-        debitKode = "1-1004"; // Piutang Usaha SS
-      } else {
-        if (paymentBankName.toUpperCase().includes("MANDIRI")) debitKode = "1-1003";
-        else if (paymentBankName.toUpperCase().includes("KAS")) debitKode = "1-1001";
-      }
+    // Delete old journals for this order to replace with accurate split journals
+    await client.query(
+      "DELETE FROM journals WHERE ref_type = 'penjualan' AND ref_id = $1",
+      [orderId]
+    );
 
-      let coaDebitRes = await client.query(
-        "SELECT id FROM coa WHERE kode_akun = $1 AND lini = 'siap_saji' LIMIT 1",
-        [debitKode]
+    // Lookup Coa Accounts for update in case bank / payment status changed
+    let debitKode = "1-1002";
+    if (!isLunas) {
+      debitKode = "1-1004"; // Piutang Usaha SS
+    } else {
+      if (paymentBankName.toUpperCase().includes("MANDIRI")) debitKode = "1-1003";
+      else if (paymentBankName.toUpperCase().includes("KAS")) debitKode = "1-1001";
+    }
+
+    let coaDebitRes = await client.query(
+      "SELECT id FROM coa WHERE kode_akun = $1 AND lini = 'siap_saji' LIMIT 1",
+      [debitKode]
+    );
+    if (!isLunas && coaDebitRes.rows.length === 0) {
+      coaDebitRes = await client.query(
+        "SELECT id FROM coa WHERE (kode_akun LIKE '1-%' OR tipe = 'Aktiva') AND lini = 'siap_saji' ORDER BY id ASC LIMIT 1"
       );
-      if (!isLunas && coaDebitRes.rows.length === 0) {
-        coaDebitRes = await client.query(
-          "SELECT id FROM coa WHERE (kode_akun LIKE '1-%' OR tipe = 'Aktiva') AND lini = 'siap_saji' ORDER BY id ASC LIMIT 1"
+    }
+
+    const coaAccountsRes = await client.query(
+      "SELECT id, kode_akun FROM coa WHERE kode_akun IN ('4-1001', '4-1002', '4-40100') AND lini = 'siap_saji'"
+    );
+    const coaMap: Record<string, number> = {};
+    for (const r of coaAccountsRes.rows) {
+      coaMap[r.kode_akun] = Number(r.id);
+    }
+    const salesCoaId = coaMap["4-1001"];
+    const ongkirCoaId = coaMap["4-1002"];
+    const discountCoaId = coaMap["4-40100"];
+
+    if (coaDebitRes.rows.length > 0 && salesCoaId) {
+      const debitId = coaDebitRes.rows[0].id;
+      let primaryJournalId: number | null = null;
+      const orderDateToUse = existingOrder.order_date || delivery_date || new Date();
+
+      // 1. Jurnal Penjualan Produk (Kredit: 4-1001 Pendapatan Penjualan SS)
+      if (itemsTotal > 0) {
+        const jRes = await client.query(
+          `INSERT INTO journals (lini, journal_date, ref_type, ref_id, ref_no, akun_debit, akun_kredit, nominal, keterangan)
+           VALUES ('siap_saji', $1, 'penjualan', $2, $3, $4, $5, $6, $7)
+           RETURNING id`,
+          [
+            orderDateToUse,
+            orderId,
+            existingOrder.no_struk,
+            debitId,
+            salesCoaId,
+            itemsTotal,
+            `Penjualan Siap Saji ${existingOrder.no_struk} - ${isLunas ? paymentBankName : "Belum Bayar (Piutang)"}`,
+          ]
+        );
+        primaryJournalId = Number(jRes.rows[0].id);
+      }
+
+      // 2. Jurnal Ongkos Kirim (Kredit: 4-1002 Pendapatan Ongkir SS)
+      if (shipFee > 0 && ongkirCoaId) {
+        const jOngkirRes = await client.query(
+          `INSERT INTO journals (lini, journal_date, ref_type, ref_id, ref_no, akun_debit, akun_kredit, nominal, keterangan)
+           VALUES ('siap_saji', $1, 'penjualan', $2, $3, $4, $5, $6, $7)
+           RETURNING id`,
+          [
+            orderDateToUse,
+            orderId,
+            existingOrder.no_struk,
+            debitId,
+            ongkirCoaId,
+            shipFee,
+            `Pendapatan Ongkir SS ${existingOrder.no_struk}`,
+          ]
+        );
+        if (!primaryJournalId) primaryJournalId = Number(jOngkirRes.rows[0].id);
+      }
+
+      // 3. Jurnal Diskon Penjualan (Debet: 4-40100 Diskon Penjualan, Kredit: Kas/Bank/Piutang)
+      if (discVal > 0 && discountCoaId) {
+        await client.query(
+          `INSERT INTO journals (lini, journal_date, ref_type, ref_id, ref_no, akun_debit, akun_kredit, nominal, keterangan)
+           VALUES ('siap_saji', $1, 'penjualan', $2, $3, $4, $5, $6, $7)`,
+          [
+            orderDateToUse,
+            orderId,
+            existingOrder.no_struk,
+            discountCoaId,
+            debitId,
+            discVal,
+            `Diskon Penjualan SS ${existingOrder.no_struk}`,
+          ]
         );
       }
 
-      if (coaDebitRes.rows.length > 0) {
-        await client.query(
-          `UPDATE journals
-           SET akun_debit = $1,
-               nominal = $2,
-               keterangan = $3
-           WHERE id = $4`,
-          [
-            coaDebitRes.rows[0].id,
-            grandTotal,
-            `Penjualan Siap Saji ${existingOrder.no_struk} - ${isLunas ? paymentBankName : "Belum Bayar (Piutang)"}`,
-            existingOrder.journal_id,
-          ]
-        );
-      } else {
-        await client.query(
-          `UPDATE journals
-           SET nominal = $1,
-               keterangan = $2
-           WHERE id = $3`,
-          [
-            grandTotal,
-            `Penjualan Siap Saji ${existingOrder.no_struk} - ${isLunas ? paymentBankName : "Belum Bayar (Piutang)"}`,
-            existingOrder.journal_id,
-          ]
-        );
+      if (primaryJournalId) {
+        await client.query("UPDATE orders SET journal_id = $1 WHERE id = $2", [primaryJournalId, orderId]);
       }
     }
 
@@ -462,24 +514,25 @@ export async function PATCH(
         [cancel_reason.trim(), userId, orderId]
       );
 
-      // Reverse Journal if journal exists
-      if (order.journal_id) {
-        const jRes = await client.query("SELECT * FROM journals WHERE id = $1", [order.journal_id]);
-        if (jRes.rows.length > 0) {
-          const origJ = jRes.rows[0];
-          await client.query(
-            `INSERT INTO journals (lini, journal_date, ref_type, ref_id, ref_no, akun_debit, akun_kredit, nominal, keterangan)
-             VALUES ('siap_saji', CURRENT_DATE, 'koreksi', $1, $2, $3, $4, $5, $6)`,
-            [
-              orderId,
-              order.no_struk,
-              origJ.akun_kredit,
-              origJ.akun_debit,
-              origJ.nominal,
-              `Pembatalan Order SS ${order.no_struk}: ${cancel_reason.trim()}`,
-            ]
-          );
-        }
+      // Reverse all journals for this order
+      const jRes = await client.query(
+        "SELECT * FROM journals WHERE ref_type = 'penjualan' AND ref_id = $1",
+        [orderId]
+      );
+      for (const origJ of jRes.rows) {
+        await client.query(
+          `INSERT INTO journals (lini, journal_date, ref_type, ref_id, ref_no, akun_debit, akun_kredit, nominal, keterangan)
+           VALUES ('siap_saji', $1, 'koreksi', $2, $3, $4, $5, $6, $7)`,
+          [
+            origJ.journal_date,
+            orderId,
+            order.no_struk,
+            origJ.akun_kredit,
+            origJ.akun_debit,
+            origJ.nominal,
+            `Pembatalan Order SS ${order.no_struk}: ${cancel_reason.trim()}`,
+          ]
+        );
       }
 
       // Reverse Kas Mutasi & Saldo

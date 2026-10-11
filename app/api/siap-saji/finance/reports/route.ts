@@ -87,7 +87,7 @@ export async function GET(req: NextRequest) {
           AND j.lini = 'siap_saji' 
           AND COALESCE(j.status, 'posted') != 'dibatalkan' 
           ${dateFilter}
-        WHERE c.lini = 'siap_saji'
+        WHERE c.lini = 'siap_saji' AND c.nama_akun NOT ILIKE '%catering%'
         GROUP BY c.id, c.kelompok, c.sub_kelompok, c.kode_akun, c.nama_akun
         ORDER BY c.kode_akun`
       );
