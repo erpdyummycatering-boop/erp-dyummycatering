@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
         FROM journals j
         LEFT JOIN coa cd ON cd.id = j.akun_debit
         LEFT JOIN coa ck ON ck.id = j.akun_kredit
-        WHERE j.lini = 'siap_saji' ${dateFilter}
+        WHERE j.lini = 'siap_saji' AND COALESCE(j.status, 'posted') != 'dibatalkan' ${dateFilter}
         GROUP BY j.lini, DATE_TRUNC('month', j.journal_date)
         ORDER BY bulan DESC`
       );
@@ -83,7 +83,10 @@ export async function GET(req: NextRequest) {
             ), 0
           ) AS total_nominal
         FROM coa c
-        LEFT JOIN journals j ON (j.akun_debit = c.id OR j.akun_kredit = c.id) AND j.lini = 'siap_saji' ${dateFilter}
+        LEFT JOIN journals j ON (j.akun_debit = c.id OR j.akun_kredit = c.id) 
+          AND j.lini = 'siap_saji' 
+          AND COALESCE(j.status, 'posted') != 'dibatalkan' 
+          ${dateFilter}
         WHERE c.lini = 'siap_saji'
         GROUP BY c.id, c.kelompok, c.sub_kelompok, c.kode_akun, c.nama_akun
         ORDER BY c.kode_akun`

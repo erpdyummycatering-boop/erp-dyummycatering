@@ -130,6 +130,11 @@ export default function SiapSajiFinancePage() {
   const [jouFormNominal, setJouFormNominal] = useState<number>(0);
   const [jouFormKeterangan, setJouFormKeterangan] = useState("");
 
+  // Tab 5: Pembatalan Jurnal Umum State & Reason
+  const [cancelJournalTarget, setCancelJournalTarget] = useState<any | null>(null);
+  const [cancelJournalReason, setCancelJournalReason] = useState("");
+  const [isSubmittingCancelJournal, setIsSubmittingCancelJournal] = useState(false);
+
   // Fetch Master Accounts & Kas Bank
   const fetchKasBankMaster = async () => {
     try {
@@ -751,6 +756,46 @@ export default function SiapSajiFinancePage() {
       toast.error(err.message || "Gagal menyimpan jurnal umum");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleOpenCancelJournal = (j: any) => {
+    setCancelJournalTarget(j);
+    setCancelJournalReason("");
+  };
+
+  const handleConfirmCancelJournal = async () => {
+    if (!cancelJournalTarget) return;
+    if (!cancelJournalReason || cancelJournalReason.trim().length < 5) {
+      return toast.error("Alasan pembatalan wajib diisi (minimal 5 karakter).");
+    }
+
+    setIsSubmittingCancelJournal(true);
+    try {
+      const res = await fetch("/api/siap-saji/finance/journals", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: cancelJournalTarget.id,
+          action: "cancel",
+          cancel_reason: cancelJournalReason.trim(),
+        }),
+      });
+
+      if (!res.ok) {
+        const json = await res.json();
+        throw new Error(json.error || "Gagal membatalkan jurnal umum");
+      }
+
+      toast.success(`Jurnal ${cancelJournalTarget.ref_no || cancelJournalTarget.id} berhasil dibatalkan!`);
+      setCancelJournalTarget(null);
+      setCancelJournalReason("");
+      fetchKasBankMaster();
+      fetchTabData();
+    } catch (err: any) {
+      toast.error(err.message || "Gagal membatalkan jurnal umum");
+    } finally {
+      setIsSubmittingCancelJournal(false);
     }
   };
 
@@ -1444,115 +1489,150 @@ export default function SiapSajiFinancePage() {
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                   <thead>
                     <tr style={{ borderBottom: "1.5px solid #111827" }}>
-                      <th style={{ textAlign: "left", padding: "6px 0", fontWeight: 700, color: "#1e3a8a", width: "70%" }}>
+                      <th style={{ textAlign: "left", padding: "6px 0", fontWeight: 700, color: "#1e3a8a", width: "62%" }}>
                         Deskripsi
                       </th>
-                      <th style={{ textAlign: "right", padding: "6px 0", fontWeight: 700, color: "#1e3a8a", width: "30%" }}>
+                      <th style={{ textAlign: "right", padding: "6px 12px 6px 0", fontWeight: 700, color: "#1e3a8a", width: "24%" }}>
                         Nominal (Rp)
+                      </th>
+                      <th style={{ textAlign: "right", padding: "6px 0", fontWeight: 700, color: "#1e3a8a", width: "14%" }}>
+                        % Omset
                       </th>
                     </tr>
                   </thead>
                   <tbody>
                     {/* PENDAPATAN */}
                     <tr>
-                      <td colSpan={2} style={{ padding: "12px 0 4px", fontWeight: 800, color: "#111827" }}>
+                      <td colSpan={3} style={{ padding: "12px 0 4px", fontWeight: 800, color: "#111827" }}>
                         PENDAPATAN
                       </td>
                     </tr>
                     <tr>
-                      <td colSpan={2} style={{ padding: "2px 0 2px 14px", fontWeight: 700, color: "#4b5563" }}>
+                      <td colSpan={3} style={{ padding: "2px 0 2px 14px", fontWeight: 700, color: "#4b5563" }}>
                         Pendapatan Operasional
                       </td>
                     </tr>
-                    {(plData?.details?.filter((d: any) => d.kelompok === "Pendapatan") || []).map((acc: any, i: number) => (
-                      <tr key={i}>
-                        <td style={{ padding: "2px 0 2px 28px", color: "#374151" }}>
-                          ({acc.kode_akun}) {acc.nama_akun}
-                        </td>
-                        <td style={{ textAlign: "right", padding: "2px 0", fontFamily: "monospace" }}>
-                          {Number(acc.total_nominal || 0).toLocaleString("id-ID")}
-                        </td>
-                      </tr>
-                    ))}
+                    {(plData?.details?.filter((d: any) => d.kelompok === "Pendapatan") || []).map((acc: any, i: number) => {
+                      const nom = Number(acc.total_nominal || 0);
+                      const pct = totalPendapatan > 0 ? ((nom / totalPendapatan) * 100).toFixed(1) : "0.0";
+                      return (
+                        <tr key={i}>
+                          <td style={{ padding: "2px 0 2px 28px", color: "#374151" }}>
+                            ({acc.kode_akun}) {acc.nama_akun}
+                          </td>
+                          <td style={{ textAlign: "right", padding: "2px 12px 2px 0", fontFamily: "monospace" }}>
+                            {nom.toLocaleString("id-ID")}
+                          </td>
+                          <td style={{ textAlign: "right", padding: "2px 0", color: "#15803d", fontWeight: 600, fontSize: 12 }}>
+                            {pct}%
+                          </td>
+                        </tr>
+                      );
+                    })}
                     <tr>
                       <td style={{ padding: "6px 0 6px 0", fontWeight: 800, color: "#111827" }}>
                         Jumlah Pendapatan
                       </td>
-                      <td style={{ textAlign: "right", padding: "6px 0", fontWeight: 800, borderTop: "1px solid #111827", fontFamily: "monospace" }}>
+                      <td style={{ textAlign: "right", padding: "6px 12px 6px 0", fontWeight: 800, borderTop: "1px solid #111827", fontFamily: "monospace" }}>
                         {totalPendapatan.toLocaleString("id-ID")}
+                      </td>
+                      <td style={{ textAlign: "right", padding: "6px 0", fontWeight: 800, borderTop: "1px solid #111827", color: "#15803d", fontSize: 12 }}>
+                        100.0%
                       </td>
                     </tr>
 
                     {/* HPP & OVERHEAD (DIBAGI DUA: FOOD COST & OVERHEAD) */}
                     <tr>
-                      <td colSpan={2} style={{ padding: "14px 0 4px", fontWeight: 800, color: "#111827" }}>
+                      <td colSpan={3} style={{ padding: "14px 0 4px", fontWeight: 800, color: "#111827" }}>
                         HARGA POKOK PENJUALAN (HPP & OVERHEAD)
                       </td>
                     </tr>
 
                     {/* 1. Food Cost */}
                     <tr>
-                      <td colSpan={2} style={{ padding: "4px 0 2px 14px", fontWeight: 700, color: "#15803d" }}>
+                      <td colSpan={3} style={{ padding: "4px 0 2px 14px", fontWeight: 700, color: "#15803d" }}>
                         Food Cost (Bahan Baku & Kemasan)
                       </td>
                     </tr>
-                    {hppDetails.filter(isFoodCostAccount).map((acc: any, i: number) => (
-                      <tr key={`fc-${i}`}>
-                        <td style={{ padding: "2px 0 2px 28px", color: "#374151" }}>
-                          ({acc.kode_akun}) {acc.nama_akun}
-                        </td>
-                        <td style={{ textAlign: "right", padding: "2px 0", fontFamily: "monospace" }}>
-                          {Number(acc.total_nominal || 0).toLocaleString("id-ID")}
-                        </td>
-                      </tr>
-                    ))}
+                    {hppDetails.filter(isFoodCostAccount).map((acc: any, i: number) => {
+                      const nom = Number(acc.total_nominal || 0);
+                      const pct = totalPendapatan > 0 ? ((nom / totalPendapatan) * 100).toFixed(1) : "0.0";
+                      return (
+                        <tr key={`fc-${i}`}>
+                          <td style={{ padding: "2px 0 2px 28px", color: "#374151" }}>
+                            ({acc.kode_akun}) {acc.nama_akun}
+                          </td>
+                          <td style={{ textAlign: "right", padding: "2px 12px 2px 0", fontFamily: "monospace" }}>
+                            {nom.toLocaleString("id-ID")}
+                          </td>
+                          <td style={{ textAlign: "right", padding: "2px 0", color: "#6b7280", fontSize: 12 }}>
+                            {pct}%
+                          </td>
+                        </tr>
+                      );
+                    })}
                     {hppDetails.filter(isFoodCostAccount).length === 0 && (
                       <tr>
                         <td style={{ padding: "2px 0 2px 28px", color: "#9ca3af", fontStyle: "italic" }}>
                           (Tidak ada transaksi Food Cost)
                         </td>
-                        <td style={{ textAlign: "right", padding: "2px 0", fontFamily: "monospace" }}>0</td>
+                        <td style={{ textAlign: "right", padding: "2px 12px 2px 0", fontFamily: "monospace" }}>0</td>
+                        <td style={{ textAlign: "right", padding: "2px 0", color: "#9ca3af", fontSize: 12 }}>0.0%</td>
                       </tr>
                     )}
                     <tr>
                       <td style={{ padding: "4px 0 4px 14px", fontWeight: 700, color: "#15803d" }}>
                         Subtotal Food Cost
                       </td>
-                      <td style={{ textAlign: "right", padding: "4px 0", fontWeight: 700, borderTop: "1px dashed #d1d5db", fontFamily: "monospace", color: "#15803d" }}>
+                      <td style={{ textAlign: "right", padding: "4px 12px 4px 0", fontWeight: 700, borderTop: "1px dashed #d1d5db", fontFamily: "monospace", color: "#15803d" }}>
                         {totalFoodCost.toLocaleString("id-ID")}
+                      </td>
+                      <td style={{ textAlign: "right", padding: "4px 0", fontWeight: 700, borderTop: "1px dashed #d1d5db", color: "#15803d", fontSize: 12 }}>
+                        {pctFoodCost}%
                       </td>
                     </tr>
 
                     {/* 2. Overhead Dapur */}
                     <tr>
-                      <td colSpan={2} style={{ padding: "8px 0 2px 14px", fontWeight: 700, color: "#b45309" }}>
+                      <td colSpan={3} style={{ padding: "8px 0 2px 14px", fontWeight: 700, color: "#b45309" }}>
                         Overhead Dapur (Gaji, Gas, Operasional Dapur)
                       </td>
                     </tr>
-                    {hppDetails.filter((d: any) => !isFoodCostAccount(d)).map((acc: any, i: number) => (
-                      <tr key={`ov-${i}`}>
-                        <td style={{ padding: "2px 0 2px 28px", color: "#374151" }}>
-                          ({acc.kode_akun}) {acc.nama_akun}
-                        </td>
-                        <td style={{ textAlign: "right", padding: "2px 0", fontFamily: "monospace" }}>
-                          {Number(acc.total_nominal || 0).toLocaleString("id-ID")}
-                        </td>
-                      </tr>
-                    ))}
+                    {hppDetails.filter((d: any) => !isFoodCostAccount(d)).map((acc: any, i: number) => {
+                      const nom = Number(acc.total_nominal || 0);
+                      const pct = totalPendapatan > 0 ? ((nom / totalPendapatan) * 100).toFixed(1) : "0.0";
+                      return (
+                        <tr key={`ov-${i}`}>
+                          <td style={{ padding: "2px 0 2px 28px", color: "#374151" }}>
+                            ({acc.kode_akun}) {acc.nama_akun}
+                          </td>
+                          <td style={{ textAlign: "right", padding: "2px 12px 2px 0", fontFamily: "monospace" }}>
+                            {nom.toLocaleString("id-ID")}
+                          </td>
+                          <td style={{ textAlign: "right", padding: "2px 0", color: "#6b7280", fontSize: 12 }}>
+                            {pct}%
+                          </td>
+                        </tr>
+                      );
+                    })}
                     {hppDetails.filter((d: any) => !isFoodCostAccount(d)).length === 0 && (
                       <tr>
                         <td style={{ padding: "2px 0 2px 28px", color: "#9ca3af", fontStyle: "italic" }}>
                           (Tidak ada transaksi Overhead Dapur)
                         </td>
-                        <td style={{ textAlign: "right", padding: "2px 0", fontFamily: "monospace" }}>0</td>
+                        <td style={{ textAlign: "right", padding: "2px 12px 2px 0", fontFamily: "monospace" }}>0</td>
+                        <td style={{ textAlign: "right", padding: "2px 0", color: "#9ca3af", fontSize: 12 }}>0.0%</td>
                       </tr>
                     )}
                     <tr>
                       <td style={{ padding: "4px 0 4px 14px", fontWeight: 700, color: "#b45309" }}>
                         Subtotal Overhead Dapur
                       </td>
-                      <td style={{ textAlign: "right", padding: "4px 0", fontWeight: 700, borderTop: "1px dashed #d1d5db", fontFamily: "monospace", color: "#b45309" }}>
+                      <td style={{ textAlign: "right", padding: "4px 12px 4px 0", fontWeight: 700, borderTop: "1px dashed #d1d5db", fontFamily: "monospace", color: "#b45309" }}>
                         {totalOverheadHpp.toLocaleString("id-ID")}
+                      </td>
+                      <td style={{ textAlign: "right", padding: "4px 0", fontWeight: 700, borderTop: "1px dashed #d1d5db", color: "#b45309", fontSize: 12 }}>
+                        {pctOverheadHpp}%
                       </td>
                     </tr>
 
@@ -1561,8 +1641,11 @@ export default function SiapSajiFinancePage() {
                       <td style={{ padding: "8px 0 6px 0", fontWeight: 800, color: "#111827" }}>
                         Jumlah Beban Pokok Penjualan (HPP & Overhead)
                       </td>
-                      <td style={{ textAlign: "right", padding: "8px 0 6px 0", fontWeight: 800, borderTop: "1.5px solid #111827", fontFamily: "monospace" }}>
+                      <td style={{ textAlign: "right", padding: "8px 12px 6px 0", fontWeight: 800, borderTop: "1.5px solid #111827", fontFamily: "monospace" }}>
                         {totalHpp.toLocaleString("id-ID")}
+                      </td>
+                      <td style={{ textAlign: "right", padding: "8px 0 6px 0", fontWeight: 800, borderTop: "1.5px solid #111827", color: "#b45309", fontSize: 12 }}>
+                        {pctTotalHpp}%
                       </td>
                     </tr>
 
@@ -1571,38 +1654,51 @@ export default function SiapSajiFinancePage() {
                       <td style={{ padding: "8px 0", fontWeight: 900, color: "#111827" }}>
                         LABA KOTOR
                       </td>
-                      <td style={{ textAlign: "right", padding: "8px 0", fontWeight: 900, color: "#111827", fontFamily: "monospace" }}>
+                      <td style={{ textAlign: "right", padding: "8px 12px", fontWeight: 900, color: "#111827", fontFamily: "monospace" }}>
                         {labaKotor.toLocaleString("id-ID")}
+                      </td>
+                      <td style={{ textAlign: "right", padding: "8px 0", fontWeight: 900, color: "#92400e", fontSize: 12 }}>
+                        {pctLabaKotor}%
                       </td>
                     </tr>
 
                     {/* BEBAN OPERASIONAL */}
                     <tr>
-                      <td colSpan={2} style={{ padding: "14px 0 4px", fontWeight: 800, color: "#111827" }}>
+                      <td colSpan={3} style={{ padding: "14px 0 4px", fontWeight: 800, color: "#111827" }}>
                         BEBAN OPERASIONAL
                       </td>
                     </tr>
                     <tr>
-                      <td colSpan={2} style={{ padding: "2px 0 2px 14px", fontWeight: 700, color: "#4b5563" }}>
+                      <td colSpan={3} style={{ padding: "2px 0 2px 14px", fontWeight: 700, color: "#4b5563" }}>
                         Beban Operasional
                       </td>
                     </tr>
-                    {(plData?.details?.filter((d: any) => d.kelompok === "Beban" && d.sub_kelompok === "Beban Operasional") || []).map((acc: any, i: number) => (
-                      <tr key={i}>
-                        <td style={{ padding: "2px 0 2px 28px", color: "#374151" }}>
-                          ({acc.kode_akun}) {acc.nama_akun}
-                        </td>
-                        <td style={{ textAlign: "right", padding: "2px 0", fontFamily: "monospace" }}>
-                          {Number(acc.total_nominal || 0).toLocaleString("id-ID")}
-                        </td>
-                      </tr>
-                    ))}
+                    {(plData?.details?.filter((d: any) => d.kelompok === "Beban" && d.sub_kelompok === "Beban Operasional") || []).map((acc: any, i: number) => {
+                      const nom = Number(acc.total_nominal || 0);
+                      const pct = totalPendapatan > 0 ? ((nom / totalPendapatan) * 100).toFixed(1) : "0.0";
+                      return (
+                        <tr key={i}>
+                          <td style={{ padding: "2px 0 2px 28px", color: "#374151" }}>
+                            ({acc.kode_akun}) {acc.nama_akun}
+                          </td>
+                          <td style={{ textAlign: "right", padding: "2px 12px 2px 0", fontFamily: "monospace" }}>
+                            {nom.toLocaleString("id-ID")}
+                          </td>
+                          <td style={{ textAlign: "right", padding: "2px 0", color: "#6b7280", fontSize: 12 }}>
+                            {pct}%
+                          </td>
+                        </tr>
+                      );
+                    })}
                     <tr>
                       <td style={{ padding: "6px 0 6px 0", fontWeight: 800, color: "#111827" }}>
                         Jumlah Beban Operasional
                       </td>
-                      <td style={{ textAlign: "right", padding: "6px 0", fontWeight: 800, borderTop: "1px solid #111827", fontFamily: "monospace" }}>
+                      <td style={{ textAlign: "right", padding: "6px 12px 6px 0", fontWeight: 800, borderTop: "1px solid #111827", fontFamily: "monospace" }}>
                         {totalBiayaOperasional.toLocaleString("id-ID")}
+                      </td>
+                      <td style={{ textAlign: "right", padding: "6px 0", fontWeight: 800, borderTop: "1px solid #111827", color: "#b91c1c", fontSize: 12 }}>
+                        {pctBiayaOperasional}%
                       </td>
                     </tr>
 
@@ -1611,8 +1707,11 @@ export default function SiapSajiFinancePage() {
                       <td style={{ padding: "8px 0", fontWeight: 800, color: "#111827" }}>
                         LABA OPERASIONAL
                       </td>
-                      <td style={{ textAlign: "right", padding: "8px 0", fontWeight: 800, color: "#111827", fontFamily: "monospace" }}>
+                      <td style={{ textAlign: "right", padding: "8px 12px", fontWeight: 800, color: "#111827", fontFamily: "monospace" }}>
                         {(labaKotor - totalBiayaOperasional).toLocaleString("id-ID")}
+                      </td>
+                      <td style={{ textAlign: "right", padding: "8px 0", fontWeight: 800, color: "#111827", fontSize: 12 }}>
+                        {totalPendapatan > 0 ? (((labaKotor - totalBiayaOperasional) / totalPendapatan) * 100).toFixed(1) : "0.0"}%
                       </td>
                     </tr>
 
@@ -1621,8 +1720,11 @@ export default function SiapSajiFinancePage() {
                       <td style={{ padding: "12px 0 6px", fontWeight: 900, color: "#111827", borderTop: "2px solid #111827", borderBottom: "3px double #111827" }}>
                         LABA BERSIH
                       </td>
-                      <td style={{ textAlign: "right", padding: "12px 0 6px", fontWeight: 900, color: labaBersih >= 0 ? "#15803d" : "#b91c1c", borderTop: "2px solid #111827", borderBottom: "3px double #111827", fontFamily: "monospace" }}>
+                      <td style={{ textAlign: "right", padding: "12px 12px 6px 0", fontWeight: 900, color: labaBersih >= 0 ? "#15803d" : "#b91c1c", borderTop: "2px solid #111827", borderBottom: "3px double #111827", fontFamily: "monospace" }}>
                         Rp {labaBersih.toLocaleString("id-ID")}
+                      </td>
+                      <td style={{ textAlign: "right", padding: "12px 0 6px", fontWeight: 900, color: labaBersih >= 0 ? "#15803d" : "#b91c1c", borderTop: "2px solid #111827", borderBottom: "3px double #111827", fontSize: 13 }}>
+                        {pctLabaBersih}%
                       </td>
                     </tr>
                   </tbody>
@@ -2171,7 +2273,7 @@ export default function SiapSajiFinancePage() {
                 <th style={{ padding: "12px 16px" }}>Posisi Akun & Keterangan Jurnal</th>
                 <th style={{ padding: "12px 16px", textAlign: "right", width: 140, color: "#15803d" }}>Debit (Rp)</th>
                 <th style={{ padding: "12px 16px", textAlign: "right", width: 140, color: "#b91c1c" }}>Kredit (Rp)</th>
-                <th style={{ padding: "12px 16px", textAlign: "center", width: 90 }}>Aksi</th>
+                <th style={{ padding: "12px 16px", textAlign: "center", width: 140 }}>Aksi</th>
               </tr>
             </thead>
             <tbody>
@@ -2190,89 +2292,135 @@ export default function SiapSajiFinancePage() {
               ) : (
                 journals.slice((jouPage - 1) * jouLimit, jouPage * jouLimit).map((j, idx) => {
                   const itemNo = (jouPage - 1) * jouLimit + idx + 1;
+                  const isCancelled = j.status === "dibatalkan";
                   return (
                     <Fragment key={j.id}>
                       {/* BARIS 1: ENTRI DEBIT */}
-                      <tr style={{ borderTop: idx > 0 ? "2px solid #e5e7eb" : "none", background: "#ffffff" }}>
+                      <tr style={{ borderTop: idx > 0 ? "2px solid #e5e7eb" : "none", background: isCancelled ? "#fffbfa" : "#ffffff", opacity: isCancelled ? 0.78 : 1 }}>
                         <td rowSpan={2} style={{ padding: "12px 16px", verticalAlign: "top", color: "#6b7280", fontWeight: 600, borderRight: "1px solid #f3f4f6" }}>
                           {itemNo}
                         </td>
                         <td rowSpan={2} style={{ padding: "12px 16px", verticalAlign: "top", fontWeight: 600, color: "#374151", borderRight: "1px solid #f3f4f6" }}>
-                          {formatDate(j.journal_date)}
+                          <div>{formatDate(j.journal_date)}</div>
+                          {isCancelled && (
+                            <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 6px", borderRadius: 4, background: "#fee2e2", color: "#b91c1c", display: "inline-block", marginTop: 4 }}>
+                              DIBATALKAN
+                            </span>
+                          )}
                         </td>
                         <td rowSpan={2} style={{ padding: "12px 16px", verticalAlign: "top", borderRight: "1px solid #f3f4f6" }}>
-                          <p style={{ fontFamily: "monospace", fontWeight: 700, color: "#5005A6", margin: 0 }}>
+                          <p style={{ fontFamily: "monospace", fontWeight: 700, color: isCancelled ? "#9ca3af" : "#5005A6", textDecoration: isCancelled ? "line-through" : "none", margin: 0 }}>
                             {j.ref_no || `JRNL-${j.id}`}
                           </p>
-                          <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 4, background: "#f3f4f6", color: "#4b5563", textTransform: "uppercase" }}>
-                            {j.ref_type || "umum"}
-                          </span>
+                          <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 4, background: "#f3f4f6", color: "#4b5563", textTransform: "uppercase" }}>
+                              {j.ref_type || "umum"}
+                            </span>
+                          </div>
                         </td>
                         {/* Status & Nama Akun Debit */}
                         <td style={{ padding: "10px 16px 4px 16px" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <span style={{ fontWeight: 700, color: "#15803d", fontSize: 13 }}>
+                            <span style={{ fontWeight: 700, color: isCancelled ? "#6b7280" : "#15803d", fontSize: 13, textDecoration: isCancelled ? "line-through" : "none" }}>
                               [{j.debit_kode}] {j.debit_nama}
                             </span>
-                            <span style={{ background: "#dcfce7", color: "#15803d", fontSize: 10, fontWeight: 800, padding: "1px 6px", borderRadius: 4 }}>
+                            <span style={{ background: isCancelled ? "#f3f4f6" : "#dcfce7", color: isCancelled ? "#6b7280" : "#15803d", fontSize: 10, fontWeight: 800, padding: "1px 6px", borderRadius: 4 }}>
                               DEBIT
                             </span>
                           </div>
                         </td>
                         {/* Nominal Debit */}
-                        <td style={{ padding: "10px 16px 4px 16px", textAlign: "right", fontWeight: 800, color: "#15803d" }}>
+                        <td style={{ padding: "10px 16px 4px 16px", textAlign: "right", fontWeight: 800, color: isCancelled ? "#9ca3af" : "#15803d", textDecoration: isCancelled ? "line-through" : "none" }}>
                           Rp {Number(j.nominal).toLocaleString("id-ID")}
                         </td>
                         {/* Column Kredit (-) */}
                         <td style={{ padding: "10px 16px 4px 16px", textAlign: "right", color: "#9ca3af" }}>
                           -
                         </td>
-                        {/* Aksi Edit */}
+                        {/* Aksi Edit & Batal */}
                         <td rowSpan={2} style={{ padding: "12px 16px", verticalAlign: "top", textAlign: "center", borderLeft: "1px solid #f3f4f6" }}>
-                          <button
-                            onClick={() => handleOpenEditJournal(j)}
-                            title="Edit Jurnal Umum"
-                            style={{
-                              padding: "6px 12px",
-                              background: "#eff6ff",
-                              color: "#2563eb",
-                              border: "1px solid #bfdbfe",
-                              borderRadius: 6,
-                              fontSize: 12,
-                              fontWeight: 700,
-                              cursor: "pointer",
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: 4,
-                            }}
-                          >
-                            <Edit3 size={13} /> Edit
-                          </button>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "center" }}>
+                            {!isCancelled ? (
+                              <>
+                                <button
+                                  onClick={() => handleOpenEditJournal(j)}
+                                  title="Edit Jurnal Umum"
+                                  style={{
+                                    padding: "5px 10px",
+                                    background: "#eff6ff",
+                                    color: "#2563eb",
+                                    border: "1px solid #bfdbfe",
+                                    borderRadius: 6,
+                                    fontSize: 12,
+                                    fontWeight: 700,
+                                    cursor: "pointer",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 4,
+                                    width: "100%",
+                                    justifyContent: "center",
+                                  }}
+                                >
+                                  <Edit3 size={12} /> Edit
+                                </button>
+                                <button
+                                  onClick={() => handleOpenCancelJournal(j)}
+                                  title="Batalkan Jurnal Umum"
+                                  style={{
+                                    padding: "5px 10px",
+                                    background: "#fef2f2",
+                                    color: "#dc2626",
+                                    border: "1px solid #fecaca",
+                                    borderRadius: 6,
+                                    fontSize: 12,
+                                    fontWeight: 700,
+                                    cursor: "pointer",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 4,
+                                    width: "100%",
+                                    justifyContent: "center",
+                                  }}
+                                >
+                                  <Trash2 size={12} /> Batal
+                                </button>
+                              </>
+                            ) : (
+                              <span style={{ fontSize: 11, color: "#9ca3af", fontStyle: "italic", fontWeight: 600 }}>
+                                Dibatalkan
+                              </span>
+                            )}
+                          </div>
                         </td>
                       </tr>
 
                       {/* BARIS 2: ENTRI KREDIT (MENYOROK KE DALAM) */}
-                      <tr style={{ background: "#fafafa" }}>
+                      <tr style={{ background: isCancelled ? "#fff8f7" : "#fafafa", opacity: isCancelled ? 0.78 : 1 }}>
                         {/* Status & Nama Akun Kredit */}
                         <td style={{ padding: "4px 16px 10px 36px" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <span style={{ fontWeight: 700, color: "#b91c1c", fontSize: 13 }}>
+                            <span style={{ fontWeight: 700, color: isCancelled ? "#6b7280" : "#b91c1c", fontSize: 13, textDecoration: isCancelled ? "line-through" : "none" }}>
                               [{j.kredit_kode}] {j.kredit_nama}
                             </span>
-                            <span style={{ background: "#fee2e2", color: "#b91c1c", fontSize: 10, fontWeight: 800, padding: "1px 6px", borderRadius: 4 }}>
+                            <span style={{ background: isCancelled ? "#f3f4f6" : "#fee2e2", color: isCancelled ? "#6b7280" : "#b91c1c", fontSize: 10, fontWeight: 800, padding: "1px 6px", borderRadius: 4 }}>
                               KREDIT
                             </span>
                           </div>
                           <p style={{ margin: "4px 0 0", fontSize: 11, color: "#6b7280", fontStyle: "italic" }}>
                             Keterangan: {j.keterangan || "-"}
                           </p>
+                          {isCancelled && j.cancel_reason && (
+                            <div style={{ marginTop: 6, background: "#fef2f2", border: "1px solid #fee2e2", borderRadius: 6, padding: "4px 8px", fontSize: 11, color: "#b91c1c" }}>
+                              <strong>Alasan Batal:</strong> &ldquo;{j.cancel_reason}&rdquo;
+                            </div>
+                          )}
                         </td>
                         {/* Column Debit (-) */}
                         <td style={{ padding: "4px 16px 10px 16px", textAlign: "right", color: "#9ca3af" }}>
                           -
                         </td>
                         {/* Nominal Kredit */}
-                        <td style={{ padding: "4px 16px 10px 16px", textAlign: "right", fontWeight: 800, color: "#b91c1c" }}>
+                        <td style={{ padding: "4px 16px 10px 16px", textAlign: "right", fontWeight: 800, color: isCancelled ? "#9ca3af" : "#b91c1c", textDecoration: isCancelled ? "line-through" : "none" }}>
                           Rp {Number(j.nominal).toLocaleString("id-ID")}
                         </td>
                       </tr>
@@ -2285,13 +2433,13 @@ export default function SiapSajiFinancePage() {
               <tfoot>
                 <tr style={{ background: "#f8fafc", borderTop: "2px solid #e5e7eb", fontWeight: 800 }}>
                   <td colSpan={4} style={{ padding: "12px 16px", textAlign: "right", color: "#374151" }}>
-                    TOTAL BUKU JURNAL SEIMBANG (BALANCED):
+                    TOTAL BUKU JURNAL AKTIF SEIMBANG (BALANCED):
                   </td>
                   <td style={{ padding: "12px 16px", textAlign: "right", color: "#15803d", fontSize: 14 }}>
-                    Rp {journals.reduce((sum, j) => sum + Number(j.nominal || 0), 0).toLocaleString("id-ID")}
+                    Rp {journals.filter(j => j.status !== "dibatalkan").reduce((sum, j) => sum + Number(j.nominal || 0), 0).toLocaleString("id-ID")}
                   </td>
                   <td style={{ padding: "12px 16px", textAlign: "right", color: "#b91c1c", fontSize: 14 }}>
-                    Rp {journals.reduce((sum, j) => sum + Number(j.nominal || 0), 0).toLocaleString("id-ID")}
+                    Rp {journals.filter(j => j.status !== "dibatalkan").reduce((sum, j) => sum + Number(j.nominal || 0), 0).toLocaleString("id-ID")}
                   </td>
                   <td></td>
                 </tr>
@@ -3364,6 +3512,85 @@ export default function SiapSajiFinancePage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: PEMBATALAN JURNAL UMUM ────────────────────────── */}
+      {cancelJournalTarget && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 120,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <div style={{ background: "white", borderRadius: 16, maxWidth: 460, width: "100%", padding: 24, boxShadow: "0 20px 25px -5px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+              <div>
+                <h3 style={{ fontSize: 18, fontWeight: 800, color: "#dc2626", margin: 0 }}>
+                  Batalkan Jurnal Umum
+                </h3>
+                <p style={{ fontSize: 13, color: "#6b7280", margin: "4px 0 0" }}>
+                  Ref: <strong style={{ color: "#111827", fontFamily: "monospace" }}>{cancelJournalTarget.ref_no || `JRNL-${cancelJournalTarget.id}`}</strong> ({formatDate(cancelJournalTarget.journal_date)})
+                </p>
+              </div>
+              <button
+                onClick={() => setCancelJournalTarget(null)}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af" }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ background: "#fef2f2", border: "1px solid #fee2e2", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#991b1b" }}>
+              ⚠️ Mutasi Kas/Bank yang terkait dengan jurnal ini akan dibatalkan dan saldo rekening akan dikembalikan otomatis.
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 6 }}>
+                Alasan Pembatalan (Wajib diisi) *
+              </label>
+              <textarea
+                rows={3}
+                placeholder="Contoh: Salah input akun beban/debit, transaksi dibatalkan oleh pihak terkait..."
+                value={cancelJournalReason}
+                onChange={(e) => setCancelJournalReason(e.target.value)}
+                style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, outline: "none" }}
+              />
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => setCancelJournalTarget(null)}
+                style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "white", fontSize: 14, cursor: "pointer" }}
+              >
+                Tutup
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmCancelJournal}
+                disabled={isSubmittingCancelJournal}
+                style={{
+                  padding: "8px 20px",
+                  borderRadius: 8,
+                  border: "none",
+                  background: "#dc2626",
+                  color: "white",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                {isSubmittingCancelJournal ? "Memproses..." : "Konfirmasi Pembatalan"}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -137,6 +137,9 @@ export async function GET(
       // Summary: Sub Total (17), Diskon (17), line (15), Total (20), line (15)
       h += 17 + 17 + 15 + 20 + 15;
 
+      // Cutter divider line (dashed)
+      h += 43;
+
       return h;
     };
 
@@ -299,6 +302,11 @@ export async function GET(
     y -= 20;
 
     drawSolidLine();
+
+    // Dashed cutter divider line like in roll mode
+    y -= 4;
+    drawCenterText("- - - - - - - - - - - - - - - - - - - -", fontRegular, 9);
+    y -= 10;
 
     const pdfBytes = await pdfDoc.save();
 

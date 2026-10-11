@@ -238,3 +238,94 @@ export async function PUT(req: NextRequest) {
   }
 }
 
+export async function PATCH(req: NextRequest) {
+  const client = await pool.connect();
+  try {
+    const body = await req.json();
+    const { id, action, cancel_reason } = body;
+
+    const journalId = Number(id);
+    if (!journalId) {
+      return NextResponse.json({ error: "ID jurnal wajib disertakan." }, { status: 400 });
+    }
+
+    if (action === "cancel") {
+      const reason = cancel_reason ? String(cancel_reason).trim() : "";
+      if (reason.length < 5) {
+        return NextResponse.json(
+          { error: "Alasan pembatalan jurnal wajib diisi (minimal 5 karakter)." },
+          { status: 400 }
+        );
+      }
+
+      await client.query("BEGIN");
+
+      // 1. Fetch journal
+      const jRes = await client.query(
+        "SELECT * FROM journals WHERE id = $1 AND lini = 'siap_saji' FOR UPDATE",
+        [journalId]
+      );
+      if (jRes.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return NextResponse.json({ error: "Entri jurnal tidak ditemukan." }, { status: 404 });
+      }
+
+      const journal = jRes.rows[0];
+      if (journal.status === "dibatalkan") {
+        await client.query("ROLLBACK");
+        return NextResponse.json({ error: "Jurnal ini sudah dibatalkan sebelumnya." }, { status: 400 });
+      }
+
+      // 2. Rollback linked kas_mutasi and kas_bank saldo_kini
+      const mutasiRes = await client.query(
+        "SELECT * FROM kas_mutasi WHERE ref_type IN ('koreksi', 'biaya', 'pembelian') AND ref_id = $1",
+        [journalId]
+      );
+      for (const m of mutasiRes.rows) {
+        if (m.jenis === "Masuk") {
+          await client.query(
+            "UPDATE kas_bank SET saldo_kini = saldo_kini - $1, updated_at = NOW() WHERE id = $2",
+            [Number(m.nominal), m.kas_bank_id]
+          );
+        } else if (m.jenis === "Keluar") {
+          await client.query(
+            "UPDATE kas_bank SET saldo_kini = saldo_kini + $1, updated_at = NOW() WHERE id = $2",
+            [Number(m.nominal), m.kas_bank_id]
+          );
+        }
+      }
+      await client.query(
+        "DELETE FROM kas_mutasi WHERE ref_type IN ('koreksi', 'biaya', 'pembelian') AND ref_id = $1",
+        [journalId]
+      );
+
+      // 3. Mark journal as cancelled and save cancel_reason
+      const updatedRes = await client.query(
+        `UPDATE journals 
+         SET status = 'dibatalkan',
+             cancel_reason = $1,
+             cancelled_at = NOW(),
+             updated_at = NOW()
+         WHERE id = $2
+         RETURNING *`,
+        [reason, journalId]
+      );
+
+      await client.query("COMMIT");
+
+      return NextResponse.json({
+        message: "Jurnal umum berhasil dibatalkan.",
+        data: updatedRes.rows[0],
+      });
+    }
+
+    return NextResponse.json({ error: "Aksi tidak dikenali." }, { status: 400 });
+  } catch (error: any) {
+    await client.query("ROLLBACK");
+    console.error("Gagal membatalkan jurnal umum:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  } finally {
+    client.release();
+  }
+}
+

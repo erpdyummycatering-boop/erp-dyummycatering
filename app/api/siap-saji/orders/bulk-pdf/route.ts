@@ -362,11 +362,11 @@ export async function GET(req: NextRequest) {
     } else {
       // ── DYNAMIC EXACT HEIGHT PER RECEIPT PAGE MODE (Zero Wasted Blank Paper) ──
       for (const order of orderRes.rows) {
-        // 65pt vertical margin budget ensures top and bottom margins are completely safe from cutting
-        const height = Math.ceil(measureOrderHeight(order, true) + 65);
+        // Budget height including the dashed cut divider line at bottom (isLast: false) + margin
+        const height = Math.ceil(measureOrderHeight(order, false) + 65);
         const page = pdfDoc.addPage([width, height]);
         // startY offset by 30pt from top gives clear space from the preceding receipt cut line
-        renderSingleOrder(page, order, height - 30, true);
+        renderSingleOrder(page, order, height - 30, false);
       }
     }
 
