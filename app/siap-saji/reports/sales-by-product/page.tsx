@@ -379,6 +379,11 @@ export default function SalesByProductReportPage() {
           <p style={{ fontSize: 24, fontWeight: 900, color: "#5005A6", margin: "4px 0 0" }}>
             Rp {Number(data?.summary?.total_omset || 0).toLocaleString("id-ID")}
           </p>
+          {data?.summary?.total_shipping_fee > 0 && (
+            <p style={{ fontSize: 11, color: "#6b7280", margin: "4px 0 0" }}>
+              Produk: Rp {Number(data?.summary?.total_product_omset || 0).toLocaleString("id-ID")} + Ongkir: Rp {Number(data?.summary?.total_shipping_fee || 0).toLocaleString("id-ID")}
+            </p>
+          )}
         </div>
       </div>
 

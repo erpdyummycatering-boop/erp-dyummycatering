@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
     const whereSql = wheres.join(" AND ");
 
     // 1. Aggregated by Customer (Nama Customer, Qty, Angka Rupiah, Frekuensi Order)
+    // Avoid Cartesian multiplication between orders and order_items
     const customerRes = await client.query(
       `SELECT 
         c.id AS customer_id,
@@ -39,13 +40,22 @@ export async function GET(req: NextRequest) {
         c.phone AS customer_phone,
         a.kecamatan AS area_kecamatan,
         COUNT(DISTINCT o.id)::int AS total_orders,
-        COALESCE(SUM(oi.quantity), 0)::int AS total_qty,
+        COALESCE(
+          (SELECT SUM(oi.quantity)::int 
+           FROM order_items oi 
+           JOIN orders o2 ON oi.order_id = o2.id 
+           WHERE o2.customer_id = c.id 
+             AND o2.lini = 'siap_saji' 
+             AND o2.status_order <> 'Dibatalkan'
+             ${dateFrom ? `AND o2.delivery_date >= '${dateFrom}'::date` : ""}
+             ${dateTo ? `AND o2.delivery_date <= '${dateTo}'::date` : ""}
+          ), 0
+        ) AS total_qty,
         COALESCE(SUM(o.grand_total), 0)::numeric AS total_omset,
         MAX(o.delivery_date) AS last_order_date
        FROM orders o
        JOIN customers c ON o.customer_id = c.id
        LEFT JOIN areas a ON c.area_id = a.id
-       LEFT JOIN order_items oi ON oi.order_id = o.id
        WHERE ${whereSql}
        GROUP BY c.id, c.name, c.phone, a.kecamatan
        ORDER BY total_omset DESC`,
@@ -56,11 +66,20 @@ export async function GET(req: NextRequest) {
     const chartRes = await client.query(
       `SELECT 
         c.name AS customer_name,
-        COALESCE(SUM(oi.quantity), 0)::int AS total_qty,
+        COALESCE(
+          (SELECT SUM(oi.quantity)::int 
+           FROM order_items oi 
+           JOIN orders o2 ON oi.order_id = o2.id 
+           WHERE o2.customer_id = c.id 
+             AND o2.lini = 'siap_saji' 
+             AND o2.status_order <> 'Dibatalkan'
+             ${dateFrom ? `AND o2.delivery_date >= '${dateFrom}'::date` : ""}
+             ${dateTo ? `AND o2.delivery_date <= '${dateTo}'::date` : ""}
+          ), 0
+        ) AS total_qty,
         COALESCE(SUM(o.grand_total), 0)::numeric AS total_omset
        FROM orders o
        JOIN customers c ON o.customer_id = c.id
-       LEFT JOIN order_items oi ON oi.order_id = o.id
        WHERE ${whereSql}
        GROUP BY c.id, c.name
        ORDER BY total_omset DESC

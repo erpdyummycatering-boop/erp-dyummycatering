@@ -132,7 +132,7 @@ export default function SiapSajiOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState({ total_penjualan: 0, total_orders: 0, orders_today: 0 });
 
-  // Helper today YYYY-MM-DD
+  // Helper today & tomorrow YYYY-MM-DD
   const getTodayStr = () => {
     const d = new Date();
     const year = d.getFullYear();
@@ -141,8 +141,17 @@ export default function SiapSajiOrdersPage() {
     return `${year}-${month}-${day}`;
   };
 
-  // Filters
-  const [showStatsAndFilters, setShowStatsAndFilters] = useState(false);
+  const getTomorrowStr = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  // Filters - Default Terbuka (true)
+  const [showStatsAndFilters, setShowStatsAndFilters] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [channelFilter, setChannelFilter] = useState("");
@@ -231,8 +240,8 @@ export default function SiapSajiOrdersPage() {
   const [selectedAreaName, setSelectedAreaName] = useState<string>("");
   const [customerAddress, setCustomerAddress] = useState("");
   const [customerPatokan, setCustomerPatokan] = useState("");
-  const [orderDate, setOrderDate] = useState(new Date().toISOString().split("T")[0]);
-  const [deliveryDate, setDeliveryDate] = useState(new Date().toISOString().split("T")[0]);
+  const [orderDate, setOrderDate] = useState(getTomorrowStr());
+  const [deliveryDate, setDeliveryDate] = useState(getTomorrowStr());
   const [shippingFee, setShippingFee] = useState<number>(0);
   const [discountType, setDiscountType] = useState<"nominal" | "percent">("nominal");
   const [discountValue, setDiscountValue] = useState<number>(0);
@@ -800,8 +809,8 @@ export default function SiapSajiOrdersPage() {
     setSelectedCustomerId("new");
     setCustomerAddresses([]);
     setSelectedAddressId("custom");
-    setDeliveryDate(getTodayStr());
-    setOrderDate(getTodayStr());
+    setDeliveryDate(getTomorrowStr());
+    setOrderDate(getTomorrowStr());
     setCustomerName("");
     setCustomerPhone("");
     setSelectedDriverId("");
@@ -1498,62 +1507,6 @@ export default function SiapSajiOrdersPage() {
           />
         </div>
 
-        <button
-          onClick={() => {
-            const q = new URLSearchParams();
-            if (dateFrom) q.append("date_from", dateFrom);
-            if (dateTo) q.append("date_to", dateTo);
-            const url = `/api/siap-saji/orders/recap-pdf?${q.toString()}`;
-            window.open(url, "_blank");
-          }}
-          style={{
-            padding: "6px 10px",
-            background: "#eff6ff",
-            color: "#1d4ed8",
-            border: "1px solid #bfdbfe",
-            borderRadius: 8,
-            fontSize: 12,
-            cursor: "pointer",
-            fontWeight: 600,
-            flexShrink: 0,
-            display: "flex",
-            alignItems: "center",
-            gap: 5,
-            whiteSpace: "nowrap",
-          }}
-          title="Cetak rekap akumulasi kuantitas produk & catatan untuk dapur"
-        >
-          <ClipboardList size={14} /> 🍳 Rekap Dapur
-        </button>
-
-        <button
-          onClick={() => {
-            const q = new URLSearchParams();
-            if (dateFrom) q.append("date_from", dateFrom);
-            if (dateTo) q.append("date_to", dateTo);
-            const url = `/api/siap-saji/orders/recap-shipping-pdf?${q.toString()}`;
-            window.open(url, "_blank");
-          }}
-          style={{
-            padding: "6px 10px",
-            background: "#f0fdf4",
-            color: "#15803d",
-            border: "1px solid #bbf7d0",
-            borderRadius: 8,
-            fontSize: 12,
-            cursor: "pointer",
-            fontWeight: 600,
-            flexShrink: 0,
-            display: "flex",
-            alignItems: "center",
-            gap: 5,
-            whiteSpace: "nowrap",
-          }}
-          title="Cetak rekapitulasi pengiriman harian kurir A4"
-        >
-          <Truck size={14} /> 🚚 Rekap Kirim
-        </button>
-
         {(search || statusFilter || channelFilter || productFilter || timeShortcut !== "today" || dateFrom || dateTo) && (
           <button
             onClick={() => {
@@ -1567,16 +1520,17 @@ export default function SiapSajiOrdersPage() {
               setDateTo(today);
             }}
             style={{
-              padding: "7px 12px",
-              background: "#f3f4f6",
-              color: "#4b5563",
-              border: "none",
+              padding: "7px 14px",
+              background: "#fee2e2",
+              color: "#dc2626",
+              border: "1px solid #fecaca",
               borderRadius: 8,
               fontSize: 13,
               cursor: "pointer",
               fontWeight: 600,
               flexShrink: 0,
             }}
+            title="Reset semua filter ke kondisi awal"
           >
             Reset
           </button>

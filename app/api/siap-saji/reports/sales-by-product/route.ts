@@ -107,6 +107,33 @@ export async function GET(req: NextRequest) {
       vals
     );
 
+    // Query total omset order (grand_total) for comparison and completeness
+    const orderOmsetWheres = ["o.lini = 'siap_saji'", "o.status_order <> 'Dibatalkan'"];
+    const orderOmsetVals: any[] = [];
+    let oIdx = 1;
+    if (dateFrom) {
+      orderOmsetWheres.push(`o.delivery_date >= $${oIdx}::date`);
+      orderOmsetVals.push(dateFrom);
+      oIdx++;
+    }
+    if (dateTo) {
+      orderOmsetWheres.push(`o.delivery_date <= $${oIdx}::date`);
+      orderOmsetVals.push(dateTo);
+      oIdx++;
+    }
+    const orderOmsetRes = await client.query(
+      `SELECT COALESCE(SUM(grand_total), 0)::numeric AS total_order_omset,
+              COALESCE(SUM(shipping_fee), 0)::numeric AS total_shipping_fee,
+              COUNT(*)::int AS total_orders
+       FROM orders o
+       WHERE ${orderOmsetWheres.join(" AND ")}`,
+      orderOmsetVals
+    );
+
+    const totalProductOmset = productsRes.rows.reduce((sum, r) => sum + Number(r.total_omset || 0), 0);
+    const totalOrderOmset = Number(orderOmsetRes.rows[0]?.total_order_omset || 0);
+    const totalShippingFee = Number(orderOmsetRes.rows[0]?.total_shipping_fee || 0);
+
     return NextResponse.json({
       products: productsRes.rows,
       time_series: timeSeriesRes.rows,
@@ -114,7 +141,9 @@ export async function GET(req: NextRequest) {
       summary: {
         total_products: productsRes.rows.length,
         total_qty: productsRes.rows.reduce((sum, r) => sum + Number(r.total_qty || 0), 0),
-        total_omset: productsRes.rows.reduce((sum, r) => sum + Number(r.total_omset || 0), 0),
+        total_omset: totalOrderOmset > 0 && !search.trim() ? totalOrderOmset : totalProductOmset,
+        total_product_omset: totalProductOmset,
+        total_shipping_fee: totalShippingFee,
       },
     });
   } catch (error: any) {
