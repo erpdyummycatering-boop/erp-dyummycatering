@@ -131,6 +131,7 @@ export default function SiapSajiFinancePage() {
   const [coaLimit, setCoaLimit] = useState(10);
   const [coaSearch, setCoaSearch] = useState("");
   const [coaKelompokFilter, setCoaKelompokFilter] = useState("");
+  const [coaKlasifikasiPlFilter, setCoaKlasifikasiPlFilter] = useState("");
   const [isCoaModalOpen, setIsCoaModalOpen] = useState(false);
   const [editingCoa, setEditingCoa] = useState<any | null>(null);
   const [coaFormCode, setCoaFormCode] = useState("");
@@ -256,10 +257,11 @@ export default function SiapSajiFinancePage() {
         const res = await fetch(`/api/siap-saji/finance/reports?${q}`);
         if (res.ok) setJournals(await res.json());
       } else if (activeTab === "coa") {
-        const q = new URLSearchParams({
-          search: coaSearch,
-          kelompok: coaKelompokFilter,
-        }).toString();
+        const qObj: Record<string, string> = {};
+        if (coaSearch) qObj.search = coaSearch;
+        if (coaKelompokFilter) qObj.kelompok = coaKelompokFilter;
+        if (coaKlasifikasiPlFilter) qObj.klasifikasi_pl = coaKlasifikasiPlFilter;
+        const q = new URLSearchParams(qObj).toString();
         const res = await fetch(`/api/siap-saji/finance/coa?${q}`);
         if (res.ok) {
           const json = await res.json();
@@ -386,7 +388,7 @@ export default function SiapSajiFinancePage() {
     expPage, expLimit, expSearch, expDateFrom, expDateTo,
     mutSearch, mutJenisFilter, mutDateFrom, mutDateTo,
     jouPage, jouLimit, jouSearch, jouTypeFilter, jouDateFrom, jouDateTo,
-    coaSearch, coaKelompokFilter,
+    coaSearch, coaKelompokFilter, coaKlasifikasiPlFilter,
   ]);
 
   // Submit HPP Purchase
@@ -3550,8 +3552,11 @@ export default function SiapSajiFinancePage() {
 
             <select
               value={coaKelompokFilter}
-              onChange={(e) => setCoaKelompokFilter(e.target.value)}
-              style={{ width: 160, padding: "7px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, outline: "none", background: "white" }}
+              onChange={(e) => {
+                setCoaKelompokFilter(e.target.value);
+                setCoaPage(1);
+              }}
+              style={{ width: 150, padding: "7px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, outline: "none", background: "white" }}
             >
               <option value="">Semua Kelompok</option>
               <option value="Aset">🔵 Aset</option>
@@ -3560,6 +3565,21 @@ export default function SiapSajiFinancePage() {
               <option value="Pendapatan">🟣 Pendapatan</option>
               <option value="Beban">🟠 Beban & COGS</option>
             </select>
+
+            <select
+              value={coaKlasifikasiPlFilter}
+              onChange={(e) => {
+                setCoaKlasifikasiPlFilter(e.target.value);
+                setCoaPage(1);
+              }}
+              style={{ width: 190, padding: "7px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, outline: "none", background: "white" }}
+            >
+              <option value="">Semua Klasifikasi P&L</option>
+              <option value="Pendapatan">🟣 Pendapatan</option>
+              <option value="Food Cost">🟢 Food Cost (Bahan & Kemasan)</option>
+              <option value="Overhead Dapur">🟡 Overhead Dapur</option>
+              <option value="Beban Operasional">🟠 Beban Operasional</option>
+            </select>
           </div>
 
           {/* COA Table */}
@@ -3567,108 +3587,155 @@ export default function SiapSajiFinancePage() {
             <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 13 }}>
               <thead>
                 <tr style={{ background: "#fafafa", borderBottom: "1px solid #e5e7eb", color: "#6b7280", fontWeight: 700, fontSize: 11, textTransform: "uppercase" }}>
-                  <th style={{ padding: "12px 14px", width: 50 }}>No.</th>
-                  <th style={{ padding: "12px 14px", width: 120 }}>Kode Akun</th>
+                  <th style={{ padding: "12px 14px", width: 45 }}>No.</th>
+                  <th style={{ padding: "12px 14px", width: 110 }}>Kode Akun</th>
                   <th style={{ padding: "12px 14px" }}>Nama Akun</th>
-                  <th style={{ padding: "12px 14px", width: 140 }}>Kelompok</th>
-                  <th style={{ padding: "12px 14px", width: 180 }}>Sub Kelompok</th>
-                  <th style={{ padding: "12px 14px", width: 100 }}>Status</th>
-                  <th style={{ padding: "12px 14px", width: 110, textAlign: "right" }}>Aksi</th>
+                  <th style={{ padding: "12px 14px", width: 120 }}>Kelompok</th>
+                  <th style={{ padding: "12px 14px", width: 150 }}>Sub Kelompok</th>
+                  <th style={{ padding: "12px 14px", width: 165 }}>Klasifikasi P&L</th>
+                  <th style={{ padding: "12px 14px", width: 90 }}>Status</th>
+                  <th style={{ padding: "12px 14px", width: 100, textAlign: "right" }}>Aksi</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                    <td colSpan={8} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
                       Memuat daftar Chart of Accounts...
                     </td>
                   </tr>
-                ) : (coaTableList.length > 0 ? coaTableList : (coaSearch || coaKelompokFilter ? [] : coaListAll)).length === 0 ? (
+                ) : (coaTableList.length > 0 ? coaTableList : (coaSearch || coaKelompokFilter || coaKlasifikasiPlFilter ? [] : coaListAll)).length === 0 ? (
                   <tr>
-                    <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                    <td colSpan={8} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
                       Tidak ada akun COA ditemukan.
                     </td>
                   </tr>
                 ) : (
                   (coaTableList.length > 0 ? coaTableList : coaListAll)
                     .slice((coaPage - 1) * coaLimit, coaPage * coaLimit)
-                    .map((c, idx) => (
-                      <tr key={c.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                        <td style={{ padding: "12px 14px", color: "#6b7280" }}>
-                          {(coaPage - 1) * coaLimit + idx + 1}
-                        </td>
-                        <td style={{ padding: "12px 14px", fontWeight: 800, color: "#5005A6", fontFamily: "monospace", fontSize: 13 }}>
-                          {c.kode_akun}
-                        </td>
-                        <td style={{ padding: "12px 14px", fontWeight: 700, color: "#111827" }}>
-                          {c.nama_akun}
-                        </td>
-                        <td style={{ padding: "12px 14px" }}>
-                          <span
-                            style={{
-                              padding: "2px 8px",
-                              borderRadius: 6,
-                              fontSize: 11,
-                              fontWeight: 700,
-                              background:
-                                c.kelompok === "Aset"
-                                  ? "#eff6ff"
-                                  : c.kelompok === "Liabilitas"
-                                  ? "#fef2f2"
-                                  : c.kelompok === "Ekuitas"
-                                  ? "#f0fdf4"
-                                  : c.kelompok === "Pendapatan"
-                                  ? "#fdf4ff"
-                                  : "#fff7ed",
-                              color:
-                                c.kelompok === "Aset"
-                                  ? "#1d4ed8"
-                                  : c.kelompok === "Liabilitas"
-                                  ? "#b91c1c"
-                                  : c.kelompok === "Ekuitas"
-                                  ? "#15803d"
-                                  : c.kelompok === "Pendapatan"
-                                  ? "#b10fbd"
-                                  : "#c2410c",
-                            }}
-                          >
-                            {c.kelompok}
-                          </span>
-                        </td>
-                        <td style={{ padding: "12px 14px", color: "#4b5563", fontSize: 12 }}>
-                          {c.sub_kelompok}
-                        </td>
-                        <td style={{ padding: "12px 14px" }}>
-                          {c.is_active !== false ? (
-                            <span style={{ color: "#16a34a", background: "#dcfce7", padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 700 }}>
-                              Aktif
-                            </span>
-                          ) : (
-                            <span style={{ color: "#6b7280", background: "#f3f4f6", padding: "2px 8px", borderRadius: 4, fontSize: 11 }}>
-                              Non-Aktif
-                            </span>
-                          )}
-                        </td>
-                        <td style={{ padding: "12px 14px", textAlign: "right" }}>
-                          <div style={{ display: "flex", justifyContent: "flex-end", gap: 4 }}>
-                            <button
-                              onClick={() => handleOpenEditCoa(c)}
-                              title="Edit Akun COA"
-                              style={{ padding: "5px 8px", background: "#5005A6", color: "white", border: "none", borderRadius: 6, fontSize: 11, cursor: "pointer" }}
+                    .map((c, idx) => {
+                      let plTag = "-";
+                      let plColor = "#6b7280";
+                      let plBg = "#f3f4f6";
+
+                      if (c.kelompok === "Pendapatan") {
+                        plTag = "Pendapatan";
+                        plColor = "#7e22ce";
+                        plBg = "#f3e8ff";
+                      } else if (c.kelompok === "Beban" && c.sub_kelompok === "Beban Pokok Penjualan") {
+                        if (isFoodCostAccount(c)) {
+                          plTag = "HPP - Food Cost";
+                          plColor = "#15803d";
+                          plBg = "#dcfce7";
+                        } else {
+                          plTag = "HPP - Overhead Dapur";
+                          plColor = "#b45309";
+                          plBg = "#fef3c7";
+                        }
+                      } else if (c.kelompok === "Beban" && c.sub_kelompok === "Beban Operasional") {
+                        plTag = "Beban Operasional";
+                        plColor = "#c2410c";
+                        plBg = "#ffedd5";
+                      } else if (c.kelompok === "Aset" || c.kelompok === "Liabilitas" || c.kelompok === "Ekuitas") {
+                        plTag = "Neraca Saldo";
+                        plColor = "#2563eb";
+                        plBg = "#eff6ff";
+                      }
+
+                      return (
+                        <tr key={c.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                          <td style={{ padding: "12px 14px", color: "#6b7280" }}>
+                            {(coaPage - 1) * coaLimit + idx + 1}
+                          </td>
+                          <td style={{ padding: "12px 14px", fontWeight: 800, color: "#5005A6", fontFamily: "monospace", fontSize: 13 }}>
+                            {c.kode_akun}
+                          </td>
+                          <td style={{ padding: "12px 14px", fontWeight: 700, color: "#111827" }}>
+                            {c.nama_akun}
+                          </td>
+                          <td style={{ padding: "12px 14px" }}>
+                            <span
+                              style={{
+                                padding: "2px 8px",
+                                borderRadius: 6,
+                                fontSize: 11,
+                                fontWeight: 700,
+                                background:
+                                  c.kelompok === "Aset"
+                                    ? "#eff6ff"
+                                    : c.kelompok === "Liabilitas"
+                                    ? "#fef2f2"
+                                    : c.kelompok === "Ekuitas"
+                                    ? "#f0fdf4"
+                                    : c.kelompok === "Pendapatan"
+                                    ? "#fdf4ff"
+                                    : "#fff7ed",
+                                color:
+                                  c.kelompok === "Aset"
+                                    ? "#1d4ed8"
+                                    : c.kelompok === "Liabilitas"
+                                    ? "#b91c1c"
+                                    : c.kelompok === "Ekuitas"
+                                    ? "#15803d"
+                                    : c.kelompok === "Pendapatan"
+                                    ? "#b10fbd"
+                                    : "#c2410c",
+                              }}
                             >
-                              <Edit3 size={13} />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteCoa(c.id, c.kode_akun)}
-                              title="Hapus Akun COA"
-                              style={{ padding: "5px 8px", background: "#fee2e2", color: "#dc2626", border: "1px solid #fca5a5", borderRadius: 6, fontSize: 11, cursor: "pointer" }}
+                              {c.kelompok}
+                            </span>
+                          </td>
+                          <td style={{ padding: "12px 14px", color: "#4b5563", fontSize: 12 }}>
+                            {c.sub_kelompok}
+                          </td>
+                          <td style={{ padding: "12px 14px" }}>
+                            <span
+                              style={{
+                                padding: "3px 8px",
+                                borderRadius: 6,
+                                fontSize: 11,
+                                fontWeight: 700,
+                                background: plBg,
+                                color: plColor,
+                                border: `1px solid ${plColor}33`,
+                                whiteSpace: "nowrap",
+                              }}
                             >
-                              <Trash2 size={13} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                              {plTag}
+                            </span>
+                          </td>
+                          <td style={{ padding: "12px 14px" }}>
+                            {c.is_active !== false ? (
+                              <span style={{ color: "#16a34a", background: "#dcfce7", padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 700 }}>
+                                Aktif
+                              </span>
+                            ) : (
+                              <span style={{ color: "#6b7280", background: "#f3f4f6", padding: "2px 8px", borderRadius: 4, fontSize: 11 }}>
+                                Non-Aktif
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ padding: "12px 14px", textAlign: "right" }}>
+                            <div style={{ display: "flex", justifyContent: "flex-end", gap: 4 }}>
+                              <button
+                                onClick={() => handleOpenEditCoa(c)}
+                                title="Edit Akun COA"
+                                style={{ padding: "5px 8px", background: "#5005A6", color: "white", border: "none", borderRadius: 6, fontSize: 11, cursor: "pointer" }}
+                              >
+                                <Edit3 size={13} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteCoa(c.id, c.kode_akun)}
+                                title="Hapus Akun COA"
+                                style={{ padding: "5px 8px", background: "#fee2e2", color: "#dc2626", border: "1px solid #fca5a5", borderRadius: 6, fontSize: 11, cursor: "pointer" }}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                 )}
               </tbody>
             </table>

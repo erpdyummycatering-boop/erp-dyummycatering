@@ -18,10 +18,24 @@ export async function GET(req: NextRequest) {
       idx++;
     }
 
+    const klasifikasi_pl = searchParams.get("klasifikasi_pl") || "";
+
     if (kelompok) {
       wheres.push(`kelompok = $${idx}`);
       vals.push(kelompok);
       idx++;
+    }
+
+    if (klasifikasi_pl === "Pendapatan") {
+      wheres.push("kelompok = 'Pendapatan'");
+    } else if (klasifikasi_pl === "Food Cost") {
+      wheres.push("kelompok = 'Beban' AND sub_kelompok = 'Beban Pokok Penjualan'");
+      wheres.push("(kode_akun LIKE '5-1001%' OR kode_akun LIKE '5-1002%' OR kode_akun LIKE '5-50000%' OR (nama_akun ILIKE '%bahan%' OR nama_akun ILIKE '%kemasan%' OR nama_akun ILIKE '%food%') AND (nama_akun NOT ILIKE '%gaji%' AND nama_akun NOT ILIKE '%gas%' AND nama_akun NOT ILIKE '%listrik%' AND nama_akun NOT ILIKE '%air%' AND nama_akun NOT ILIKE '%sewa%' AND nama_akun NOT ILIKE '%overhead%'))");
+    } else if (klasifikasi_pl === "Overhead Dapur") {
+      wheres.push("kelompok = 'Beban' AND sub_kelompok = 'Beban Pokok Penjualan'");
+      wheres.push("NOT (kode_akun LIKE '5-1001%' OR kode_akun LIKE '5-1002%' OR kode_akun LIKE '5-50000%' OR (nama_akun ILIKE '%bahan%' OR nama_akun ILIKE '%kemasan%' OR nama_akun ILIKE '%food%') AND (nama_akun NOT ILIKE '%gaji%' AND nama_akun NOT ILIKE '%gas%' AND nama_akun NOT ILIKE '%listrik%' AND nama_akun NOT ILIKE '%air%' AND nama_akun NOT ILIKE '%sewa%' AND nama_akun NOT ILIKE '%overhead%'))");
+    } else if (klasifikasi_pl === "Beban Operasional") {
+      wheres.push("kelompok = 'Beban' AND sub_kelompok = 'Beban Operasional'");
     }
 
     const whereClause = wheres.length > 0 ? "WHERE " + wheres.join(" AND ") : "";
@@ -136,7 +150,7 @@ export async function DELETE(req: NextRequest) {
   try {
     // Check if referenced by journals
     const jouRes = await client.query(
-      "SELECT id FROM journals WHERE debit_account_id = $1 OR credit_account_id = $1 LIMIT 1",
+      "SELECT id FROM journals WHERE akun_debit = $1 OR akun_kredit = $1 LIMIT 1",
       [Number(id)]
     );
 
