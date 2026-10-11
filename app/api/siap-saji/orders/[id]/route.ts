@@ -185,18 +185,34 @@ export async function PUT(
     const discInputVal = Number(discount_value || 0);
     const grandTotal = Math.max(0, itemsTotal + shipFee - discVal);
 
-    // Resolve Bank details if kas_bank_id provided
-    let paymentBankName = existingOrder.payment_bank || "BCA";
-    let paymentAccountNo = existingOrder.payment_account || "";
-    if (kas_bank_id) {
-      const kasRes = await client.query("SELECT * FROM kas_bank WHERE id = $1", [kas_bank_id]);
-      if (kasRes.rows.length > 0) {
-        paymentBankName = kasRes.rows[0].nama_bank || kasRes.rows[0].nama_rekening;
-        paymentAccountNo = kasRes.rows[0].no_rekening || "";
+    const statusPaymentInput = body.status_payment !== undefined 
+      ? body.status_payment 
+      : (existingOrder.status_payment || (kas_bank_id ? "Lunas" : "Belum Lunas"));
+    const isLunas = statusPaymentInput === "Lunas";
+
+    // Resolve Bank details
+    let paymentBankName = isLunas ? (existingOrder.payment_bank !== "Belum Bayar" ? existingOrder.payment_bank : "BCA") : "Belum Bayar";
+    let paymentAccountNo = isLunas ? (existingOrder.payment_account !== "-" ? existingOrder.payment_account : "") : "-";
+    
+    if (isLunas) {
+      if (kas_bank_id) {
+        const kasRes = await client.query("SELECT * FROM kas_bank WHERE id = $1", [kas_bank_id]);
+        if (kasRes.rows.length > 0) {
+          paymentBankName = kasRes.rows[0].nama_bank || kasRes.rows[0].nama_rekening;
+          paymentAccountNo = kasRes.rows[0].no_rekening || "";
+        }
+      } else if (existingOrder.payment_bank === "Belum Bayar" || !existingOrder.payment_bank) {
+        const defKasRes = await client.query(
+          "SELECT * FROM kas_bank WHERE lini = 'siap_saji' AND is_payment_default = true LIMIT 1"
+        );
+        if (defKasRes.rows.length > 0) {
+          paymentBankName = defKasRes.rows[0].nama_bank || defKasRes.rows[0].nama_rekening;
+          paymentAccountNo = defKasRes.rows[0].no_rekening || "";
+        }
       }
     }
 
-    // 4. Update Order Record with order-specific address, patokan, and area
+    // 4. Update Order Record with order-specific address, patokan, area, and status_payment
     await client.query(
       `UPDATE orders
        SET customer_id = $1,
@@ -209,12 +225,13 @@ export async function PUT(
            grand_total = $8,
            payment_bank = $9,
            payment_account = $10,
-           driver_id = $11,
-           venue = $12,
-           patokan = $13,
-           area_id = $14,
+           status_payment = $11,
+           driver_id = $12,
+           venue = $13,
+           patokan = $14,
+           area_id = $15,
            updated_at = NOW()
-       WHERE id = $15`,
+       WHERE id = $16`,
       [
         finalCustomerId,
         channel_id || existingOrder.channel_id,
@@ -226,7 +243,8 @@ export async function PUT(
         grandTotal,
         paymentBankName,
         paymentAccountNo,
-        body.driver_id ? Number(body.driver_id) : null,
+        statusPaymentInput,
+        body.driver_id !== undefined ? (body.driver_id ? Number(body.driver_id) : null) : existingOrder.driver_id,
         customer_address || null,
         customer_patokan || null,
         area_id ? Number(area_id) : null,
@@ -246,15 +264,24 @@ export async function PUT(
 
     // 6. Update Accounting Journal & Kas Mutasi if exists
     if (existingOrder.journal_id) {
-      // Lookup Coa Accounts for update in case bank changed
+      // Lookup Coa Accounts for update in case bank / payment status changed
       let debitKode = "1-1002";
-      if (paymentBankName.toUpperCase().includes("MANDIRI")) debitKode = "1-1003";
-      else if (paymentBankName.toUpperCase().includes("KAS")) debitKode = "1-1001";
+      if (!isLunas) {
+        debitKode = "1-1004"; // Piutang Usaha SS
+      } else {
+        if (paymentBankName.toUpperCase().includes("MANDIRI")) debitKode = "1-1003";
+        else if (paymentBankName.toUpperCase().includes("KAS")) debitKode = "1-1001";
+      }
 
-      const coaDebitRes = await client.query(
+      let coaDebitRes = await client.query(
         "SELECT id FROM coa WHERE kode_akun = $1 AND lini = 'siap_saji' LIMIT 1",
         [debitKode]
       );
+      if (!isLunas && coaDebitRes.rows.length === 0) {
+        coaDebitRes = await client.query(
+          "SELECT id FROM coa WHERE (kode_akun LIKE '1-%' OR tipe = 'Aktiva') AND lini = 'siap_saji' ORDER BY id ASC LIMIT 1"
+        );
+      }
 
       if (coaDebitRes.rows.length > 0) {
         await client.query(
@@ -266,7 +293,7 @@ export async function PUT(
           [
             coaDebitRes.rows[0].id,
             grandTotal,
-            `Penjualan Siap Saji ${existingOrder.no_struk} - ${paymentBankName}`,
+            `Penjualan Siap Saji ${existingOrder.no_struk} - ${isLunas ? paymentBankName : "Belum Bayar (Piutang)"}`,
             existingOrder.journal_id,
           ]
         );
@@ -278,7 +305,7 @@ export async function PUT(
            WHERE id = $3`,
           [
             grandTotal,
-            `Penjualan Siap Saji ${existingOrder.no_struk} - ${paymentBankName}`,
+            `Penjualan Siap Saji ${existingOrder.no_struk} - ${isLunas ? paymentBankName : "Belum Bayar (Piutang)"}`,
             existingOrder.journal_id,
           ]
         );
@@ -291,44 +318,77 @@ export async function PUT(
       [orderId]
     );
 
-    if (oldMutasiRes.rows.length > 0) {
-      const oldM = oldMutasiRes.rows[0];
-      const targetKasBankId = kas_bank_id ? Number(kas_bank_id) : oldM.kas_bank_id;
+    if (isLunas) {
+      let targetKasBankId = kas_bank_id ? Number(kas_bank_id) : null;
+      if (!targetKasBankId) {
+        if (oldMutasiRes.rows.length > 0) {
+          targetKasBankId = oldMutasiRes.rows[0].kas_bank_id;
+        } else {
+          const defKasRes = await client.query(
+            "SELECT id FROM kas_bank WHERE lini = 'siap_saji' AND is_payment_default = true LIMIT 1"
+          );
+          if (defKasRes.rows.length > 0) targetKasBankId = defKasRes.rows[0].id;
+        }
+      }
 
-      if (targetKasBankId === oldM.kas_bank_id) {
-        // Same bank: adjust difference
-        const diffNominal = grandTotal - Number(oldM.nominal);
-        await client.query(
-          `UPDATE kas_mutasi
-           SET nominal = $1,
-               keterangan = $2
-           WHERE id = $3`,
-          [grandTotal, `Penjualan SS ${existingOrder.no_struk}`, oldM.id]
-        );
-        if (diffNominal !== 0) {
+      if (oldMutasiRes.rows.length > 0) {
+        const oldM = oldMutasiRes.rows[0];
+        if (targetKasBankId === oldM.kas_bank_id) {
+          // Same bank: adjust difference
+          const diffNominal = grandTotal - Number(oldM.nominal);
+          await client.query(
+            `UPDATE kas_mutasi
+             SET nominal = $1,
+                 keterangan = $2
+             WHERE id = $3`,
+            [grandTotal, `Penjualan SS ${existingOrder.no_struk}`, oldM.id]
+          );
+          if (diffNominal !== 0) {
+            await client.query(
+              "UPDATE kas_bank SET saldo_kini = saldo_kini + $1, updated_at = NOW() WHERE id = $2",
+              [diffNominal, oldM.kas_bank_id]
+            );
+          }
+        } else if (targetKasBankId) {
+          // Different bank: revert old bank, apply to new bank
+          await client.query(
+            "UPDATE kas_bank SET saldo_kini = saldo_kini - $1, updated_at = NOW() WHERE id = $2",
+            [oldM.nominal, oldM.kas_bank_id]
+          );
+          await client.query(
+            `UPDATE kas_mutasi
+             SET kas_bank_id = $1,
+                 nominal = $2,
+                 keterangan = $3
+             WHERE id = $4`,
+            [targetKasBankId, grandTotal, `Penjualan SS ${existingOrder.no_struk}`, oldM.id]
+          );
           await client.query(
             "UPDATE kas_bank SET saldo_kini = saldo_kini + $1, updated_at = NOW() WHERE id = $2",
-            [diffNominal, oldM.kas_bank_id]
+            [grandTotal, targetKasBankId]
           );
         }
-      } else {
-        // Different bank: revert old bank, apply to new bank
+      } else if (targetKasBankId) {
+        // Create new mutasi because previously Belum Lunas
         await client.query(
-          "UPDATE kas_bank SET saldo_kini = saldo_kini - $1, updated_at = NOW() WHERE id = $2",
-          [oldM.nominal, oldM.kas_bank_id]
-        );
-        await client.query(
-          `UPDATE kas_mutasi
-           SET kas_bank_id = $1,
-               nominal = $2,
-               keterangan = $3
-           WHERE id = $4`,
-          [targetKasBankId, grandTotal, `Penjualan SS ${existingOrder.no_struk}`, oldM.id]
+          `INSERT INTO kas_mutasi (kas_bank_id, lini, mutasi_date, jenis, nominal, ref_type, ref_id, keterangan)
+           VALUES ($1, 'siap_saji', $2, 'Masuk', $3, 'penjualan', $4, $5)`,
+          [targetKasBankId, delivery_date || existingOrder.delivery_date, grandTotal, orderId, `Penjualan SS ${existingOrder.no_struk}`]
         );
         await client.query(
           "UPDATE kas_bank SET saldo_kini = saldo_kini + $1, updated_at = NOW() WHERE id = $2",
           [grandTotal, targetKasBankId]
         );
+      }
+    } else {
+      // Changed to Belum Lunas: revert and remove kas_mutasi if existed
+      if (oldMutasiRes.rows.length > 0) {
+        const oldM = oldMutasiRes.rows[0];
+        await client.query(
+          "UPDATE kas_bank SET saldo_kini = saldo_kini - $1, updated_at = NOW() WHERE id = $2",
+          [oldM.nominal, oldM.kas_bank_id]
+        );
+        await client.query("DELETE FROM kas_mutasi WHERE id = $1", [oldM.id]);
       }
     }
 

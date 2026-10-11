@@ -319,25 +319,30 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 4. Resolve Bank Account Details
-    let paymentBankName = "BCA";
-    let paymentAccountNo = "2832835545";
-    let kasBankId = payment_bank_id;
+    // 4. Resolve Bank Account Details & Status Payment
+    const statusPaymentInput = body.status_payment || (payment_bank_id ? "Lunas" : "Belum Lunas");
+    const isLunas = statusPaymentInput === "Lunas";
 
-    if (kasBankId) {
-      const kasRes = await client.query("SELECT * FROM kas_bank WHERE id = $1", [kasBankId]);
-      if (kasRes.rows.length > 0) {
-        paymentBankName = kasRes.rows[0].nama_bank || kasRes.rows[0].nama_rekening;
-        paymentAccountNo = kasRes.rows[0].no_rekening || "";
-      }
-    } else {
-      const defKasRes = await client.query(
-        "SELECT * FROM kas_bank WHERE lini = 'siap_saji' AND is_payment_default = true LIMIT 1"
-      );
-      if (defKasRes.rows.length > 0) {
-        kasBankId = defKasRes.rows[0].id;
-        paymentBankName = defKasRes.rows[0].nama_bank || defKasRes.rows[0].nama_rekening;
-        paymentAccountNo = defKasRes.rows[0].no_rekening || "";
+    let paymentBankName = isLunas ? "BCA" : "Belum Bayar";
+    let paymentAccountNo = isLunas ? "2832835545" : "-";
+    let kasBankId = isLunas ? payment_bank_id : null;
+
+    if (isLunas) {
+      if (kasBankId) {
+        const kasRes = await client.query("SELECT * FROM kas_bank WHERE id = $1", [kasBankId]);
+        if (kasRes.rows.length > 0) {
+          paymentBankName = kasRes.rows[0].nama_bank || kasRes.rows[0].nama_rekening;
+          paymentAccountNo = kasRes.rows[0].no_rekening || "";
+        }
+      } else {
+        const defKasRes = await client.query(
+          "SELECT * FROM kas_bank WHERE lini = 'siap_saji' AND is_payment_default = true LIMIT 1"
+        );
+        if (defKasRes.rows.length > 0) {
+          kasBankId = defKasRes.rows[0].id;
+          paymentBankName = defKasRes.rows[0].nama_bank || defKasRes.rows[0].nama_rekening;
+          paymentAccountNo = defKasRes.rows[0].no_rekening || "";
+        }
       }
     }
 
@@ -388,7 +393,7 @@ export async function POST(req: NextRequest) {
         shipping_fee, discount, discount_type, discount_value, shipping_zone, grand_total, payment_bank, payment_account,
         input_source, jenis_order, closing_date
       )
-      VALUES ($1, $2, 'siap_saji', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'Aktif', 'Lunas', $14, $15, $16, $17, $18, $19, $20, $21, 'manual', $22, $23)
+      VALUES ($1, $2, 'siap_saji', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'Aktif', $14, $15, $16, $17, $18, $19, $20, $21, $22, 'manual', $23, $24)
       RETURNING *`,
       [
         finalCustomerId,
@@ -404,6 +409,7 @@ export async function POST(req: NextRequest) {
         patokan || null,
         area_id ? Number(area_id) : null,
         order_notes || null,
+        statusPaymentInput,
         finalShippingFee,
         orderDiscount,
         orderDiscountType,
@@ -437,15 +443,28 @@ export async function POST(req: NextRequest) {
     const coaKreditRes = await client.query(
       "SELECT id FROM coa WHERE kode_akun = '4-1001' AND lini = 'siap_saji' LIMIT 1"
     );
-    // Debit Account: Depends on bank (1-1002 BCA, 1-1003 Mandiri, 1-1001 Kas)
-    let debitKode = "1-1002";
-    if (paymentBankName.toUpperCase().includes("MANDIRI")) debitKode = "1-1003";
-    else if (paymentBankName.toUpperCase().includes("KAS")) debitKode = "1-1001";
 
-    const coaDebitRes = await client.query(
+    // Debit Account: Depends on payment status & bank
+    // If Belum Lunas -> Piutang Usaha (1-1004) or default cash/piutang
+    let debitKode = "1-1002"; // default BCA
+    if (!isLunas) {
+      debitKode = "1-1004"; // Piutang Usaha SS
+    } else {
+      if (paymentBankName.toUpperCase().includes("MANDIRI")) debitKode = "1-1003";
+      else if (paymentBankName.toUpperCase().includes("KAS")) debitKode = "1-1001";
+    }
+
+    let coaDebitRes = await client.query(
       "SELECT id FROM coa WHERE kode_akun = $1 AND lini = 'siap_saji' LIMIT 1",
       [debitKode]
     );
+
+    // Fallback if 1-1004 doesn't exist yet for Piutang
+    if (!isLunas && coaDebitRes.rows.length === 0) {
+      coaDebitRes = await client.query(
+        "SELECT id FROM coa WHERE (kode_akun LIKE '1-%' OR tipe = 'Aktiva') AND lini = 'siap_saji' ORDER BY id ASC LIMIT 1"
+      );
+    }
 
     if (coaDebitRes.rows.length > 0 && coaKreditRes.rows.length > 0) {
       const debitId = coaDebitRes.rows[0].id;
@@ -462,7 +481,7 @@ export async function POST(req: NextRequest) {
           debitId,
           kreditId,
           grandTotal,
-          `Penjualan Siap Saji ${noStruk} - ${paymentBankName}`,
+          `Penjualan Siap Saji ${noStruk} - ${isLunas ? paymentBankName : "Belum Bayar (Piutang)"}`,
         ]
       );
 
@@ -470,8 +489,8 @@ export async function POST(req: NextRequest) {
       await client.query("UPDATE orders SET journal_id = $1 WHERE id = $2", [journalId, orderId]);
     }
 
-    // Kas Mutasi
-    if (kasBankId) {
+    // Kas Mutasi (Hanya dicatat jika pembayaran sudah Lunas)
+    if (isLunas && kasBankId) {
       await client.query(
         `INSERT INTO kas_mutasi (kas_bank_id, lini, mutasi_date, jenis, nominal, ref_type, ref_id, keterangan)
          VALUES ($1, 'siap_saji', $2, 'Masuk', $3, 'penjualan', $4, $5)`,

@@ -95,7 +95,8 @@ export default function SiapSajiFinancePage() {
   const [jouDateTo, setJouDateTo] = useState("");
 
   // Tab 6: COA Data & Filters
-  const [coaListAll, setCoaListAll] = useState<any[]>([]);
+  const [coaListAll, setCoaListAll] = useState<any[]>([]); // Master COA list for all modals & system
+  const [coaTableList, setCoaTableList] = useState<any[]>([]); // Filtered list specifically for Tab COA table
   const [coaPage, setCoaPage] = useState(1);
   const [coaLimit, setCoaLimit] = useState(10);
   const [coaSearch, setCoaSearch] = useState("");
@@ -121,6 +122,7 @@ export default function SiapSajiFinancePage() {
 
   // Tab 5: Jurnal Umum Manual Modal State (Req 5 & Screenshot 5)
   const [isJournalModalOpen, setIsJournalModalOpen] = useState(false);
+  const [editingJournalId, setEditingJournalId] = useState<number | null>(null);
   const [jouFormDate, setJouFormDate] = useState(new Date().toISOString().split("T")[0]);
   const [jouFormRefNo, setJouFormRefNo] = useState("");
   const [jouFormDebitCoaId, setJouFormDebitCoaId] = useState<number | "">("");
@@ -142,8 +144,8 @@ export default function SiapSajiFinancePage() {
         const json = await res.json();
         setAccounts(json.accounts || []);
         setMutasi(json.mutasi || []);
-        setCoaList(json.coa || []);
         if (json.coa?.length > 0) {
+          setCoaList(json.coa);
           setCoaListAll((prev) => (prev && prev.length > 0 ? prev : json.coa));
         }
 
@@ -153,10 +155,10 @@ export default function SiapSajiFinancePage() {
         }
 
         if (json.coa?.length > 0) {
-          const defaultHpp = json.coa.find((c: any) => c.kode_akun === "5-1001" || c.kode_akun === "5-50000");
+          const defaultHpp = json.coa.find((c: any) => c.kode_akun === "5-1001" || c.kode_akun === "5-50000" || c.sub_kelompok === "Beban Pokok Penjualan");
           if (defaultHpp && !purchaseCoaId) setPurchaseCoaId(defaultHpp.id);
 
-          const defaultExpense = json.coa.find((c: any) => c.kode_akun.startsWith("6-"));
+          const defaultExpense = json.coa.find((c: any) => c.sub_kelompok === "Beban Operasional" || c.kode_akun?.startsWith("6-") || c.kelompok === "Beban");
           if (defaultExpense && !expenseCoaId) setExpenseCoaId(defaultExpense.id);
         }
       }
@@ -226,7 +228,12 @@ export default function SiapSajiFinancePage() {
         const res = await fetch(`/api/siap-saji/finance/coa?${q}`);
         if (res.ok) {
           const json = await res.json();
-          setCoaListAll(json.data || []);
+          setCoaTableList(json.data || []);
+          // Also initialize master list if still empty
+          if (json.data?.length > 0) {
+            setCoaListAll((prev) => (prev && prev.length > 0 ? prev : json.data));
+            setCoaList((prev) => (prev && prev.length > 0 ? prev : json.data));
+          }
         }
       } else if (activeTab === "neraca") {
         const res = await fetch("/api/siap-saji/finance/reports?type=neraca");
@@ -286,6 +293,7 @@ export default function SiapSajiFinancePage() {
       setIsCoaModalOpen(false);
       fetchTabData();
       fetchKasBankMaster();
+      fetchCoaMaster();
     } catch (err: any) {
       toast.error(err.message || "Gagal menyimpan COA");
     } finally {
@@ -302,6 +310,7 @@ export default function SiapSajiFinancePage() {
       toast.success("Akun COA berhasil dihapus.");
       fetchTabData();
       fetchKasBankMaster();
+      fetchCoaMaster();
     } catch (err: any) {
       toast.error(err.message || "Gagal menghapus COA");
     }
@@ -315,6 +324,12 @@ export default function SiapSajiFinancePage() {
         if (json.data?.length > 0) {
           setCoaListAll(json.data);
           setCoaList(json.data);
+
+          const defaultHpp = json.data.find((c: any) => c.kode_akun === "5-1001" || c.kode_akun === "5-50000" || c.sub_kelompok === "Beban Pokok Penjualan");
+          if (defaultHpp && !purchaseCoaId) setPurchaseCoaId(defaultHpp.id);
+
+          const defaultExpense = json.data.find((c: any) => c.sub_kelompok === "Beban Operasional" || c.kode_akun?.startsWith("6-") || c.kelompok === "Beban");
+          if (defaultExpense && !expenseCoaId) setExpenseCoaId(defaultExpense.id);
         }
       }
     } catch (e) {
@@ -643,6 +658,17 @@ export default function SiapSajiFinancePage() {
     }
   };
 
+  const handleOpenEditJournal = (j: any) => {
+    setEditingJournalId(j.id);
+    setJouFormDate(j.journal_date ? j.journal_date.split("T")[0] : new Date().toISOString().split("T")[0]);
+    setJouFormRefNo(j.ref_no || "");
+    setJouFormDebitCoaId(j.akun_debit ? Number(j.akun_debit) : "");
+    setJouFormCreditCoaId(j.akun_kredit ? Number(j.akun_kredit) : "");
+    setJouFormNominal(Number(j.nominal || 0));
+    setJouFormKeterangan(j.keterangan || "");
+    setIsJournalModalOpen(true);
+  };
+
   const handleSubmitManualJournal = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!jouFormDebitCoaId || !jouFormCreditCoaId) return toast.error("Pilih akun Debet dan Kredit");
@@ -651,17 +677,23 @@ export default function SiapSajiFinancePage() {
 
     setIsSubmitting(true);
     try {
+      const method = editingJournalId ? "PUT" : "POST";
+      const payload: any = {
+        journal_date: jouFormDate,
+        ref_no: jouFormRefNo,
+        akun_debit: Number(jouFormDebitCoaId),
+        akun_kredit: Number(jouFormCreditCoaId),
+        nominal: jouFormNominal,
+        keterangan: jouFormKeterangan,
+      };
+      if (editingJournalId) {
+        payload.id = editingJournalId;
+      }
+
       const res = await fetch("/api/siap-saji/finance/journals", {
-        method: "POST",
+        method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          journal_date: jouFormDate,
-          ref_no: jouFormRefNo,
-          akun_debit: Number(jouFormDebitCoaId),
-          akun_kredit: Number(jouFormCreditCoaId),
-          nominal: jouFormNominal,
-          keterangan: jouFormKeterangan,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
@@ -669,8 +701,9 @@ export default function SiapSajiFinancePage() {
         throw new Error(json.error || "Gagal menyimpan jurnal umum");
       }
 
-      toast.success("Jurnal umum manual berhasil disimpan!");
+      toast.success(editingJournalId ? "Jurnal umum berhasil diperbarui!" : "Jurnal umum manual berhasil disimpan!");
       setIsJournalModalOpen(false);
+      setEditingJournalId(null);
       fetchKasBankMaster();
       fetchTabData();
     } catch (err: any) {
@@ -696,7 +729,18 @@ export default function SiapSajiFinancePage() {
         <div style={{ display: "flex", gap: 10 }}>
           {activeTab === "purchases" && (
             <button
-              onClick={() => setIsPurchaseModalOpen(true)}
+              onClick={() => {
+                const master = coaListAll.length > 0 ? coaListAll : coaList;
+                if (!purchaseCoaId && master.length > 0) {
+                  const def = master.find((c) => c.sub_kelompok === "Beban Pokok Penjualan" || c.kode_akun === "5-1001" || c.kode_akun === "5-50000");
+                  if (def) setPurchaseCoaId(def.id);
+                  else setPurchaseCoaId(master[0].id);
+                }
+                if (!purchaseKasBankId && accounts.length > 0) {
+                  setPurchaseKasBankId(accounts[0].id);
+                }
+                setIsPurchaseModalOpen(true);
+              }}
               style={{
                 background: "linear-gradient(135deg, #5005A6 0%, #B10FBD 100%)",
                 color: "white",
@@ -717,7 +761,18 @@ export default function SiapSajiFinancePage() {
 
           {activeTab === "expenses" && (
             <button
-              onClick={() => setIsExpenseModalOpen(true)}
+              onClick={() => {
+                const master = coaListAll.length > 0 ? coaListAll : coaList;
+                if (!expenseCoaId && master.length > 0) {
+                  const def = master.find((c) => c.sub_kelompok === "Beban Operasional" || c.kode_akun?.startsWith("6-") || c.kelompok === "Beban");
+                  if (def) setExpenseCoaId(def.id);
+                  else setExpenseCoaId(master[0].id);
+                }
+                if (!expenseKasBankId && accounts.length > 0) {
+                  setExpenseKasBankId(accounts[0].id);
+                }
+                setIsExpenseModalOpen(true);
+              }}
               style={{
                 background: "linear-gradient(135deg, #5005A6 0%, #B10FBD 100%)",
                 color: "white",
@@ -1933,18 +1988,19 @@ export default function SiapSajiFinancePage() {
                 <th style={{ padding: "12px 16px" }}>Posisi Akun & Keterangan Jurnal</th>
                 <th style={{ padding: "12px 16px", textAlign: "right", width: 140, color: "#15803d" }}>Debit (Rp)</th>
                 <th style={{ padding: "12px 16px", textAlign: "right", width: 140, color: "#b91c1c" }}>Kredit (Rp)</th>
+                <th style={{ padding: "12px 16px", textAlign: "center", width: 90 }}>Aksi</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                  <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
                     Memuat entri buku jurnal...
                   </td>
                 </tr>
               ) : journals.length === 0 ? (
                 <tr>
-                  <td colSpan={6} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                  <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
                     Belum ada entri jurnal tercatat.
                   </td>
                 </tr>
@@ -1987,6 +2043,28 @@ export default function SiapSajiFinancePage() {
                         {/* Column Kredit (-) */}
                         <td style={{ padding: "10px 16px 4px 16px", textAlign: "right", color: "#9ca3af" }}>
                           -
+                        </td>
+                        {/* Aksi Edit */}
+                        <td rowSpan={2} style={{ padding: "12px 16px", verticalAlign: "top", textAlign: "center", borderLeft: "1px solid #f3f4f6" }}>
+                          <button
+                            onClick={() => handleOpenEditJournal(j)}
+                            title="Edit Jurnal Umum"
+                            style={{
+                              padding: "6px 12px",
+                              background: "#eff6ff",
+                              color: "#2563eb",
+                              border: "1px solid #bfdbfe",
+                              borderRadius: 6,
+                              fontSize: 12,
+                              fontWeight: 700,
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                            }}
+                          >
+                            <Edit3 size={13} /> Edit
+                          </button>
                         </td>
                       </tr>
 
@@ -2032,6 +2110,7 @@ export default function SiapSajiFinancePage() {
                   <td style={{ padding: "12px 16px", textAlign: "right", color: "#b91c1c", fontSize: 14 }}>
                     Rp {journals.reduce((sum, j) => sum + Number(j.nominal || 0), 0).toLocaleString("id-ID")}
                   </td>
+                  <td></td>
                 </tr>
               </tfoot>
             )}
@@ -2107,17 +2186,24 @@ export default function SiapSajiFinancePage() {
                 </label>
                 <select
                   value={purchaseCoaId}
-                  onChange={(e) => setPurchaseCoaId(Number(e.target.value))}
+                  onChange={(e) => setPurchaseCoaId(e.target.value ? Number(e.target.value) : "")}
                   required
                   style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
                 >
-                  {(coaListAll.length > 0 ? coaListAll : coaList)
-                    .filter((c) => c.sub_kelompok === "Beban Pokok Penjualan")
-                    .map((c) => (
+                  <option value="">-- Pilih Kategori HPP --</option>
+                  {(() => {
+                    const master = coaListAll.length > 0 ? coaListAll : coaList;
+                    const filtered = master.filter((c) =>
+                      c.sub_kelompok === "Beban Pokok Penjualan" ||
+                      c.kode_akun?.startsWith("5-")
+                    );
+                    const listToRender = filtered.length > 0 ? filtered : master;
+                    return listToRender.map((c) => (
                       <option key={c.id} value={c.id}>
-                        ({c.kode_akun}) {c.nama_akun}
+                        ({c.kode_akun}) {c.nama_akun} - {c.sub_kelompok || c.kelompok}
                       </option>
-                    ))}
+                    ));
+                  })()}
                 </select>
               </div>
 
@@ -2212,17 +2298,25 @@ export default function SiapSajiFinancePage() {
                 </label>
                 <select
                   value={expenseCoaId}
-                  onChange={(e) => setExpenseCoaId(Number(e.target.value))}
+                  onChange={(e) => setExpenseCoaId(e.target.value ? Number(e.target.value) : "")}
                   required
                   style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
                 >
-                  {(coaListAll.length > 0 ? coaListAll : coaList)
-                    .filter((c) => c.sub_kelompok === "Beban Operasional" || c.kelompok === "Beban")
-                    .map((c) => (
+                  <option value="">-- Pilih Kategori Beban --</option>
+                  {(() => {
+                    const master = coaListAll.length > 0 ? coaListAll : coaList;
+                    const filtered = master.filter((c) =>
+                      c.sub_kelompok === "Beban Operasional" ||
+                      c.kelompok === "Beban" ||
+                      c.kode_akun?.startsWith("6-")
+                    );
+                    const listToRender = filtered.length > 0 ? filtered : master;
+                    return listToRender.map((c) => (
                       <option key={c.id} value={c.id}>
                         ({c.kode_akun}) {c.nama_akun} - {c.sub_kelompok || c.kelompok}
                       </option>
-                    ))}
+                    ));
+                  })()}
                 </select>
               </div>
 
@@ -2317,17 +2411,25 @@ export default function SiapSajiFinancePage() {
                 </label>
                 <select
                   value={editExpCoaId}
-                  onChange={(e) => setEditExpCoaId(Number(e.target.value))}
+                  onChange={(e) => setEditExpCoaId(e.target.value ? Number(e.target.value) : "")}
                   required
                   style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
                 >
-                  {(coaListAll.length > 0 ? coaListAll : coaList)
-                    .filter((c) => c.sub_kelompok === "Beban Operasional" || c.kelompok === "Beban")
-                    .map((c) => (
+                  <option value="">-- Pilih Kategori Beban --</option>
+                  {(() => {
+                    const master = coaListAll.length > 0 ? coaListAll : coaList;
+                    const filtered = master.filter((c) =>
+                      c.sub_kelompok === "Beban Operasional" ||
+                      c.kelompok === "Beban" ||
+                      c.kode_akun?.startsWith("6-")
+                    );
+                    const listToRender = filtered.length > 0 ? filtered : master;
+                    return listToRender.map((c) => (
                       <option key={c.id} value={c.id}>
                         ({c.kode_akun}) {c.nama_akun} - {c.sub_kelompok || c.kelompok}
                       </option>
-                    ))}
+                    ));
+                  })()}
                 </select>
               </div>
 
@@ -2446,14 +2548,14 @@ export default function SiapSajiFinancePage() {
                       Memuat daftar Chart of Accounts...
                     </td>
                   </tr>
-                ) : coaListAll.length === 0 ? (
+                ) : (coaTableList.length > 0 ? coaTableList : (coaSearch || coaKelompokFilter ? [] : coaListAll)).length === 0 ? (
                   <tr>
                     <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
                       Tidak ada akun COA ditemukan.
                     </td>
                   </tr>
                 ) : (
-                  coaListAll
+                  (coaTableList.length > 0 ? coaTableList : coaListAll)
                     .slice((coaPage - 1) * coaLimit, coaPage * coaLimit)
                     .map((c, idx) => (
                       <tr key={c.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
@@ -2537,11 +2639,11 @@ export default function SiapSajiFinancePage() {
             </table>
 
             {/* COA Table Pagination */}
-            {coaListAll.length > 0 && (
+            {(coaTableList.length > 0 ? coaTableList : coaListAll).length > 0 && (
               <Pagination
                 page={coaPage}
-                totalPages={Math.ceil(coaListAll.length / coaLimit)}
-                total={coaListAll.length}
+                totalPages={Math.ceil((coaTableList.length > 0 ? coaTableList : coaListAll).length / coaLimit)}
+                total={(coaTableList.length > 0 ? coaTableList : coaListAll).length}
                 limit={coaLimit}
                 onChange={(p: number) => setCoaPage(p)}
                 onLimitChange={(l: number) => {
@@ -2968,9 +3070,9 @@ export default function SiapSajiFinancePage() {
           <div style={{ background: "white", borderRadius: 16, maxWidth: 550, width: "100%", padding: 24, boxShadow: "0 20px 25px -5px rgba(0,0,0,0.2)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <h3 style={{ fontSize: 18, fontWeight: 800, color: "#111827", margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
-                <BookOpen size={18} color="#5005A6" /> + Input Jurnal Umum Manual
+                <BookOpen size={18} color="#5005A6" /> {editingJournalId ? "Edit Jurnal Umum Manual" : "+ Input Jurnal Umum Manual"}
               </h3>
-              <button onClick={() => setIsJournalModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280" }}>
+              <button onClick={() => { setIsJournalModalOpen(false); setEditingJournalId(null); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280" }}>
                 <X size={20} />
               </button>
             </div>
@@ -3010,14 +3112,14 @@ export default function SiapSajiFinancePage() {
                 </label>
                 <select
                   value={jouFormDebitCoaId}
-                  onChange={(e) => setJouFormDebitCoaId(Number(e.target.value))}
+                  onChange={(e) => setJouFormDebitCoaId(e.target.value ? Number(e.target.value) : "")}
                   required
                   style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #bbf7d0", background: "#f0fdf4", fontSize: 14, fontWeight: 600 }}
                 >
                   <option value="">-- Pilih Akun Debet --</option>
                   {(coaListAll.length > 0 ? coaListAll : coaList).map((c) => (
                     <option key={c.id} value={c.id}>
-                      ({c.kode_akun}) {c.nama_akun} - {c.kelompok}
+                      ({c.kode_akun}) {c.nama_akun} - {c.sub_kelompok || c.kelompok}
                     </option>
                   ))}
                 </select>
@@ -3029,14 +3131,14 @@ export default function SiapSajiFinancePage() {
                 </label>
                 <select
                   value={jouFormCreditCoaId}
-                  onChange={(e) => setJouFormCreditCoaId(Number(e.target.value))}
+                  onChange={(e) => setJouFormCreditCoaId(e.target.value ? Number(e.target.value) : "")}
                   required
                   style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #fca5a5", background: "#fef2f2", fontSize: 14, fontWeight: 600 }}
                 >
                   <option value="">-- Pilih Akun Kredit --</option>
                   {(coaListAll.length > 0 ? coaListAll : coaList).map((c) => (
                     <option key={c.id} value={c.id}>
-                      ({c.kode_akun}) {c.nama_akun} - {c.kelompok}
+                      ({c.kode_akun}) {c.nama_akun} - {c.sub_kelompok || c.kelompok}
                     </option>
                   ))}
                 </select>
@@ -3075,7 +3177,7 @@ export default function SiapSajiFinancePage() {
                   Batal
                 </button>
                 <button type="submit" disabled={isSubmitting} style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "#5005A6", color: "white", fontWeight: 700 }}>
-                  {isSubmitting ? "Simpan..." : "Simpan Jurnal Umum"}
+                  {isSubmitting ? "Menyimpan..." : editingJournalId ? "Simpan Perubahan" : "Simpan Jurnal Umum"}
                 </button>
               </div>
             </form>

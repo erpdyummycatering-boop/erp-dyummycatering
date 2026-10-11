@@ -16,8 +16,8 @@ export default function SiapSajiDocumentsPage() {
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
   const [channels, setChannels] = useState<{ id: number; name: string }[]>([]);
 
-  // Sorting state for Rekap CS
-  const [rekapSortField, setRekapSortField] = useState<string>("no");
+  // Sorting state for Rekap CS (Default by Rekening per CS request)
+  const [rekapSortField, setRekapSortField] = useState<string>("rekening");
   const [rekapSortOrder, setRekapSortOrder] = useState<"asc" | "desc">("asc");
 
   const [page, setPage] = useState(1);
@@ -710,90 +710,122 @@ export default function SiapSajiDocumentsPage() {
             </div>
 
             {/* Quick Sort Options Bar */}
-            <div className="no-print" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap", background: "#f8fafc", padding: "8px 12px", borderRadius: 8, border: "1px solid #e2e8f0" }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#475569", display: "flex", alignItems: "center", gap: 4 }}>
-                <ArrowUpDown size={14} color="#64748b" /> Urutkan Data:
+            <div className="no-print" style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap", background: "#f8fafc", padding: "10px 14px", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#475569", display: "flex", alignItems: "center", gap: 5 }}>
+                <ArrowUpDown size={15} color="#5005A6" /> Urutkan Berdasarkan (Sort By):
               </span>
 
-              <button
-                onClick={() => {
-                  setRekapSortField("rekening");
-                  setRekapSortOrder("asc");
+              {/* Dropdown Sort Selector for CS */}
+              <select
+                value={`${rekapSortField}-${rekapSortOrder}`}
+                onChange={(e) => {
+                  const [field, order] = e.target.value.split("-");
+                  setRekapSortField(field);
+                  setRekapSortOrder(order as "asc" | "desc");
                 }}
                 style={{
-                  padding: "5px 11px",
+                  padding: "6px 12px",
                   borderRadius: 6,
+                  border: "1.5px solid #5005A6",
                   fontSize: 12,
-                  fontWeight: 600,
+                  fontWeight: 700,
+                  color: "#5005A6",
+                  background: "#f3e8ff",
                   cursor: "pointer",
-                  border: rekapSortField === "rekening" ? "1.5px solid #5005A6" : "1px solid #cbd5e1",
-                  background: rekapSortField === "rekening" ? "#f3e8ff" : "white",
-                  color: rekapSortField === "rekening" ? "#5005A6" : "#334155",
-                  boxShadow: rekapSortField === "rekening" ? "0 1px 3px rgba(80, 5, 166, 0.15)" : "none",
+                  outline: "none",
                 }}
               >
-                🏦 Urut Rekening (Sama Bank) {rekapSortField === "rekening" && (rekapSortOrder === "asc" ? "▲" : "▼")}
-              </button>
+                <option value="rekening-asc">🏦 Rekening (Bank Sama Berurutan A-Z)</option>
+                <option value="rekening-desc">🏦 Rekening (Bank Sama Berurutan Z-A)</option>
+                <option value="pelanggan-asc">👤 Nama Pelanggan (A - Z)</option>
+                <option value="pelanggan-desc">👤 Nama Pelanggan (Z - A)</option>
+                <option value="total-desc">💰 Total Nominal (Terbesar ke Terkecil)</option>
+                <option value="total-asc">💰 Total Nominal (Terkecil ke Terbesar)</option>
+                <option value="kecamatan-asc">📍 Kecamatan (A - Z)</option>
+                <option value="no-asc">🔢 Urutan Input Asli (No 1, 2, ...)</option>
+              </select>
 
-              <button
-                onClick={() => {
-                  setRekapSortField("pelanggan");
-                  setRekapSortOrder((prev) => (rekapSortField === "pelanggan" && prev === "asc" ? "desc" : "asc"));
-                }}
-                style={{
-                  padding: "5px 11px",
-                  borderRadius: 6,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  border: rekapSortField === "pelanggan" ? "1.5px solid #5005A6" : "1px solid #cbd5e1",
-                  background: rekapSortField === "pelanggan" ? "#f3e8ff" : "white",
-                  color: rekapSortField === "pelanggan" ? "#5005A6" : "#334155",
-                }}
-              >
-                👤 Pelanggan (A-Z) {rekapSortField === "pelanggan" && (rekapSortOrder === "asc" ? "▲" : "▼")}
-              </button>
-
-              <button
-                onClick={() => {
-                  setRekapSortField("total");
-                  setRekapSortOrder((prev) => (rekapSortField === "total" && prev === "desc" ? "asc" : "desc"));
-                }}
-                style={{
-                  padding: "5px 11px",
-                  borderRadius: 6,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  border: rekapSortField === "total" ? "1.5px solid #5005A6" : "1px solid #cbd5e1",
-                  background: rekapSortField === "total" ? "#f3e8ff" : "white",
-                  color: rekapSortField === "total" ? "#5005A6" : "#334155",
-                }}
-              >
-                💰 Total (Nominal) {rekapSortField === "total" && (rekapSortOrder === "desc" ? "▼" : "▲")}
-              </button>
-
-              {rekapSortField !== "no" && (
+              <div style={{ display: "flex", gap: 6, alignItems: "center", marginLeft: "auto" }}>
                 <button
                   onClick={() => {
-                    setRekapSortField("no");
+                    setRekapSortField("rekening");
                     setRekapSortOrder("asc");
                   }}
                   style={{
-                    padding: "5px 10px",
+                    padding: "5px 11px",
                     borderRadius: 6,
                     fontSize: 12,
-                    fontWeight: 500,
+                    fontWeight: 600,
                     cursor: "pointer",
-                    border: "none",
-                    background: "none",
-                    color: "#dc2626",
-                    textDecoration: "underline",
+                    border: rekapSortField === "rekening" ? "1.5px solid #5005A6" : "1px solid #cbd5e1",
+                    background: rekapSortField === "rekening" ? "#5005A6" : "white",
+                    color: rekapSortField === "rekening" ? "white" : "#334155",
+                    boxShadow: rekapSortField === "rekening" ? "0 1px 3px rgba(80, 5, 166, 0.2)" : "none",
                   }}
                 >
-                  Reset Urutan
+                  🏦 Urut Rekening
                 </button>
-              )}
+
+                <button
+                  onClick={() => {
+                    setRekapSortField("pelanggan");
+                    setRekapSortOrder((prev) => (rekapSortField === "pelanggan" && prev === "asc" ? "desc" : "asc"));
+                  }}
+                  style={{
+                    padding: "5px 11px",
+                    borderRadius: 6,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    border: rekapSortField === "pelanggan" ? "1.5px solid #5005A6" : "1px solid #cbd5e1",
+                    background: rekapSortField === "pelanggan" ? "#5005A6" : "white",
+                    color: rekapSortField === "pelanggan" ? "white" : "#334155",
+                  }}
+                >
+                  👤 Pelanggan
+                </button>
+
+                <button
+                  onClick={() => {
+                    setRekapSortField("total");
+                    setRekapSortOrder((prev) => (rekapSortField === "total" && prev === "desc" ? "asc" : "desc"));
+                  }}
+                  style={{
+                    padding: "5px 11px",
+                    borderRadius: 6,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    border: rekapSortField === "total" ? "1.5px solid #5005A6" : "1px solid #cbd5e1",
+                    background: rekapSortField === "total" ? "#5005A6" : "white",
+                    color: rekapSortField === "total" ? "white" : "#334155",
+                  }}
+                >
+                  💰 Total
+                </button>
+
+                {rekapSortField !== "no" && (
+                  <button
+                    onClick={() => {
+                      setRekapSortField("no");
+                      setRekapSortOrder("asc");
+                    }}
+                    style={{
+                      padding: "5px 10px",
+                      borderRadius: 6,
+                      fontSize: 12,
+                      fontWeight: 500,
+                      cursor: "pointer",
+                      border: "none",
+                      background: "none",
+                      color: "#dc2626",
+                      textDecoration: "underline",
+                    }}
+                  >
+                    Reset Urutan
+                  </button>
+                )}
+              </div>
             </div>
 
             <div style={{ overflowX: "auto" }}>

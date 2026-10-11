@@ -237,6 +237,7 @@ export default function SiapSajiOrdersPage() {
   const [discountType, setDiscountType] = useState<"nominal" | "percent">("nominal");
   const [discountValue, setDiscountValue] = useState<number>(0);
   const [isShippingAuto, setIsShippingAuto] = useState(true);
+  const [statusPayment, setStatusPayment] = useState<"Lunas" | "Belum Lunas">("Lunas");
   const [selectedBankId, setSelectedBankId] = useState<number | "">("");
   const [orderNotes, setOrderNotes] = useState("");
   const [cartItems, setCartItems] = useState<OrderItemInput[]>([]);
@@ -761,6 +762,7 @@ export default function SiapSajiOrdersPage() {
       }
       setSelectedChannelId(data.channel_id || (masterChannels.length > 0 ? masterChannels[0].id : ""));
       setSelectedDriverId(data.driver_id || "");
+      setStatusPayment(data.status_payment === "Belum Lunas" ? "Belum Lunas" : "Lunas");
       setSelectedBankId(data.kas_bank_id || (masterKasBank.length > 0 ? masterKasBank[0].id : ""));
       setDeliveryDate(data.delivery_date ? data.delivery_date.split("T")[0] : getTodayStr());
       setShippingFee(Number(data.shipping_fee || 0));
@@ -808,6 +810,7 @@ export default function SiapSajiOrdersPage() {
     setCustomerAddress("");
     setCustomerPatokan("");
     setShippingFee(0);
+    setStatusPayment("Lunas");
     setDiscountType("nominal");
     setDiscountValue(0);
     setOrderNotes("");
@@ -832,7 +835,8 @@ export default function SiapSajiOrdersPage() {
         const payload = {
           channel_id: Number(selectedChannelId),
           driver_id: selectedDriverId ? Number(selectedDriverId) : null,
-          kas_bank_id: selectedBankId ? Number(selectedBankId) : null,
+          status_payment: statusPayment,
+          kas_bank_id: statusPayment === "Lunas" && selectedBankId ? Number(selectedBankId) : null,
           delivery_date: deliveryDate,
           customer_name: customerName,
           customer_phone: customerPhone,
@@ -872,6 +876,7 @@ export default function SiapSajiOrdersPage() {
         const payload = {
           channel_id: Number(selectedChannelId),
           driver_id: selectedDriverId ? Number(selectedDriverId) : null,
+          status_payment: statusPayment,
           customer_id: "new",
           customer_name: customerName,
           customer_phone: customerPhone,
@@ -884,7 +889,7 @@ export default function SiapSajiOrdersPage() {
           discount: calculatedDiscount,
           discount_type: discountType,
           discount_value: discountValue,
-          payment_bank_id: selectedBankId ? Number(selectedBankId) : null,
+          payment_bank_id: statusPayment === "Lunas" && selectedBankId ? Number(selectedBankId) : null,
           order_notes: orderNotes,
           items: cartItems.map((it) => ({
             product_id: it.product_id,
@@ -1800,7 +1805,7 @@ export default function SiapSajiOrdersPage() {
               <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Channel</th>
               <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Total</th>
               <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Rekening</th>
-              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Status Order</th>
+              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "center" }}>Status Bayar</th>
               <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "right" }}>Aksi</th>
             </tr>
           </thead>
@@ -1884,22 +1889,43 @@ export default function SiapSajiOrdersPage() {
                     Rp {Number(o.grand_total).toLocaleString("id-ID")}
                   </td>
                   <td style={{ padding: "12px 14px", color: "#4b5563", fontSize: 13, borderBottom: "1px solid #f3f4f6" }}>
-                    {o.payment_bank} ({o.payment_account})
+                    {o.payment_bank === "Belum Bayar" || !o.payment_bank ? (
+                      <span style={{ color: "#9ca3af", fontStyle: "italic" }}>Belum Bayar</span>
+                    ) : (
+                      `${o.payment_bank}${o.payment_account && o.payment_account !== "-" ? ` (${o.payment_account})` : ""}`
+                    )}
                   </td>
-                  <td style={{ padding: "12px 14px", borderBottom: "1px solid #f3f4f6" }}>
-                    <span
-                      style={{
-                        padding: "4px 10px",
-                        borderRadius: 20,
-                        fontSize: 12,
-                        fontWeight: 700,
-                        background: o.status_order === "Dibatalkan" ? "#fef2f2" : "#f0fdf4",
-                        color: o.status_order === "Dibatalkan" ? "#E24B4A" : "#639922",
-                        border: `1px solid ${o.status_order === "Dibatalkan" ? "#fecaca" : "#bbf7d0"}`,
-                      }}
-                    >
-                      {o.status_order}
-                    </span>
+                  <td style={{ padding: "12px 14px", borderBottom: "1px solid #f3f4f6", textAlign: "center" }}>
+                    {o.status_order === "Dibatalkan" ? (
+                      <span
+                        style={{
+                          padding: "4px 10px",
+                          borderRadius: 20,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          background: "#fef2f2",
+                          color: "#E24B4A",
+                          border: "1px solid #fecaca",
+                        }}
+                      >
+                        Dibatalkan
+                      </span>
+                    ) : (
+                      <span
+                        style={{
+                          padding: "4px 12px",
+                          borderRadius: 20,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          background: o.status_payment === "Belum Lunas" ? "#fffbeb" : "#f0fdf4",
+                          color: o.status_payment === "Belum Lunas" ? "#BA7517" : "#16a34a",
+                          border: `1px solid ${o.status_payment === "Belum Lunas" ? "#fde68a" : "#bbf7d0"}`,
+                          display: "inline-block",
+                        }}
+                      >
+                        {o.status_payment === "Belum Lunas" ? "Belum Lunas" : "Lunas"}
+                      </span>
+                    )}
                   </td>
                   <td style={{ padding: "14px 16px", textAlign: "right" }}>
                     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
@@ -2972,26 +2998,79 @@ export default function SiapSajiOrdersPage() {
                 )}
               </div>
 
-              {/* Rekening Pembayaran (Poin 1: Posisi di bawah sebelum submit simpan) */}
-              <div style={{ background: "#faf5ff", border: "1px solid #e9d5ff", borderRadius: 12, padding: "12px 16px", marginBottom: 14 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
-                  <div style={{ minWidth: 200 }}>
+              {/* Status Pembayaran & Rekening Pembayaran */}
+              <div style={{ background: "#faf5ff", border: "1px solid #e9d5ff", borderRadius: 12, padding: "14px 16px", marginBottom: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap", marginBottom: statusPayment === "Lunas" ? 12 : 0 }}>
+                  <div>
                     <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#5005A6", marginBottom: 2 }}>
-                      💳 Rekening Pembayaran Masuk *
+                      💵 Status Pembayaran
                     </label>
                     <span style={{ fontSize: 11, color: "#6b7280" }}>
-                      Pilih rekening penampung transaksi order ini
+                      Apakah pesanan ini sudah dibayar lunas atau belum dibayar?
                     </span>
                   </div>
-                  <div style={{ flex: 1, minWidth: 260 }}>
-                    <SearchableSelect
-                      options={masterKasBank.map((kb) => ({ value: kb.id, label: `${kb.nama_rekening} (${kb.no_rekening})` }))}
-                      value={selectedBankId}
-                      onChange={(val) => setSelectedBankId(val ? Number(val) : 0)}
-                      placeholder="-- Pilih Rekening Pembayaran --"
-                    />
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => setStatusPayment("Lunas")}
+                      style={{
+                        padding: "7px 18px",
+                        borderRadius: 8,
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        border: statusPayment === "Lunas" ? "2px solid #16a34a" : "1px solid #d1d5db",
+                        background: statusPayment === "Lunas" ? "#f0fdf4" : "white",
+                        color: statusPayment === "Lunas" ? "#16a34a" : "#4b5563",
+                        boxShadow: statusPayment === "Lunas" ? "0 2px 4px rgba(22, 163, 74, 0.15)" : "none",
+                      }}
+                    >
+                      ✓ Lunas
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStatusPayment("Belum Lunas")}
+                      style={{
+                        padding: "7px 18px",
+                        borderRadius: 8,
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        border: statusPayment === "Belum Lunas" ? "2px solid #BA7517" : "1px solid #d1d5db",
+                        background: statusPayment === "Belum Lunas" ? "#fffbeb" : "white",
+                        color: statusPayment === "Belum Lunas" ? "#BA7517" : "#4b5563",
+                        boxShadow: statusPayment === "Belum Lunas" ? "0 2px 4px rgba(186, 117, 23, 0.15)" : "none",
+                      }}
+                    >
+                      ⏳ Belum Lunas (Belum Bayar)
+                    </button>
                   </div>
                 </div>
+
+                {statusPayment === "Lunas" ? (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap", paddingTop: 10, borderTop: "1px dashed #e9d5ff" }}>
+                    <div style={{ minWidth: 200 }}>
+                      <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#5005A6", marginBottom: 2 }}>
+                        💳 Rekening Pembayaran Masuk *
+                      </label>
+                      <span style={{ fontSize: 11, color: "#6b7280" }}>
+                        Pilih rekening penampung transaksi order ini
+                      </span>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 260 }}>
+                      <SearchableSelect
+                        options={masterKasBank.map((kb) => ({ value: kb.id, label: `${kb.nama_rekening} (${kb.no_rekening})` }))}
+                        value={selectedBankId}
+                        onChange={(val) => setSelectedBankId(val ? Number(val) : 0)}
+                        placeholder="-- Pilih Rekening Pembayaran --"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px dashed #e9d5ff", display: "flex", alignItems: "center", gap: 8, color: "#BA7517", fontSize: 12 }}>
+                    <span>ℹ️ Order berstatus <strong>Belum Lunas</strong> tidak memerlukan pemilihan rekening bank (akan otomatis dicatat sebagai tagihan/piutang tanpa mutasi kas).</span>
+                  </div>
+                )}
               </div>
 
               {/* Order Summary & Submit */}
