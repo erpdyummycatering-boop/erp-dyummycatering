@@ -1847,8 +1847,30 @@ export default function SiapSajiOrdersPage() {
               </tr>
             ) : (
               orders.map((o, idx) => (
-                <tr key={o.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                  <td style={{ padding: "12px 10px", textAlign: "center", borderBottom: "1px solid #f3f4f6" }}>
+                <tr
+                  key={o.id}
+                  onDoubleClick={async () => {
+                    const res = await fetch(`/api/siap-saji/orders/${o.id}`);
+                    if (res.ok) setSelectedStruk(await res.json());
+                  }}
+                  title="Klik 2x untuk melihat rincian detail order"
+                  style={{
+                    borderBottom: "1px solid #f3f4f6",
+                    background: o.status_order === "Dibatalkan" ? "#fef2f220" : "transparent",
+                    cursor: "pointer",
+                    transition: "background 0.15s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = o.status_order === "Dibatalkan" ? "#fef2f250" : "#f9fafb";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = o.status_order === "Dibatalkan" ? "transparent" : "transparent";
+                  }}
+                >
+                  <td
+                    style={{ padding: "12px 10px", textAlign: "center", borderBottom: "1px solid #f3f4f6" }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <input
                       type="checkbox"
                       checked={selectedOrderIds.includes(o.id)}
@@ -1868,7 +1890,10 @@ export default function SiapSajiOrdersPage() {
                   <td style={{ padding: "12px 14px", fontWeight: 600, color: "#111827", borderBottom: "1px solid #f3f4f6" }}>
                     {o.customer_name}
                   </td>
-                  <td style={{ padding: "12px 14px", borderBottom: "1px solid #f3f4f6" }}>
+                  <td
+                    style={{ padding: "12px 14px", borderBottom: "1px solid #f3f4f6" }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     {o.customer_phone ? (
                       <a
                         href={getWhatsAppUrl(o.customer_phone)}
@@ -1920,19 +1945,38 @@ export default function SiapSajiOrdersPage() {
                   </td>
                   <td style={{ padding: "12px 14px", borderBottom: "1px solid #f3f4f6", textAlign: "center" }}>
                     {o.status_order === "Dibatalkan" ? (
-                      <span
-                        style={{
-                          padding: "4px 10px",
-                          borderRadius: 20,
-                          fontSize: 12,
-                          fontWeight: 700,
-                          background: "#fef2f2",
-                          color: "#E24B4A",
-                          border: "1px solid #fecaca",
-                        }}
-                      >
-                        Dibatalkan
-                      </span>
+                      <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 3, maxWidth: 170 }}>
+                        <span
+                          style={{
+                            padding: "4px 10px",
+                            borderRadius: 20,
+                            fontSize: 12,
+                            fontWeight: 700,
+                            background: "#fef2f2",
+                            color: "#E24B4A",
+                            border: "1px solid #fecaca",
+                          }}
+                        >
+                          Dibatalkan
+                        </span>
+                        {o.cancel_reason && (
+                          <span
+                            style={{
+                              fontSize: 11,
+                              color: "#dc2626",
+                              background: "#fff1f2",
+                              padding: "2px 6px",
+                              borderRadius: 4,
+                              lineHeight: 1.25,
+                              textAlign: "center",
+                              wordBreak: "break-word",
+                            }}
+                            title={`Alasan Batal: ${o.cancel_reason}`}
+                          >
+                            ⚠️ {o.cancel_reason}
+                          </span>
+                        )}
+                      </div>
                     ) : (
                       <span
                         style={{
@@ -3464,6 +3508,28 @@ export default function SiapSajiOrdersPage() {
                   Jl Sindangsari 4 No 48 Kota Bandung Jawa Barat
                 </p>
               </div>
+
+              {selectedStruk.status_order === "Dibatalkan" && (
+                <div
+                  style={{
+                    background: "#fef2f2",
+                    border: "1.5px solid #fecaca",
+                    borderRadius: 8,
+                    padding: "8px 12px",
+                    marginBottom: 10,
+                    textAlign: "center",
+                  }}
+                >
+                  <span style={{ color: "#E24B4A", fontWeight: 800, fontSize: 13, textTransform: "uppercase" }}>
+                    ❌ PESANAN DIBATALKAN
+                  </span>
+                  {selectedStruk.cancel_reason && (
+                    <p style={{ margin: "4px 0 0", fontSize: 12, color: "#991b1b", fontStyle: "italic" }}>
+                      Alasan: &ldquo;{selectedStruk.cancel_reason}&rdquo;
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div style={{ borderBottom: "1px dashed #9ca3af", paddingBottom: 8, marginBottom: 8, fontSize: 12 }}>
                 <p style={{ margin: 0 }}>

@@ -22,6 +22,8 @@ export async function GET(req: NextRequest) {
     dateFilter = `AND o.delivery_date >= '${dateFrom}'::date`;
   } else if (dateTo) {
     dateFilter = `AND o.delivery_date <= '${dateTo}'::date`;
+  } else if (period === "today") {
+    dateFilter = "AND o.delivery_date = CURRENT_DATE";
   } else if (period === "week") {
     dateFilter = "AND o.delivery_date >= CURRENT_DATE - INTERVAL '7 days'";
   } else if (period === "month") {

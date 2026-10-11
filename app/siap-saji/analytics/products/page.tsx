@@ -86,7 +86,27 @@ export default function SiapSajiProductAnalyticsPage() {
         {/* Period & Custom Date Range Filter */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           {/* Preset Buttons */}
-          <div style={{ background: "white", borderRadius: 10, padding: 4, border: "1px solid #d1d5db", display: "flex", gap: 4 }}>
+          <div style={{ background: "white", borderRadius: 10, padding: 4, border: "1px solid #d1d5db", display: "flex", gap: 4, flexWrap: "wrap" }}>
+            <button
+              onClick={() => {
+                const today = new Date().toISOString().split("T")[0];
+                setDateFrom(today);
+                setDateTo(today);
+                setPeriod("today");
+              }}
+              style={{
+                padding: "6px 14px",
+                borderRadius: 6,
+                border: "none",
+                background: period === "today" ? "#5005A6" : "transparent",
+                color: period === "today" ? "white" : "#4b5563",
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              Hari Ini
+            </button>
             <button
               onClick={() => {
                 setDateFrom("");

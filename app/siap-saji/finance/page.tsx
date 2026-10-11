@@ -528,6 +528,14 @@ export default function SiapSajiFinancePage() {
   const totalBiayaOperasional = calculatePlCategoryTotal("Beban", "Beban Operasional");
   const labaBersih = labaKotor - totalBiayaOperasional;
 
+  // Percentage against totalPendapatan (Omset)
+  const pctFoodCost = totalPendapatan > 0 ? ((totalFoodCost / totalPendapatan) * 100).toFixed(1) : "0.0";
+  const pctOverheadHpp = totalPendapatan > 0 ? ((totalOverheadHpp / totalPendapatan) * 100).toFixed(1) : "0.0";
+  const pctTotalHpp = totalPendapatan > 0 ? ((totalHpp / totalPendapatan) * 100).toFixed(1) : "0.0";
+  const pctLabaKotor = totalPendapatan > 0 ? ((labaKotor / totalPendapatan) * 100).toFixed(1) : "0.0";
+  const pctBiayaOperasional = totalPendapatan > 0 ? ((totalBiayaOperasional / totalPendapatan) * 100).toFixed(1) : "0.0";
+  const pctLabaBersih = totalPendapatan > 0 ? ((labaBersih / totalPendapatan) * 100).toFixed(1) : "0.0";
+
   // Export P&L to Excel (.xlsx) matching Accurate Online format (Screenshot 2)
   const handleExportPlXLSX = () => {
     if (!plData || !plData.details) {
@@ -1201,107 +1209,153 @@ export default function SiapSajiFinancePage() {
             <div style={{ background: "#fafafa", borderRadius: 10, padding: 16, border: "1px solid #f3f4f6" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 800, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                    PENDAPATAN
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      PENDAPATAN
+                    </span>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: "#15803d", background: "#dcfce7", padding: "1px 7px", borderRadius: 12, border: "1px solid #bbf7d0" }}>
+                      100.0% Omset
+                    </span>
                   </div>
                   <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>
                     Pendapatan Penjualan, Catering Umum/Regular, & Pengurang Penjualan
                   </div>
                 </div>
-                <span style={{ fontWeight: 800, color: "#15803d", fontSize: 16 }}>Rp {totalPendapatan.toLocaleString("id-ID")}</span>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontWeight: 800, color: "#15803d", fontSize: 16 }}>Rp {totalPendapatan.toLocaleString("id-ID")}</div>
+                  <div style={{ fontSize: 11, color: "#16a34a", fontWeight: 700 }}>100.0%</div>
+                </div>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 4 }}>
-                {(plData?.details?.filter((d: any) => d.kelompok === "Pendapatan" && Number(d.total_nominal || 0) !== 0) || []).map((acc: any, i: number) => (
-                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, color: "#374151" }}>
-                    <span>({acc.kode_akun}) {acc.nama_akun}</span>
-                    <span style={{ fontWeight: 600, fontFamily: "monospace" }}>Rp {Number(acc.total_nominal || 0).toLocaleString("id-ID")}</span>
-                  </div>
-                ))}
+                {(plData?.details?.filter((d: any) => d.kelompok === "Pendapatan" && Number(d.total_nominal || 0) !== 0) || []).map((acc: any, i: number) => {
+                  const nominal = Number(acc.total_nominal || 0);
+                  const accPct = totalPendapatan > 0 ? ((nominal / totalPendapatan) * 100).toFixed(1) : "0.0";
+                  return (
+                    <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, color: "#374151" }}>
+                      <span>({acc.kode_akun}) {acc.nama_akun}</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <span style={{ fontWeight: 600, fontFamily: "monospace" }}>Rp {nominal.toLocaleString("id-ID")}</span>
+                        <span style={{ fontSize: 11, color: "#6b7280", minWidth: 42, textAlign: "right" }}>{accPct}%</span>
+                      </div>
+                    </div>
+                  );
+                })}
                 {(!plData?.details || plData.details.filter((d: any) => d.kelompok === "Pendapatan" && Number(d.total_nominal || 0) !== 0).length === 0) && (
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, color: "#6b7280" }}>
                     <span>Penjualan Bersih (Siap Saji)</span>
-                    <span style={{ fontWeight: 600, fontFamily: "monospace" }}>Rp {totalPendapatan.toLocaleString("id-ID")}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <span style={{ fontWeight: 600, fontFamily: "monospace" }}>Rp {totalPendapatan.toLocaleString("id-ID")}</span>
+                      <span style={{ fontSize: 11, color: "#6b7280", minWidth: 42, textAlign: "right" }}>100.0%</span>
+                    </div>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* HARGA POKOK PENJUALAN (HPP & OVERHEAD) DIBAGI 2: FOOD COST & OVERHEAD */}
+            {/* HARGA POKOK PENJUALAN (HPP & OVERHEAD) RINGKASAN ATAS BAWAH */}
             <div style={{ background: "#fafafa", borderRadius: 10, padding: 16, border: "1px solid #f3f4f6" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                    HARGA POKOK PENJUALAN (HPP & OVERHEAD)
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      HARGA POKOK PENJUALAN (HPP & OVERHEAD)
+                    </span>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: "#b45309", background: "#fef3c7", padding: "1px 7px", borderRadius: 12, border: "1px solid #fde68a" }}>
+                      {pctTotalHpp}% Omset
+                    </span>
                   </div>
                   <div style={{ fontSize: 11.5, color: "#9ca3af", marginTop: 2 }}>
-                    Terbagi atas Food Cost (Bahan Baku & Kemasan) dan Overhead Dapur (Gaji, Gas, Operasional Dapur)
+                    Ringkasan Food Cost (Bahan Baku) dan Overhead Dapur (Gaji, Gas, Operasional)
                   </div>
                 </div>
-                <span style={{ fontWeight: 800, color: "#b45309", fontSize: 17 }}>Rp {totalHpp.toLocaleString("id-ID")}</span>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontWeight: 800, color: "#b45309", fontSize: 17 }}>Rp {totalHpp.toLocaleString("id-ID")}</div>
+                  <div style={{ fontSize: 11, color: "#b45309", fontWeight: 700 }}>{pctTotalHpp}% dari Omset</div>
+                </div>
               </div>
 
-              {/* 2 Sub-Bagian: Food Cost & Overhead */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 12 }}>
-                {/* 1. Food Cost */}
-                <div style={{ background: "white", padding: 12, borderRadius: 8, border: "1px solid #e5e7eb" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, borderBottom: "1px solid #f3f4f6", paddingBottom: 6 }}>
+              {/* Ringkasan Summary Atas - Bawah (Vertical Stack) */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 8 }}>
+                {/* 1. Baris Food Cost (Atas) */}
+                <div style={{ background: "white", padding: "10px 14px", borderRadius: 8, border: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 14 }}>🥗</span>
                     <div>
-                      <span style={{ fontSize: 12.5, fontWeight: 800, color: "#15803d" }}>🥗 1. FOOD COST</span>
-                      <div style={{ fontSize: 11, color: "#6b7280" }}>Bahan Baku & Kemasan</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ fontSize: 13, fontWeight: 800, color: "#15803d" }}>Food Cost</span>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: "#15803d", background: "#dcfce7", padding: "1px 6px", borderRadius: 4 }}>
+                          {pctFoodCost}%
+                        </span>
+                      </div>
+                      <span style={{ fontSize: 11.5, color: "#6b7280" }}>
+                        Bahan Baku & Kemasan ({hppDetails.filter(isFoodCostAccount).length} Akun)
+                      </span>
                     </div>
-                    <span style={{ fontWeight: 800, color: "#15803d", fontSize: 14 }}>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontWeight: 800, color: "#15803d", fontSize: 14.5, fontFamily: "monospace" }}>
                       Rp {totalFoodCost.toLocaleString("id-ID")}
-                    </span>
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                    {hppDetails.filter(isFoodCostAccount).map((acc: any, i: number) => (
-                      <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#374151" }}>
-                        <span>({acc.kode_akun}) {acc.nama_akun}</span>
-                        <span style={{ fontWeight: 600, fontFamily: "monospace" }}>Rp {Number(acc.total_nominal || 0).toLocaleString("id-ID")}</span>
-                      </div>
-                    ))}
-                    {hppDetails.filter(isFoodCostAccount).length === 0 && (
-                      <div style={{ fontSize: 12, color: "#9ca3af", fontStyle: "italic" }}>Tidak ada akun food cost</div>
-                    )}
+                    </div>
+                    <div style={{ fontSize: 11, color: "#15803d", fontWeight: 700 }}>
+                      {pctFoodCost}% dari Omset
+                    </div>
                   </div>
                 </div>
 
-                {/* 2. Overhead */}
-                <div style={{ background: "white", padding: 12, borderRadius: 8, border: "1px solid #e5e7eb" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, borderBottom: "1px solid #f3f4f6", paddingBottom: 6 }}>
+                {/* 2. Baris Overhead Dapur (Bawah) */}
+                <div style={{ background: "white", padding: "10px 14px", borderRadius: 8, border: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 14 }}>⚡</span>
                     <div>
-                      <span style={{ fontSize: 12.5, fontWeight: 800, color: "#b45309" }}>⚡ 2. OVERHEAD DAPUR</span>
-                      <div style={{ fontSize: 11, color: "#6b7280" }}>Gaji, Gas, Listrik & Operasional</div>
-                    </div>
-                    <span style={{ fontWeight: 800, color: "#b45309", fontSize: 14 }}>
-                      Rp {totalOverheadHpp.toLocaleString("id-ID")}
-                    </span>
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                    {hppDetails.filter((d: any) => !isFoodCostAccount(d)).map((acc: any, i: number) => (
-                      <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#374151" }}>
-                        <span>({acc.kode_akun}) {acc.nama_akun}</span>
-                        <span style={{ fontWeight: 600, fontFamily: "monospace" }}>Rp {Number(acc.total_nominal || 0).toLocaleString("id-ID")}</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ fontSize: 13, fontWeight: 800, color: "#b45309" }}>Overhead Dapur</span>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: "#b45309", background: "#fef3c7", padding: "1px 6px", borderRadius: 4 }}>
+                          {pctOverheadHpp}%
+                        </span>
                       </div>
-                    ))}
-                    {hppDetails.filter((d: any) => !isFoodCostAccount(d)).length === 0 && (
-                      <div style={{ fontSize: 12, color: "#9ca3af", fontStyle: "italic" }}>Tidak ada akun overhead dapur</div>
-                    )}
+                      <span style={{ fontSize: 11.5, color: "#6b7280" }}>
+                        Gaji, Gas, Listrik & Operasional ({hppDetails.filter((d: any) => !isFoodCostAccount(d)).length} Akun)
+                      </span>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontWeight: 800, color: "#b45309", fontSize: 14.5, fontFamily: "monospace" }}>
+                      Rp {totalOverheadHpp.toLocaleString("id-ID")}
+                    </div>
+                    <div style={{ fontSize: 11, color: "#b45309", fontWeight: 700 }}>
+                      {pctOverheadHpp}% dari Omset
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Ringkasan Keseluruhan HPP */}
+              {/* Total Keseluruhan HPP */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, fontWeight: 800, color: "#374151", paddingTop: 8, borderTop: "1px dashed #e5e7eb" }}>
-                <span>TOTAL HPP & OVERHEAD</span>
-                <span style={{ fontFamily: "monospace", color: "#b45309" }}>Rp {totalHpp.toLocaleString("id-ID")}</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span>TOTAL HPP & OVERHEAD</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#b45309", background: "#fef3c7", padding: "1px 6px", borderRadius: 4 }}>
+                    {pctTotalHpp}%
+                  </span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontFamily: "monospace", color: "#b45309" }}>Rp {totalHpp.toLocaleString("id-ID")}</span>
+                  <span style={{ fontSize: 11.5, color: "#b45309", fontWeight: 800 }}>({pctTotalHpp}%)</span>
+                </div>
               </div>
             </div>
 
             {/* LABA KOTOR */}
             <div style={{ background: "#fef3c7", borderRadius: 10, padding: "14px 18px", border: "1px solid #fde68a", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 15, fontWeight: 800, color: "#92400e" }}>LABA KOTOR</span>
-              <span style={{ fontSize: 18, fontWeight: 900, color: "#92400e" }}>Rp {labaKotor.toLocaleString("id-ID")}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 15, fontWeight: 800, color: "#92400e" }}>LABA KOTOR</span>
+                <span style={{ fontSize: 12, fontWeight: 800, color: "#92400e", background: "#fde68a", padding: "1px 7px", borderRadius: 12 }}>
+                  {pctLabaKotor}% Omset
+                </span>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 18, fontWeight: 900, color: "#92400e" }}>Rp {labaKotor.toLocaleString("id-ID")}</div>
+                <div style={{ fontSize: 11, color: "#92400e", fontWeight: 700 }}>{pctLabaKotor}% dari Omset</div>
+              </div>
             </div>
 
             {/* BIAYA OPERASIONAL */}
