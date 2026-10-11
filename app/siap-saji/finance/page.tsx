@@ -3820,85 +3820,314 @@ export default function SiapSajiFinancePage() {
                   </div>
                 </div>
 
-                {/* Balance Sheet 2 Columns: Aktiva vs Passiva */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-                  {/* Left Column: AKTIVA (ASET) */}
-                  <div style={{ background: "white", borderRadius: 12, border: "1px solid #e5e7eb", overflow: "hidden" }}>
-                    <div style={{ padding: "14px 16px", background: "#eff6ff", borderBottom: "1px solid #dbeafe" }}>
-                      <h4 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: "#1e40af" }}>AKTIVA / ASET</h4>
-                    </div>
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                      <thead>
-                        <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", color: "#64748b", fontSize: 11, textTransform: "uppercase" }}>
-                          <th style={{ padding: "8px 12px", textAlign: "left" }}>Kode</th>
-                          <th style={{ padding: "8px 12px", textAlign: "left" }}>Nama Akun</th>
-                          <th style={{ padding: "8px 12px", textAlign: "right" }}>Saldo (Rp)</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {asetRows.map((r) => (
-                          <tr key={r.kode_akun} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                            <td style={{ padding: "10px 12px", fontFamily: "monospace", color: "#3b82f6", fontWeight: 700 }}>{r.kode_akun}</td>
-                            <td style={{ padding: "10px 12px", fontWeight: 600 }}>{r.nama_akun}</td>
-                            <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700 }}>Rp{Number(r.saldo || 0).toLocaleString("id-ID")}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot>
-                        <tr style={{ background: "#eff6ff", fontWeight: 900 }}>
-                          <td colSpan={2} style={{ padding: "12px", color: "#1e40af" }}>TOTAL AKTIVA (ASET)</td>
-                          <td style={{ padding: "12px", textAlign: "right", color: "#1e40af" }}>Rp{totalAset.toLocaleString("id-ID")}</td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
+                {/* ── VERTICAL HIERARCHICAL BALANCE SHEET (FORMAT AKUNTANSI STANDAR ATAS-BAWAH) ── */}
+                {(() => {
+                  // Aset sub-categories
+                  const kasBankRows = asetRows.filter((r) => r.kode_akun.startsWith("1-1001") || r.kode_akun.startsWith("1-1002") || r.kode_akun.startsWith("1-1003") || r.nama_akun.toLowerCase().includes("kas") || r.nama_akun.toLowerCase().includes("bank"));
+                  const asetLancarLainRows = asetRows.filter((r) => (r.sub_kelompok === "Aset Lancar" || !r.sub_kelompok) && !kasBankRows.includes(r));
+                  const asetTetapRows = asetRows.filter((r) => r.sub_kelompok === "Aset Tetap");
+                  const asetLainnyaRows = asetRows.filter((r) => r.sub_kelompok === "Aset Lainnya");
 
-                  {/* Right Column: PASSIVA (LIABILITAS & EKUITAS) */}
-                  <div style={{ background: "white", borderRadius: 12, border: "1px solid #e5e7eb", overflow: "hidden" }}>
-                    <div style={{ padding: "14px 16px", background: "#fdf4ff", borderBottom: "1px solid #fae8ff" }}>
-                      <h4 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: "#86198f" }}>PASSIVA (LIABILITAS & EKUITAS)</h4>
+                  const totalKasBank = kasBankRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0);
+                  const totalAsetLancarLain = asetLancarLainRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0);
+                  const totalAsetLancar = totalKasBank + totalAsetLancarLain;
+                  const totalAsetTetap = asetTetapRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0);
+                  const totalAsetLainnya = asetLainnyaRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0);
+
+                  // Liabilitas sub-categories
+                  const liabLancarRows = liabRows.filter((r) => r.sub_kelompok === "Liabilitas Lancar" || !r.sub_kelompok);
+                  const liabJangkaPanjangRows = liabRows.filter((r) => r.sub_kelompok === "Liabilitas Jangka Panjang");
+                  const totalLiabLancar = Math.abs(liabLancarRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0));
+                  const totalLiabJangkaPanjang = Math.abs(liabJangkaPanjangRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0));
+
+                  return (
+                    <div style={{ background: "white", borderRadius: 14, border: "1px solid #e5e7eb", padding: "24px 28px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+                      <div style={{ textAlign: "center", borderBottom: "2px solid #e5e7eb", paddingBottom: 16, marginBottom: 20 }}>
+                        <h2 style={{ fontSize: 18, fontWeight: 900, color: "#111827", margin: 0, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                          NERACA KEUANGAN (BALANCE SHEET)
+                        </h2>
+                        <p style={{ fontSize: 13, color: "#4b5563", margin: "4px 0 0", fontWeight: 600 }}>
+                          SIAP SAJI — DYUMMY CATERING
+                        </p>
+                        <p style={{ fontSize: 12, color: "#9ca3af", margin: "2px 0 0" }}>
+                          Per Tanggal: {new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })} | Mata Uang: Rupiah (IDR)
+                        </p>
+                      </div>
+
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                        <thead>
+                          <tr style={{ borderBottom: "2px solid #111827", color: "#1e3a8a", fontWeight: 800 }}>
+                            <th style={{ textAlign: "left", padding: "8px 0", width: "70%" }}>DESKRIPSI AKUN</th>
+                            <th style={{ textAlign: "right", padding: "8px 0", width: "30%" }}>SALDO (RP)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {/* ═════════════════════════════════════════════════════ */}
+                          {/* 1. BAGIAN ASET (AKTIVA)                              */}
+                          {/* ═════════════════════════════════════════════════════ */}
+                          <tr>
+                            <td colSpan={2} style={{ padding: "16px 0 6px", fontWeight: 900, fontSize: 15, color: "#1e40af", background: "#f8fafc" }}>
+                              ASET
+                            </td>
+                          </tr>
+
+                          {/* 1A. Kas & Bank */}
+                          <tr>
+                            <td colSpan={2} style={{ padding: "6px 0 2px 14px", fontWeight: 800, color: "#1f2937" }}>
+                              Kas & Bank
+                            </td>
+                          </tr>
+                          {kasBankRows.map((r) => (
+                            <tr key={r.kode_akun}>
+                              <td style={{ padding: "3px 0 3px 28px", color: "#374151" }}>
+                                <span style={{ fontFamily: "monospace", color: "#6b7280", marginRight: 8 }}>({r.kode_akun})</span>
+                                {r.nama_akun}
+                              </td>
+                              <td style={{ textAlign: "right", padding: "3px 0", fontFamily: "monospace", fontWeight: 600 }}>
+                                {Number(r.saldo || 0).toLocaleString("id-ID")}
+                              </td>
+                            </tr>
+                          ))}
+                          <tr>
+                            <td style={{ padding: "4px 0 8px 14px", fontWeight: 700, color: "#1f2937" }}>
+                              Total Kas & Bank
+                            </td>
+                            <td style={{ textAlign: "right", padding: "4px 0 8px 0", fontWeight: 700, borderTop: "1px dashed #cbd5e1", fontFamily: "monospace" }}>
+                              Rp{totalKasBank.toLocaleString("id-ID")}
+                            </td>
+                          </tr>
+
+                          {/* 1B. Aset Lancar Lainnya (Piutang Usaha, dll) */}
+                          <tr>
+                            <td colSpan={2} style={{ padding: "8px 0 2px 14px", fontWeight: 800, color: "#1f2937" }}>
+                              Aset Lancar Lainnya
+                            </td>
+                          </tr>
+                          {asetLancarLainRows.map((r) => (
+                            <tr key={r.kode_akun}>
+                              <td style={{ padding: "3px 0 3px 28px", color: "#374151" }}>
+                                <span style={{ fontFamily: "monospace", color: "#6b7280", marginRight: 8 }}>({r.kode_akun})</span>
+                                {r.nama_akun}
+                              </td>
+                              <td style={{ textAlign: "right", padding: "3px 0", fontFamily: "monospace", fontWeight: 600 }}>
+                                {Number(r.saldo || 0).toLocaleString("id-ID")}
+                              </td>
+                            </tr>
+                          ))}
+                          <tr>
+                            <td style={{ padding: "4px 0 8px 14px", fontWeight: 700, color: "#1f2937" }}>
+                              Total Aset Lancar Lainnya
+                            </td>
+                            <td style={{ textAlign: "right", padding: "4px 0 8px 0", fontWeight: 700, borderTop: "1px dashed #cbd5e1", fontFamily: "monospace" }}>
+                              Rp{totalAsetLancarLain.toLocaleString("id-ID")}
+                            </td>
+                          </tr>
+
+                          {/* Subtotal Total Aset Lancar */}
+                          <tr style={{ background: "#f1f5f9" }}>
+                            <td style={{ padding: "8px 0 8px 14px", fontWeight: 800, color: "#0f172a" }}>
+                              JUMLAH ASET LANCAR
+                            </td>
+                            <td style={{ textAlign: "right", padding: "8px 0", fontWeight: 800, color: "#0f172a", fontFamily: "monospace" }}>
+                              Rp{totalAsetLancar.toLocaleString("id-ID")}
+                            </td>
+                          </tr>
+
+                          {/* 1C. Aset Tetap */}
+                          <tr>
+                            <td colSpan={2} style={{ padding: "12px 0 2px 14px", fontWeight: 800, color: "#1f2937" }}>
+                              Aset Tetap
+                            </td>
+                          </tr>
+                          {asetTetapRows.map((r) => (
+                            <tr key={r.kode_akun}>
+                              <td style={{ padding: "3px 0 3px 28px", color: "#374151" }}>
+                                <span style={{ fontFamily: "monospace", color: "#6b7280", marginRight: 8 }}>({r.kode_akun})</span>
+                                {r.nama_akun}
+                              </td>
+                              <td style={{ textAlign: "right", padding: "3px 0", fontFamily: "monospace", fontWeight: 600 }}>
+                                {Number(r.saldo || 0).toLocaleString("id-ID")}
+                              </td>
+                            </tr>
+                          ))}
+                          <tr>
+                            <td style={{ padding: "4px 0 8px 14px", fontWeight: 700, color: "#1f2937" }}>
+                              Total Aset Tetap
+                            </td>
+                            <td style={{ textAlign: "right", padding: "4px 0 8px 0", fontWeight: 700, borderTop: "1px dashed #cbd5e1", fontFamily: "monospace" }}>
+                              Rp{totalAsetTetap.toLocaleString("id-ID")}
+                            </td>
+                          </tr>
+
+                          {/* 1D. Aset Lainnya */}
+                          {asetLainnyaRows.length > 0 && (
+                            <>
+                              <tr>
+                                <td colSpan={2} style={{ padding: "8px 0 2px 14px", fontWeight: 800, color: "#1f2937" }}>
+                                  Aset Lainnya
+                                </td>
+                              </tr>
+                              {asetLainnyaRows.map((r) => (
+                                <tr key={r.kode_akun}>
+                                  <td style={{ padding: "3px 0 3px 28px", color: "#374151" }}>
+                                    <span style={{ fontFamily: "monospace", color: "#6b7280", marginRight: 8 }}>({r.kode_akun})</span>
+                                    {r.nama_akun}
+                                  </td>
+                                  <td style={{ textAlign: "right", padding: "3px 0", fontFamily: "monospace", fontWeight: 600 }}>
+                                    {Number(r.saldo || 0).toLocaleString("id-ID")}
+                                  </td>
+                                </tr>
+                              ))}
+                              <tr>
+                                <td style={{ padding: "4px 0 8px 14px", fontWeight: 700, color: "#1f2937" }}>
+                                  Total Aset Lainnya
+                                </td>
+                                <td style={{ textAlign: "right", padding: "4px 0 8px 0", fontWeight: 700, borderTop: "1px dashed #cbd5e1", fontFamily: "monospace" }}>
+                                  Rp{totalAsetLainnya.toLocaleString("id-ID")}
+                                </td>
+                              </tr>
+                            </>
+                          )}
+
+                          {/* TOTAL ASET */}
+                          <tr style={{ background: "#dbeafe", borderTop: "1.5px solid #1e40af", borderBottom: "2px solid #1e40af" }}>
+                            <td style={{ padding: "10px 0 10px 10px", fontWeight: 900, fontSize: 14, color: "#1e3a8a" }}>
+                              TOTAL ASET (AKTIVA)
+                            </td>
+                            <td style={{ textAlign: "right", padding: "10px 10px 10px 0", fontWeight: 900, fontSize: 15, color: "#1e3a8a", fontFamily: "monospace" }}>
+                              Rp{totalAset.toLocaleString("id-ID")}
+                            </td>
+                          </tr>
+
+                          {/* ═════════════════════════════════════════════════════ */}
+                          {/* 2. BAGIAN LIABILITAS & EKUITAS (PASSIVA)             */}
+                          {/* ═════════════════════════════════════════════════════ */}
+                          <tr>
+                            <td colSpan={2} style={{ padding: "24px 0 6px", fontWeight: 900, fontSize: 15, color: "#991b1b", background: "#f8fafc" }}>
+                              LIABILITAS (KEWAJIBAN)
+                            </td>
+                          </tr>
+
+                          {/* 2A. Liabilitas Jangka Pendek / Lancar */}
+                          <tr>
+                            <td colSpan={2} style={{ padding: "6px 0 2px 14px", fontWeight: 800, color: "#1f2937" }}>
+                              Liabilitas Jangka Pendek (Utang Lancar)
+                            </td>
+                          </tr>
+                          {liabLancarRows.map((r) => (
+                            <tr key={r.kode_akun}>
+                              <td style={{ padding: "3px 0 3px 28px", color: "#374151" }}>
+                                <span style={{ fontFamily: "monospace", color: "#6b7280", marginRight: 8 }}>({r.kode_akun})</span>
+                                {r.nama_akun}
+                              </td>
+                              <td style={{ textAlign: "right", padding: "3px 0", fontFamily: "monospace", fontWeight: 600 }}>
+                                {Math.abs(Number(r.saldo || 0)).toLocaleString("id-ID")}
+                              </td>
+                            </tr>
+                          ))}
+                          <tr>
+                            <td style={{ padding: "4px 0 8px 14px", fontWeight: 700, color: "#1f2937" }}>
+                              Total Liabilitas Jangka Pendek
+                            </td>
+                            <td style={{ textAlign: "right", padding: "4px 0 8px 0", fontWeight: 700, borderTop: "1px dashed #cbd5e1", fontFamily: "monospace" }}>
+                              Rp{totalLiabLancar.toLocaleString("id-ID")}
+                            </td>
+                          </tr>
+
+                          {/* 2B. Liabilitas Jangka Panjang */}
+                          {liabJangkaPanjangRows.length > 0 && (
+                            <>
+                              <tr>
+                                <td colSpan={2} style={{ padding: "8px 0 2px 14px", fontWeight: 800, color: "#1f2937" }}>
+                                  Liabilitas Jangka Panjang
+                                </td>
+                              </tr>
+                              {liabJangkaPanjangRows.map((r) => (
+                                <tr key={r.kode_akun}>
+                                  <td style={{ padding: "3px 0 3px 28px", color: "#374151" }}>
+                                    <span style={{ fontFamily: "monospace", color: "#6b7280", marginRight: 8 }}>({r.kode_akun})</span>
+                                    {r.nama_akun}
+                                  </td>
+                                  <td style={{ textAlign: "right", padding: "3px 0", fontFamily: "monospace", fontWeight: 600 }}>
+                                    {Math.abs(Number(r.saldo || 0)).toLocaleString("id-ID")}
+                                  </td>
+                                </tr>
+                              ))}
+                              <tr>
+                                <td style={{ padding: "4px 0 8px 14px", fontWeight: 700, color: "#1f2937" }}>
+                                  Total Liabilitas Jangka Panjang
+                                </td>
+                                <td style={{ textAlign: "right", padding: "4px 0 8px 0", fontWeight: 700, borderTop: "1px dashed #cbd5e1", fontFamily: "monospace" }}>
+                                  Rp{totalLiabJangkaPanjang.toLocaleString("id-ID")}
+                                </td>
+                              </tr>
+                            </>
+                          )}
+
+                          {/* Subtotal Jumlah Liabilitas */}
+                          <tr style={{ background: "#fef2f2" }}>
+                            <td style={{ padding: "8px 0 8px 14px", fontWeight: 800, color: "#991b1b" }}>
+                              JUMLAH LIABILITAS
+                            </td>
+                            <td style={{ textAlign: "right", padding: "8px 0", fontWeight: 800, color: "#991b1b", fontFamily: "monospace" }}>
+                              Rp{totalLiabilitas.toLocaleString("id-ID")}
+                            </td>
+                          </tr>
+
+                          {/* ═════════════════════════════════════════════════════ */}
+                          {/* 3. EKUITAS (MODAL)                                  */}
+                          {/* ═════════════════════════════════════════════════════ */}
+                          <tr>
+                            <td colSpan={2} style={{ padding: "20px 0 6px", fontWeight: 900, fontSize: 15, color: "#15803d", background: "#f8fafc" }}>
+                              EKUITAS (MODAL)
+                            </td>
+                          </tr>
+                          {ekuitasRows.map((r) => (
+                            <tr key={r.kode_akun}>
+                              <td style={{ padding: "3px 0 3px 28px", color: "#374151" }}>
+                                <span style={{ fontFamily: "monospace", color: "#6b7280", marginRight: 8 }}>({r.kode_akun})</span>
+                                {r.nama_akun}
+                              </td>
+                              <td style={{ textAlign: "right", padding: "3px 0", fontFamily: "monospace", fontWeight: 600 }}>
+                                {Math.abs(Number(r.saldo || 0)).toLocaleString("id-ID")}
+                              </td>
+                            </tr>
+                          ))}
+                          {/* Laba Bersih Berjalan P&L */}
+                          <tr style={{ background: "#f0fdf4" }}>
+                            <td style={{ padding: "5px 0 5px 28px", fontWeight: 700, color: "#15803d" }}>
+                              <span style={{ fontFamily: "monospace", color: "#16a34a", marginRight: 8 }}>(3-2001)</span>
+                              Laba Bersih Berjalan (P&L)
+                            </td>
+                            <td style={{ textAlign: "right", padding: "5px 0", fontWeight: 800, color: "#15803d", fontFamily: "monospace" }}>
+                              Rp{labaBerjalan.toLocaleString("id-ID")}
+                            </td>
+                          </tr>
+
+                          {/* Subtotal Jumlah Ekuitas */}
+                          <tr style={{ background: "#dcfce7" }}>
+                            <td style={{ padding: "8px 0 8px 14px", fontWeight: 800, color: "#166534" }}>
+                              JUMLAH EKUITAS
+                            </td>
+                            <td style={{ textAlign: "right", padding: "8px 0", fontWeight: 800, color: "#166534", fontFamily: "monospace" }}>
+                              Rp{totalEkuitasTotal.toLocaleString("id-ID")}
+                            </td>
+                          </tr>
+
+                          {/* TOTAL LIABILITAS & EKUITAS (PASSIVA) */}
+                          <tr style={{ background: "#fae8ff", borderTop: "1.5px solid #86198f", borderBottom: "2px solid #86198f" }}>
+                            <td style={{ padding: "10px 0 10px 10px", fontWeight: 900, fontSize: 14, color: "#86198f" }}>
+                              TOTAL LIABILITAS & EKUITAS (PASSIVA)
+                            </td>
+                            <td style={{ textAlign: "right", padding: "10px 10px 10px 0", fontWeight: 900, fontSize: 15, color: "#86198f", fontFamily: "monospace" }}>
+                              Rp{totalPassiva.toLocaleString("id-ID")}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
                     </div>
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                      <thead>
-                        <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", color: "#64748b", fontSize: 11, textTransform: "uppercase" }}>
-                          <th style={{ padding: "8px 12px", textAlign: "left" }}>Kode</th>
-                          <th style={{ padding: "8px 12px", textAlign: "left" }}>Nama Akun / Komponen</th>
-                          <th style={{ padding: "8px 12px", textAlign: "right" }}>Saldo (Rp)</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {/* Liabilitas Rows */}
-                        {liabRows.map((r) => (
-                          <tr key={r.kode_akun} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                            <td style={{ padding: "10px 12px", fontFamily: "monospace", color: "#ef4444", fontWeight: 700 }}>{r.kode_akun}</td>
-                            <td style={{ padding: "10px 12px", fontWeight: 600 }}>{r.nama_akun}</td>
-                            <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700 }}>Rp{Math.abs(Number(r.saldo || 0)).toLocaleString("id-ID")}</td>
-                          </tr>
-                        ))}
-                        {/* Ekuitas Rows */}
-                        {ekuitasRows.map((r) => (
-                          <tr key={r.kode_akun} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                            <td style={{ padding: "10px 12px", fontFamily: "monospace", color: "#10b981", fontWeight: 700 }}>{r.kode_akun}</td>
-                            <td style={{ padding: "10px 12px", fontWeight: 600 }}>{r.nama_akun}</td>
-                            <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700 }}>Rp{Math.abs(Number(r.saldo || 0)).toLocaleString("id-ID")}</td>
-                          </tr>
-                        ))}
-                        {/* Laba Berjalan Line */}
-                        <tr style={{ borderBottom: "1px solid #f1f5f9", background: "#f0fdf4" }}>
-                          <td style={{ padding: "10px 12px", fontFamily: "monospace", color: "#15803d", fontWeight: 700 }}>3-2001</td>
-                          <td style={{ padding: "10px 12px", fontWeight: 700, color: "#15803d" }}>Laba Bersih Berjalan (P&L)</td>
-                          <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 800, color: "#15803d" }}>Rp{labaBerjalan.toLocaleString("id-ID")}</td>
-                        </tr>
-                      </tbody>
-                      <tfoot>
-                        <tr style={{ background: "#fdf4ff", fontWeight: 900 }}>
-                          <td colSpan={2} style={{ padding: "12px", color: "#86198f" }}>TOTAL PASSIVA (LIABILITAS + EKUITAS)</td>
-                          <td style={{ padding: "12px", textAlign: "right", color: "#86198f" }}>Rp{totalPassiva.toLocaleString("id-ID")}</td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                </div>
+                  );
+                })()}
               </>
             );
           })()}

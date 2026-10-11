@@ -99,9 +99,28 @@ export async function GET(req: NextRequest) {
     }
 
     if (type === "neraca") {
-      const neracaRes = await client.query(
-        "SELECT * FROM v_neraca_saldo WHERE lini = 'siap_saji' ORDER BY kode_akun"
-      );
+      const neracaRes = await client.query(`
+        SELECT 
+          c.id, c.kode_akun, c.nama_akun, c.kelompok, c.sub_kelompok,
+          COALESCE(SUM(CASE WHEN j.akun_debit = c.id THEN j.nominal ELSE 0 END), 0) AS total_debit,
+          COALESCE(SUM(CASE WHEN j.akun_kredit = c.id THEN j.nominal ELSE 0 END), 0) AS total_kredit,
+          COALESCE(
+            SUM(
+              CASE 
+                WHEN j.akun_debit = c.id THEN j.nominal
+                WHEN j.akun_kredit = c.id THEN -j.nominal
+                ELSE 0
+              END
+            ), 0
+          ) AS saldo
+        FROM coa c
+        LEFT JOIN journals j ON (c.id = j.akun_debit OR c.id = j.akun_kredit)
+          AND j.lini = 'siap_saji'
+          AND COALESCE(j.status, 'posted') != 'dibatalkan'
+        WHERE c.lini = 'siap_saji' AND c.nama_akun NOT ILIKE '%catering%'
+        GROUP BY c.id, c.kode_akun, c.nama_akun, c.kelompok, c.sub_kelompok
+        ORDER BY c.kode_akun
+      `);
       return NextResponse.json(neracaRes.rows);
     }
 
