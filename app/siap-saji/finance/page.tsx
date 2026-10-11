@@ -4,6 +4,7 @@ import { useState, useEffect, Fragment } from "react";
 import { CreditCard, DollarSign, Plus, FileText, PieChart, BookOpen, ArrowUpRight, ArrowDownLeft, X, CheckCircle, RefreshCw, Search, Edit3, Trash2, Calendar, Printer, Download, FileSpreadsheet, Eye, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/ui/Pagination";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { formatDate } from "@/lib/utils";
 import * as XLSX from "xlsx";
 
@@ -3349,46 +3350,45 @@ export default function SiapSajiFinancePage() {
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
                   Kategori HPP *
                 </label>
-                <select
-                  value={purchaseCoaId}
-                  onChange={(e) => setPurchaseCoaId(e.target.value ? Number(e.target.value) : "")}
-                  required
-                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
-                >
-                  <option value="">-- Pilih Kategori HPP --</option>
-                  {(() => {
-                    const master = coaListAll.length > 0 ? coaListAll : coaList;
-                    const filtered = master.filter((c) =>
-                      c.sub_kelompok === "Beban Pokok Penjualan" ||
-                      c.kode_akun?.startsWith("5-")
-                    );
-                    const listToRender = filtered.length > 0 ? filtered : master;
-                    return listToRender.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        ({c.kode_akun}) {c.nama_akun} - {c.sub_kelompok || c.kelompok}
-                      </option>
-                    ));
-                  })()}
-                </select>
+                {(() => {
+                  const master = coaListAll.length > 0 ? coaListAll : coaList;
+                  const filtered = master.filter((c) =>
+                    c.sub_kelompok === "Beban Pokok Penjualan" ||
+                    c.kode_akun?.startsWith("5-")
+                  );
+                  const listToRender = filtered.length > 0 ? filtered : master;
+                  return (
+                    <SearchableSelect
+                      options={listToRender.map((c) => ({
+                        value: c.id,
+                        label: `(${c.kode_akun}) ${c.nama_akun}`,
+                        category: c.sub_kelompok || c.kelompok,
+                      }))}
+                      value={purchaseCoaId}
+                      onChange={(val) => setPurchaseCoaId(val ? Number(val) : "")}
+                      placeholder="-- Ketik / Pilih Kategori HPP --"
+                    />
+                  );
+                })()}
               </div>
 
               <div style={{ marginBottom: 12 }}>
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
                   Rekening Pembayaran / Metode *
                 </label>
-                <select
+                <SearchableSelect
+                  options={[
+                    { value: "hutang", label: "💳 Hutang Usaha / Tempo (Belum Dibayar)", category: "Tempo" },
+                    ...accounts.map((a) => ({
+                      value: a.id,
+                      label: `${a.nama_rekening} (Saldo: Rp${Number(a.saldo_kini).toLocaleString("id-ID")})`,
+                      category: "Kas/Bank",
+                    })),
+                  ]}
                   value={purchaseKasBankId}
-                  onChange={(e) => setPurchaseKasBankId(e.target.value === "hutang" ? "hutang" : Number(e.target.value))}
-                  required
-                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
-                >
-                  <option value="hutang">💳 Hutang Usaha / Tempo (Belum Dibayar)</option>
-                  {accounts.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.nama_rekening} (Saldo: Rp{Number(a.saldo_kini).toLocaleString("id-ID")})
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setPurchaseKasBankId(val === "hutang" ? "hutang" : (val ? Number(val) : ""))}
+                  placeholder="-- Pilih Rekening Kas / Hutang --"
+                />
               </div>
 
               <div style={{ marginBottom: 12 }}>
@@ -3515,46 +3515,45 @@ export default function SiapSajiFinancePage() {
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
                   Kategori HPP *
                 </label>
-                <select
-                  value={editPurCoaId}
-                  onChange={(e) => setEditPurCoaId(e.target.value ? Number(e.target.value) : "")}
-                  required
-                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
-                >
-                  <option value="">-- Pilih Kategori HPP --</option>
-                  {(() => {
-                    const master = coaListAll.length > 0 ? coaListAll : coaList;
-                    const filtered = master.filter((c) =>
-                      c.sub_kelompok === "Beban Pokok Penjualan" ||
-                      c.kode_akun?.startsWith("5-")
-                    );
-                    const listToRender = filtered.length > 0 ? filtered : master;
-                    return listToRender.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        ({c.kode_akun}) {c.nama_akun} - {c.sub_kelompok || c.kelompok}
-                      </option>
-                    ));
-                  })()}
-                </select>
+                {(() => {
+                  const master = coaListAll.length > 0 ? coaListAll : coaList;
+                  const filtered = master.filter((c) =>
+                    c.sub_kelompok === "Beban Pokok Penjualan" ||
+                    c.kode_akun?.startsWith("5-")
+                  );
+                  const listToRender = filtered.length > 0 ? filtered : master;
+                  return (
+                    <SearchableSelect
+                      options={listToRender.map((c) => ({
+                        value: c.id,
+                        label: `(${c.kode_akun}) ${c.nama_akun}`,
+                        category: c.sub_kelompok || c.kelompok,
+                      }))}
+                      value={editPurCoaId}
+                      onChange={(val) => setEditPurCoaId(val ? Number(val) : "")}
+                      placeholder="-- Ketik / Pilih Kategori HPP --"
+                    />
+                  );
+                })()}
               </div>
 
               <div style={{ marginBottom: 12 }}>
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
                   Rekening Pembayaran / Metode *
                 </label>
-                <select
+                <SearchableSelect
+                  options={[
+                    { value: "hutang", label: "💳 Hutang Usaha / Tempo (Belum Dibayar)", category: "Tempo" },
+                    ...accounts.map((a) => ({
+                      value: a.id,
+                      label: `${a.nama_rekening} (Saldo: Rp${Number(a.saldo_kini).toLocaleString("id-ID")})`,
+                      category: "Kas/Bank",
+                    })),
+                  ]}
                   value={editPurKasBankId}
-                  onChange={(e) => setEditPurKasBankId(e.target.value === "hutang" ? "hutang" : Number(e.target.value))}
-                  required
-                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
-                >
-                  <option value="hutang">💳 Hutang Usaha / Tempo (Belum Dibayar)</option>
-                  {accounts.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.nama_rekening} (Saldo: Rp{Number(a.saldo_kini).toLocaleString("id-ID")})
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setEditPurKasBankId(val === "hutang" ? "hutang" : (val ? Number(val) : ""))}
+                  placeholder="-- Pilih Rekening Kas / Hutang --"
+                />
               </div>
 
               <div style={{ marginBottom: 12 }}>
@@ -3668,47 +3667,46 @@ export default function SiapSajiFinancePage() {
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
                   Kategori Beban Operasional *
                 </label>
-                <select
-                  value={expenseCoaId}
-                  onChange={(e) => setExpenseCoaId(e.target.value ? Number(e.target.value) : "")}
-                  required
-                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
-                >
-                  <option value="">-- Pilih Kategori Beban --</option>
-                  {(() => {
-                    const master = coaListAll.length > 0 ? coaListAll : coaList;
-                    const filtered = master.filter((c) =>
-                      c.sub_kelompok === "Beban Operasional" ||
-                      c.kelompok === "Beban" ||
-                      c.kode_akun?.startsWith("6-")
-                    );
-                    const listToRender = filtered.length > 0 ? filtered : master;
-                    return listToRender.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        ({c.kode_akun}) {c.nama_akun} - {c.sub_kelompok || c.kelompok}
-                      </option>
-                    ));
-                  })()}
-                </select>
+                {(() => {
+                  const master = coaListAll.length > 0 ? coaListAll : coaList;
+                  const filtered = master.filter((c) =>
+                    c.sub_kelompok === "Beban Operasional" ||
+                    c.kelompok === "Beban" ||
+                    c.kode_akun?.startsWith("6-")
+                  );
+                  const listToRender = filtered.length > 0 ? filtered : master;
+                  return (
+                    <SearchableSelect
+                      options={listToRender.map((c) => ({
+                        value: c.id,
+                        label: `(${c.kode_akun}) ${c.nama_akun}`,
+                        category: c.sub_kelompok || c.kelompok,
+                      }))}
+                      value={expenseCoaId}
+                      onChange={(val) => setExpenseCoaId(val ? Number(val) : "")}
+                      placeholder="-- Ketik / Pilih Kategori Beban --"
+                    />
+                  );
+                })()}
               </div>
 
               <div style={{ marginBottom: 12 }}>
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
                   Sumber Dana Kas/Bank / Metode *
                 </label>
-                <select
+                <SearchableSelect
+                  options={[
+                    { value: "hutang", label: "💳 Hutang Usaha / Tempo (Belum Dibayar)", category: "Tempo" },
+                    ...accounts.map((a) => ({
+                      value: a.id,
+                      label: `${a.nama_rekening} (Saldo: Rp${Number(a.saldo_kini).toLocaleString("id-ID")})`,
+                      category: "Kas/Bank",
+                    })),
+                  ]}
                   value={expenseKasBankId}
-                  onChange={(e) => setExpenseKasBankId(e.target.value === "hutang" ? "hutang" : Number(e.target.value))}
-                  required
-                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
-                >
-                  <option value="hutang">💳 Hutang Usaha / Tempo (Belum Dibayar)</option>
-                  {accounts.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.nama_rekening} (Saldo: Rp{Number(a.saldo_kini).toLocaleString("id-ID")})
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setExpenseKasBankId(val === "hutang" ? "hutang" : (val ? Number(val) : ""))}
+                  placeholder="-- Pilih Rekening Kas / Hutang --"
+                />
               </div>
 
               <div style={{ marginBottom: 12 }}>
@@ -3823,47 +3821,46 @@ export default function SiapSajiFinancePage() {
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
                   Kategori Beban Operasional *
                 </label>
-                <select
-                  value={editExpCoaId}
-                  onChange={(e) => setEditExpCoaId(e.target.value ? Number(e.target.value) : "")}
-                  required
-                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
-                >
-                  <option value="">-- Pilih Kategori Beban --</option>
-                  {(() => {
-                    const master = coaListAll.length > 0 ? coaListAll : coaList;
-                    const filtered = master.filter((c) =>
-                      c.sub_kelompok === "Beban Operasional" ||
-                      c.kelompok === "Beban" ||
-                      c.kode_akun?.startsWith("6-")
-                    );
-                    const listToRender = filtered.length > 0 ? filtered : master;
-                    return listToRender.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        ({c.kode_akun}) {c.nama_akun} - {c.sub_kelompok || c.kelompok}
-                      </option>
-                    ));
-                  })()}
-                </select>
+                {(() => {
+                  const master = coaListAll.length > 0 ? coaListAll : coaList;
+                  const filtered = master.filter((c) =>
+                    c.sub_kelompok === "Beban Operasional" ||
+                    c.kelompok === "Beban" ||
+                    c.kode_akun?.startsWith("6-")
+                  );
+                  const listToRender = filtered.length > 0 ? filtered : master;
+                  return (
+                    <SearchableSelect
+                      options={listToRender.map((c) => ({
+                        value: c.id,
+                        label: `(${c.kode_akun}) ${c.nama_akun}`,
+                        category: c.sub_kelompok || c.kelompok,
+                      }))}
+                      value={editExpCoaId}
+                      onChange={(val) => setEditExpCoaId(val ? Number(val) : "")}
+                      placeholder="-- Ketik / Pilih Kategori Beban --"
+                    />
+                  );
+                })()}
               </div>
 
               <div style={{ marginBottom: 12 }}>
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
                   Sumber Dana Kas/Bank / Metode *
                 </label>
-                <select
+                <SearchableSelect
+                  options={[
+                    { value: "hutang", label: "💳 Hutang Usaha / Tempo (Belum Dibayar)", category: "Tempo" },
+                    ...accounts.map((a) => ({
+                      value: a.id,
+                      label: `${a.nama_rekening} (Saldo: Rp${Number(a.saldo_kini).toLocaleString("id-ID")})`,
+                      category: "Kas/Bank",
+                    })),
+                  ]}
                   value={editExpKasBankId}
-                  onChange={(e) => setEditExpKasBankId(e.target.value === "hutang" ? "hutang" : Number(e.target.value))}
-                  required
-                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
-                >
-                  <option value="hutang">💳 Hutang Usaha / Tempo (Belum Dibayar)</option>
-                  {accounts.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.nama_rekening} (Saldo: Rp{Number(a.saldo_kini).toLocaleString("id-ID")})
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setEditExpKasBankId(val === "hutang" ? "hutang" : (val ? Number(val) : ""))}
+                  placeholder="-- Pilih Rekening Kas / Hutang --"
+                />
               </div>
 
               <div style={{ marginBottom: 12 }}>
@@ -4819,34 +4816,21 @@ export default function SiapSajiFinancePage() {
                   <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 3 }}>
                     Pilih Akun Buku Besar (COA):
                   </label>
-                  <select
+                  <SearchableSelect
+                    options={(coaListAll.length > 0 ? coaListAll : coaList).map((c) => ({
+                      value: c.id,
+                      label: `[${c.kode_akun}] ${c.nama_akun}`,
+                      category: `${c.kelompok} - ${c.sub_kelompok || ""}`,
+                    }))}
                     value={ledgerCoaId}
-                    onChange={(e) => {
-                      const cid = Number(e.target.value) || "";
+                    onChange={(val) => {
+                      const cid = val ? Number(val) : "";
                       setLedgerCoaId(cid);
                       setLedgerPage(1);
                       if (cid) fetchLedgerData(cid, 1, ledgerLimit, ledgerDateFrom, ledgerDateTo);
                     }}
-                    style={{
-                      width: "100%",
-                      padding: "8px 12px",
-                      borderRadius: 8,
-                      border: "1.5px solid #5005A6",
-                      fontSize: 13.5,
-                      fontWeight: 700,
-                      color: "#1e3a8a",
-                      background: "#faf5ff",
-                      outline: "none",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <option value="">-- Pilih Akun COA --</option>
-                    {(coaListAll.length > 0 ? coaListAll : coaList).map((c) => (
-                      <option key={c.id} value={c.id}>
-                        [{c.kode_akun}] {c.nama_akun} ({c.kelompok} - {c.sub_kelompok})
-                      </option>
-                    ))}
-                  </select>
+                    placeholder="-- Ketik / Pilih Akun COA --"
+                  />
                 </div>
               </div>
 
@@ -5410,18 +5394,16 @@ export default function SiapSajiFinancePage() {
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
                   Rekening Kas / Bank *
                 </label>
-                <select
+                <SearchableSelect
+                  options={accounts.map((acc) => ({
+                    value: acc.id,
+                    label: `${acc.nama_bank || acc.nama_rekening} (Rp ${Number(acc.saldo_saat_ini || acc.saldo_kini || 0).toLocaleString("id-ID")})`,
+                    category: "Kas/Bank",
+                  }))}
                   value={kasMutasiBankId}
-                  onChange={(e) => setKasMutasiBankId(Number(e.target.value))}
-                  required
-                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
-                >
-                  {accounts.map((acc) => (
-                    <option key={acc.id} value={acc.id}>
-                      {acc.nama_bank} (Rp {Number(acc.saldo_saat_ini || 0).toLocaleString("id-ID")})
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setKasMutasiBankId(val ? Number(val) : "")}
+                  placeholder="-- Ketik / Pilih Rekening Kas/Bank --"
+                />
               </div>
 
               <div style={{ marginBottom: 14 }}>
@@ -5441,19 +5423,16 @@ export default function SiapSajiFinancePage() {
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
                   Akun Lawan COA ({kasMutasiJenis === "Keluar" ? "Debet" : "Kredit"}) *
                 </label>
-                <select
+                <SearchableSelect
+                  options={(coaListAll.length > 0 ? coaListAll : coaList).map((c) => ({
+                    value: c.id,
+                    label: `(${c.kode_akun}) ${c.nama_akun}`,
+                    category: c.sub_kelompok || c.kelompok,
+                  }))}
                   value={kasMutasiCoaId}
-                  onChange={(e) => setKasMutasiCoaId(Number(e.target.value))}
-                  required
-                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
-                >
-                  <option value="">-- Pilih Akun COA --</option>
-                  {(coaListAll.length > 0 ? coaListAll : coaList).map((c) => (
-                    <option key={c.id} value={c.id}>
-                      ({c.kode_akun}) {c.nama_akun} - {c.kelompok}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setKasMutasiCoaId(val ? Number(val) : "")}
+                  placeholder="-- Ketik / Pilih Akun Lawan COA --"
+                />
                 <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
                   {kasMutasiJenis === "Keluar"
                     ? "✓ Jurnal Otomatis: Debet [Akun Lawan], Kredit [Kas/Bank]"
@@ -5559,38 +5538,34 @@ export default function SiapSajiFinancePage() {
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#15803d", marginBottom: 4 }}>
                   Pilih Akun Debet *
                 </label>
-                <select
+                <SearchableSelect
+                  options={(coaListAll.length > 0 ? coaListAll : coaList).map((c) => ({
+                    value: c.id,
+                    label: `(${c.kode_akun}) ${c.nama_akun}`,
+                    category: c.sub_kelompok || c.kelompok,
+                    color: "#15803d",
+                  }))}
                   value={jouFormDebitCoaId}
-                  onChange={(e) => setJouFormDebitCoaId(e.target.value ? Number(e.target.value) : "")}
-                  required
-                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #bbf7d0", background: "#f0fdf4", fontSize: 14, fontWeight: 600 }}
-                >
-                  <option value="">-- Pilih Akun Debet --</option>
-                  {(coaListAll.length > 0 ? coaListAll : coaList).map((c) => (
-                    <option key={c.id} value={c.id}>
-                      ({c.kode_akun}) {c.nama_akun} - {c.sub_kelompok || c.kelompok}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setJouFormDebitCoaId(val ? Number(val) : "")}
+                  placeholder="-- Ketik / Cari Akun Debet --"
+                />
               </div>
 
               <div style={{ marginBottom: 14 }}>
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#b91c1c", marginBottom: 4 }}>
                   Pilih Akun Kredit *
                 </label>
-                <select
+                <SearchableSelect
+                  options={(coaListAll.length > 0 ? coaListAll : coaList).map((c) => ({
+                    value: c.id,
+                    label: `(${c.kode_akun}) ${c.nama_akun}`,
+                    category: c.sub_kelompok || c.kelompok,
+                    color: "#b91c1c",
+                  }))}
                   value={jouFormCreditCoaId}
-                  onChange={(e) => setJouFormCreditCoaId(e.target.value ? Number(e.target.value) : "")}
-                  required
-                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #fca5a5", background: "#fef2f2", fontSize: 14, fontWeight: 600 }}
-                >
-                  <option value="">-- Pilih Akun Kredit --</option>
-                  {(coaListAll.length > 0 ? coaListAll : coaList).map((c) => (
-                    <option key={c.id} value={c.id}>
-                      ({c.kode_akun}) {c.nama_akun} - {c.sub_kelompok || c.kelompok}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setJouFormCreditCoaId(val ? Number(val) : "")}
+                  placeholder="-- Ketik / Cari Akun Kredit --"
+                />
               </div>
 
               <div style={{ marginBottom: 14 }}>
@@ -5867,19 +5842,16 @@ export default function SiapSajiFinancePage() {
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
                   Rekening Kas/Bank Pembayaran *
                 </label>
-                <select
+                <SearchableSelect
+                  options={accounts.map((a) => ({
+                    value: a.id,
+                    label: `${a.nama_rekening || a.nama_bank} (Saldo: Rp${Number(a.saldo_kini || a.saldo_saat_ini || 0).toLocaleString("id-ID")})`,
+                    category: "Kas/Bank",
+                  }))}
                   value={payDebtKasBankId}
-                  onChange={(e) => setPayDebtKasBankId(Number(e.target.value))}
-                  required
-                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
-                >
-                  <option value="">-- Pilih Rekening Kas/Bank --</option>
-                  {accounts.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.nama_rekening} (Saldo: Rp{Number(a.saldo_kini).toLocaleString("id-ID")})
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setPayDebtKasBankId(val ? Number(val) : "")}
+                  placeholder="-- Ketik / Pilih Rekening Kas/Bank --"
+                />
               </div>
 
               <div style={{ marginBottom: 12 }}>
