@@ -19,6 +19,8 @@ import {
   Eye,
   Copy,
   ChevronDown,
+  ChevronUp,
+  ArrowUpDown,
   RefreshCw,
   FileText,
   ClipboardList,
@@ -150,7 +152,7 @@ export default function SiapSajiOrdersPage() {
     return `${year}-${month}-${day}`;
   };
 
-  // Filters - Default Terbuka (true)
+  // Filters - Default Terbuka (true) & Default Besok (H+1)
   const [showStatsAndFilters, setShowStatsAndFilters] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -158,13 +160,41 @@ export default function SiapSajiOrdersPage() {
   const [productFilter, setProductFilter] = useState<number | "">("");
   const [filterProductSearchQuery, setFilterProductSearchQuery] = useState("");
   const [isFilterProductDropdownOpen, setIsFilterProductDropdownOpen] = useState(false);
-  const [timeShortcut, setTimeShortcut] = useState<string>("today");
-  const [dateFrom, setDateFrom] = useState(getTodayStr());
-  const [dateTo, setDateTo] = useState(getTodayStr());
+  const [timeShortcut, setTimeShortcut] = useState<string>("tomorrow");
+  const [dateFrom, setDateFrom] = useState(getTomorrowStr());
+  const [dateTo, setDateTo] = useState(getTomorrowStr());
+
+  // Sorting state (Default by delivery_date descending)
+  const [sortBy, setSortBy] = useState<string>("delivery_date");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const toggleSort = (colKey: string) => {
+    if (sortBy === colKey) {
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(colKey);
+      setSortDir("asc");
+    }
+  };
+
+  const renderSortArrow = (colKey: string) => {
+    if (sortBy !== colKey) {
+      return <ArrowUpDown size={12} color="#9ca3af" style={{ marginLeft: 4, display: "inline-block", verticalAlign: "middle" }} />;
+    }
+    return sortDir === "asc" ? (
+      <ChevronUp size={13} color="#5005A6" style={{ marginLeft: 4, display: "inline-block", verticalAlign: "middle" }} />
+    ) : (
+      <ChevronDown size={13} color="#5005A6" style={{ marginLeft: 4, display: "inline-block", verticalAlign: "middle" }} />
+    );
+  };
 
   const handleTimeShortcutChange = (val: string) => {
     setTimeShortcut(val);
-    if (val === "today") {
+    if (val === "tomorrow") {
+      const tomorrow = getTomorrowStr();
+      setDateFrom(tomorrow);
+      setDateTo(tomorrow);
+    } else if (val === "today") {
       const today = getTodayStr();
       setDateFrom(today);
       setDateTo(today);
@@ -592,6 +622,8 @@ export default function SiapSajiOrdersPage() {
       if (productFilter) q.append("product_id", String(productFilter));
       if (dateFrom) q.append("date_from", dateFrom);
       if (dateTo) q.append("date_to", dateTo);
+      if (sortBy) q.append("sort_by", sortBy);
+      if (sortDir) q.append("sort_dir", sortDir);
 
       const res = await fetch(`/api/siap-saji/orders?${q.toString()}`);
       if (!res.ok) throw new Error("Gagal memuat daftar transaksi");
@@ -652,7 +684,7 @@ export default function SiapSajiOrdersPage() {
 
   useEffect(() => {
     fetchOrders();
-  }, [search, statusFilter, channelFilter, productFilter, dateFrom, dateTo]);
+  }, [search, statusFilter, channelFilter, productFilter, dateFrom, dateTo, sortBy, sortDir]);
 
   // Recalculate Shipping Fee when Area or Channel changes in Form
   useEffect(() => {
@@ -1193,7 +1225,7 @@ export default function SiapSajiOrdersPage() {
           >
             <Filter size={17} color={showStatsAndFilters ? "#5005A6" : "#6b7280"} />
             {showStatsAndFilters ? "Sembunyikan Filter & Scorecard" : "Tampilkan Filter & Scorecard"}
-            {Boolean(search || statusFilter || channelFilter || productFilter || timeShortcut !== "today" || (dateFrom && dateFrom !== getTodayStr()) || (dateTo && dateTo !== getTodayStr())) && !showStatsAndFilters && (
+            {Boolean(search || statusFilter || channelFilter || productFilter || timeShortcut !== "tomorrow" || (dateFrom && dateFrom !== getTomorrowStr()) || (dateTo && dateTo !== getTomorrowStr())) && !showStatsAndFilters && (
               <span
                 style={{
                   background: "#BA7517",
@@ -1472,6 +1504,7 @@ export default function SiapSajiOrdersPage() {
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
           <SearchableSelect
             options={[
+              { value: "tomorrow", label: "📅 Besok" },
               { value: "today", label: "📅 Hari Ini" },
               { value: "yesterday", label: "📅 Hari Kemarin" },
               { value: "week", label: "📅 Pekan Ini" },
@@ -1481,7 +1514,7 @@ export default function SiapSajiOrdersPage() {
               { value: "custom", label: "📅 Custom Tanggal" },
             ]}
             value={timeShortcut}
-            onChange={(val) => handleTimeShortcutChange(val ? String(val) : "today")}
+            onChange={(val) => handleTimeShortcutChange(val ? String(val) : "tomorrow")}
             placeholder="Pilih Rentang Waktu"
             style={{ width: 160 }}
           />
@@ -1507,17 +1540,17 @@ export default function SiapSajiOrdersPage() {
           />
         </div>
 
-        {(search || statusFilter || channelFilter || productFilter || timeShortcut !== "today" || dateFrom || dateTo) && (
+        {(search || statusFilter || channelFilter || productFilter || timeShortcut !== "tomorrow" || dateFrom !== getTomorrowStr() || dateTo !== getTomorrowStr()) && (
           <button
             onClick={() => {
               setSearch("");
               setStatusFilter("");
               setChannelFilter("");
               setProductFilter("");
-              setTimeShortcut("today");
-              const today = getTodayStr();
-              setDateFrom(today);
-              setDateTo(today);
+              setTimeShortcut("tomorrow");
+              const tomorrow = getTomorrowStr();
+              setDateFrom(tomorrow);
+              setDateTo(tomorrow);
             }}
             style={{
               padding: "7px 14px",
@@ -1603,31 +1636,7 @@ export default function SiapSajiOrdersPage() {
               PDF Pas
             </button>
 
-            <button
-              onClick={() => {
-                const url = `/api/siap-saji/orders/bulk-pdf?ids=${selectedOrderIds.join(",")}&mode=roll`;
-                window.open(url, "_blank");
-              }}
-              style={{
-                background: "#15803d",
-                color: "white",
-                border: "none",
-                borderRadius: 8,
-                padding: "6px 11px",
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: 5,
-                whiteSpace: "nowrap",
-                boxShadow: "0 2px 6px rgba(21, 128, 61, 0.2)",
-              }}
-              title="Cetak PDF Roll Kontinu (Kassen BTP3100 Thermal)"
-            >
-              <Printer size={14} />
-              PDF Roll
-            </button>
+
 
             <button
               onClick={() => {
@@ -1750,16 +1759,76 @@ export default function SiapSajiOrdersPage() {
                   style={{ cursor: "pointer", width: 16, height: 16, accentColor: "#5005A6" }}
                 />
               </th>
-              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", width: 50 }}>No.</th>
-              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>No. Struk</th>
-              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Tanggal</th>
-              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Nama Pelanggan</th>
-              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>No. HP / WA</th>
-              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Kecamatan</th>
-              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Channel</th>
-              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Total</th>
-              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Rekening</th>
-              <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "center" }}>Status Bayar</th>
+              <th
+                onClick={() => toggleSort("id")}
+                style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", width: 50, cursor: "pointer", userSelect: "none" }}
+                title="Urutkan No / ID"
+              >
+                No. {renderSortArrow("id")}
+              </th>
+              <th
+                onClick={() => toggleSort("no_struk")}
+                style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", cursor: "pointer", userSelect: "none" }}
+                title="Urutkan No. Struk"
+              >
+                No. Struk {renderSortArrow("no_struk")}
+              </th>
+              <th
+                onClick={() => toggleSort("delivery_date")}
+                style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", cursor: "pointer", userSelect: "none", color: sortBy === "delivery_date" ? "#5005A6" : undefined, fontWeight: sortBy === "delivery_date" ? 800 : undefined }}
+                title="Urutkan Tanggal Kirim (Default: Terbaru)"
+              >
+                Tanggal {renderSortArrow("delivery_date")}
+              </th>
+              <th
+                onClick={() => toggleSort("customer_name")}
+                style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", cursor: "pointer", userSelect: "none" }}
+                title="Urutkan Nama Pelanggan"
+              >
+                Nama Pelanggan {renderSortArrow("customer_name")}
+              </th>
+              <th
+                onClick={() => toggleSort("customer_phone")}
+                style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", cursor: "pointer", userSelect: "none" }}
+                title="Urutkan No. HP / WA"
+              >
+                No. HP / WA {renderSortArrow("customer_phone")}
+              </th>
+              <th
+                onClick={() => toggleSort("area_kecamatan")}
+                style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", cursor: "pointer", userSelect: "none" }}
+                title="Urutkan Kecamatan"
+              >
+                Kecamatan {renderSortArrow("area_kecamatan")}
+              </th>
+              <th
+                onClick={() => toggleSort("channel_name")}
+                style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", cursor: "pointer", userSelect: "none" }}
+                title="Urutkan Channel Penjualan"
+              >
+                Channel {renderSortArrow("channel_name")}
+              </th>
+              <th
+                onClick={() => toggleSort("grand_total")}
+                style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", cursor: "pointer", userSelect: "none" }}
+                title="Urutkan Nominal Total"
+              >
+                Total {renderSortArrow("grand_total")}
+              </th>
+              <th
+                onClick={() => toggleSort("payment_bank")}
+                style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", cursor: "pointer", userSelect: "none" }}
+                title="Urutkan Rekening Bank"
+              >
+                Rekening {renderSortArrow("payment_bank")}
+              </th>
+              <th
+                onClick={() => toggleSort("status_payment")}
+                style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "center", cursor: "pointer", userSelect: "none" }}
+                title="Urutkan Status Bayar (Lunas / Belum Lunas)"
+              >
+                Status Bayar {renderSortArrow("status_payment")}
+              </th>
               <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "right" }}>Aksi</th>
             </tr>
           </thead>

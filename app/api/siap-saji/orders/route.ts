@@ -18,10 +18,18 @@ export async function GET(req: NextRequest) {
   const sort_by = p.get("sort_by") || "order_date";
   const sort_dir = (p.get("sort_dir") || "desc").toLowerCase() === "asc" ? "ASC" : "DESC";
 
-  let orderColumn = "o.order_date";
-  if (sort_by === "delivery_date") orderColumn = "o.delivery_date";
-  if (sort_by === "no_struk") orderColumn = "o.no_struk";
-  if (sort_by === "grand_total") orderColumn = "o.grand_total";
+  let orderColumn = "o.delivery_date";
+  if (sort_by === "delivery_date" || sort_by === "date") orderColumn = "o.delivery_date";
+  else if (sort_by === "order_date") orderColumn = "o.order_date";
+  else if (sort_by === "no_struk") orderColumn = "o.no_struk";
+  else if (sort_by === "customer_name" || sort_by === "name") orderColumn = "c.name";
+  else if (sort_by === "customer_phone" || sort_by === "phone") orderColumn = "c.phone";
+  else if (sort_by === "area_kecamatan" || sort_by === "kecamatan") orderColumn = "COALESCE(ao.kecamatan, ac.kecamatan, '-')";
+  else if (sort_by === "channel_name" || sort_by === "channel") orderColumn = "ch.name";
+  else if (sort_by === "grand_total" || sort_by === "total") orderColumn = "o.grand_total";
+  else if (sort_by === "payment_bank" || sort_by === "rekening") orderColumn = "o.payment_bank";
+  else if (sort_by === "status_payment" || sort_by === "status") orderColumn = "o.status_payment";
+  else if (sort_by === "id" || sort_by === "no") orderColumn = "o.id";
 
   const wheres: string[] = ["o.lini = 'siap_saji'"];
   const vals: any[] = [];

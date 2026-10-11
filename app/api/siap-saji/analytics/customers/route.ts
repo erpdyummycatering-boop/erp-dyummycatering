@@ -4,6 +4,21 @@ import pool from "@/lib/db";
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const segmentParam = searchParams.get("segment");
+  const dateFrom = searchParams.get("date_from");
+  const dateTo = searchParams.get("date_to");
+
+  let orderDateCondition = "";
+  let orderDateConditionWithAnd = "";
+  if (dateFrom && dateTo) {
+    orderDateCondition = `AND o.order_date >= '${dateFrom}'::date AND o.order_date <= '${dateTo}'::date`;
+    orderDateConditionWithAnd = `AND o.order_date >= '${dateFrom}'::date AND o.order_date <= '${dateTo}'::date`;
+  } else if (dateFrom) {
+    orderDateCondition = `AND o.order_date >= '${dateFrom}'::date`;
+    orderDateConditionWithAnd = `AND o.order_date >= '${dateFrom}'::date`;
+  } else if (dateTo) {
+    orderDateCondition = `AND o.order_date <= '${dateTo}'::date`;
+    orderDateConditionWithAnd = `AND o.order_date <= '${dateTo}'::date`;
+  }
 
   const client = await pool.connect();
   try {
@@ -30,7 +45,7 @@ export async function GET(req: NextRequest) {
             MAX(o.order_date) AS last_order_date,
             COALESCE(SUM(o.grand_total), 0) AS total_spending
           FROM customers c
-          LEFT JOIN orders o ON o.customer_id = c.id AND o.lini = 'siap_saji' AND o.status_order <> 'Dibatalkan'
+          LEFT JOIN orders o ON o.customer_id = c.id AND o.lini = 'siap_saji' AND o.status_order <> 'Dibatalkan' ${orderDateCondition}
           WHERE c.lini IN ('siap_saji', 'keduanya') OR o.id IS NOT NULL
           GROUP BY c.id, c.name, c.phone, c.type, c.created_at
         ),
@@ -98,7 +113,7 @@ export async function GET(req: NextRequest) {
           MAX(o.order_date) AS last_order_date,
           COALESCE(SUM(o.grand_total), 0) AS total_spending
         FROM customers c
-        LEFT JOIN orders o ON o.customer_id = c.id AND o.lini = 'siap_saji' AND o.status_order <> 'Dibatalkan'
+        LEFT JOIN orders o ON o.customer_id = c.id AND o.lini = 'siap_saji' AND o.status_order <> 'Dibatalkan' ${orderDateCondition}
         WHERE c.lini IN ('siap_saji', 'keduanya') OR o.id IS NOT NULL
         GROUP BY c.id
       ),
@@ -214,6 +229,7 @@ export async function GET(req: NextRequest) {
         FROM orders o
         WHERE o.lini = 'siap_saji' AND o.status_order <> 'Dibatalkan'
           AND o.order_date >= DATE_TRUNC('year', CURRENT_DATE)
+          ${orderDateCondition}
       )
       SELECT 
         mo.order_month,
@@ -264,7 +280,7 @@ export async function GET(req: NextRequest) {
           COALESCE(SUM(o.grand_total), 0) AS total_spending
         FROM customers c
         LEFT JOIN areas a ON a.id = c.area_id
-        LEFT JOIN orders o ON o.customer_id = c.id AND o.lini = 'siap_saji' AND o.status_order <> 'Dibatalkan'
+        LEFT JOIN orders o ON o.customer_id = c.id AND o.lini = 'siap_saji' AND o.status_order <> 'Dibatalkan' ${orderDateCondition}
         WHERE c.lini IN ('siap_saji', 'keduanya') OR o.id IS NOT NULL
         GROUP BY c.id, a.kecamatan
       ),
@@ -316,7 +332,7 @@ export async function GET(req: NextRequest) {
           COUNT(o.id)::int AS orders_count,
           COALESCE(SUM(o.grand_total), 0)::numeric AS omset
         FROM customers c
-        JOIN orders o ON o.customer_id = c.id AND o.lini = 'siap_saji' AND o.status_order <> 'Dibatalkan'
+        JOIN orders o ON o.customer_id = c.id AND o.lini = 'siap_saji' AND o.status_order <> 'Dibatalkan' ${orderDateCondition}
         LEFT JOIN areas a ON a.id = c.area_id
         GROUP BY c.id, c.name, c.phone, a.kecamatan
         ORDER BY omset DESC, orders_count DESC
@@ -331,7 +347,7 @@ export async function GET(req: NextRequest) {
           COUNT(o.id)::int AS orders_count,
           COALESCE(SUM(o.grand_total), 0)::numeric AS omset
         FROM customers c
-        JOIN orders o ON o.customer_id = c.id AND o.lini = 'siap_saji' AND o.status_order <> 'Dibatalkan'
+        JOIN orders o ON o.customer_id = c.id AND o.lini = 'siap_saji' AND o.status_order <> 'Dibatalkan' ${orderDateCondition}
         LEFT JOIN areas a ON a.id = c.area_id
         GROUP BY c.id, c.name, c.phone, a.kecamatan
         ORDER BY orders_count DESC, omset DESC

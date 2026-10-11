@@ -88,6 +88,19 @@ export default async function PrintPlPage({ searchParams }: PageProps) {
   // Categorize
   const pendapatanAccounts = details.filter((d) => d.kelompok === "Pendapatan");
   const hppAccounts = details.filter((d) => d.kelompok === "Beban" && d.sub_kelompok === "Beban Pokok Penjualan");
+
+  const isFoodCostAccount = (acc: any) => {
+    const code = String(acc.kode_akun || "").trim();
+    const name = String(acc.nama_akun || "").toLowerCase();
+    if (code.startsWith("5-1001") || code.startsWith("5-1002") || code.startsWith("5-50000")) return true;
+    if (name.includes("bahan baku") || name.includes("bahan") || name.includes("kemasan") || name.includes("food cost")) return true;
+    if (name.includes("gaji") || name.includes("gas") || name.includes("listrik") || name.includes("air") || name.includes("sewa") || name.includes("bensin") || name.includes("overhead")) return false;
+    return true;
+  };
+
+  const foodCostAccounts = hppAccounts.filter(isFoodCostAccount);
+  const overheadHppAccounts = hppAccounts.filter((d) => !isFoodCostAccount(d));
+
   const opexAccounts = details.filter((d) => d.kelompok === "Beban" && d.sub_kelompok === "Beban Operasional");
   const otherAccounts = details.filter(
     (d) => d.kelompok === "Beban" && d.sub_kelompok !== "Beban Pokok Penjualan" && d.sub_kelompok !== "Beban Operasional"
@@ -95,6 +108,9 @@ export default async function PrintPlPage({ searchParams }: PageProps) {
 
   const totalPendapatan = pendapatanAccounts.reduce((s, a) => s + Number(a.total_nominal || 0), 0);
   const totalHpp = hppAccounts.reduce((s, a) => s + Number(a.total_nominal || 0), 0);
+  const totalFoodCost = foodCostAccounts.reduce((s, a) => s + Number(a.total_nominal || 0), 0);
+  const totalOverheadHpp = overheadHppAccounts.reduce((s, a) => s + Number(a.total_nominal || 0), 0);
+
   const labaKotor = totalPendapatan - totalHpp;
   const totalOpex = opexAccounts.reduce((s, a) => s + Number(a.total_nominal || 0), 0);
   const labaOperasional = labaKotor - totalOpex;
@@ -241,20 +257,21 @@ export default async function PrintPlPage({ searchParams }: PageProps) {
               </td>
             </tr>
 
-            {/* ── 2. BEBAN POKOK PENJUALAN ─────────────── */}
+            {/* ── 2. BEBAN POKOK PENJUALAN (HPP & OVERHEAD) ─────────────── */}
             <tr>
               <td colSpan={2} style={{ padding: "16px 0 4px", fontWeight: 800, color: "#111827", textTransform: "uppercase" }}>
                 BEBAN POKOK PENJUALAN (HPP & OVERHEAD)
               </td>
             </tr>
+
+            {/* 2a. Food Cost */}
             <tr>
-              <td colSpan={2} style={{ padding: "2px 0 2px 14px", fontWeight: 700, color: "#374151" }}>
-                Beban Pokok Penjualan
+              <td colSpan={2} style={{ padding: "4px 0 2px 14px", fontWeight: 700, color: "#15803d" }}>
+                Food Cost (Bahan Baku & Kemasan)
               </td>
             </tr>
-
-            {hppAccounts.map((acc, idx) => (
-              <tr key={idx}>
+            {foodCostAccounts.map((acc, idx) => (
+              <tr key={`fc-${idx}`}>
                 <td style={{ padding: "2px 0 2px 28px", color: "#374151" }}>
                   ({acc.kode_akun}) {acc.nama_akun}
                 </td>
@@ -263,22 +280,62 @@ export default async function PrintPlPage({ searchParams }: PageProps) {
                 </td>
               </tr>
             ))}
-
-            {hppAccounts.length === 0 && (
+            {foodCostAccounts.length === 0 && (
               <tr>
                 <td style={{ padding: "2px 0 2px 28px", color: "#9ca3af", fontStyle: "italic" }}>
-                  (Tidak ada transaksi HPP)
+                  (Tidak ada transaksi Food Cost)
                 </td>
                 <td style={{ textAlign: "right", padding: "2px 0", fontFamily: "monospace", fontSize: 13 }}>0</td>
               </tr>
             )}
+            <tr>
+              <td style={{ padding: "4px 0 4px 14px", fontWeight: 700, color: "#15803d" }}>
+                Subtotal Food Cost
+              </td>
+              <td style={{ textAlign: "right", padding: "4px 0", fontWeight: 700, borderTop: "1px dashed #d1d5db", fontFamily: "monospace", fontSize: 13, color: "#15803d" }}>
+                {fmtCurrency(totalFoodCost)}
+              </td>
+            </tr>
 
-            {/* Subtotal HPP */}
+            {/* 2b. Overhead Dapur */}
+            <tr>
+              <td colSpan={2} style={{ padding: "8px 0 2px 14px", fontWeight: 700, color: "#b45309" }}>
+                Overhead Dapur (Gaji, Gas, Operasional Dapur)
+              </td>
+            </tr>
+            {overheadHppAccounts.map((acc, idx) => (
+              <tr key={`ov-${idx}`}>
+                <td style={{ padding: "2px 0 2px 28px", color: "#374151" }}>
+                  ({acc.kode_akun}) {acc.nama_akun}
+                </td>
+                <td style={{ textAlign: "right", padding: "2px 0", color: "#111827", fontFamily: "monospace", fontSize: 13 }}>
+                  {fmtCurrency(Number(acc.total_nominal))}
+                </td>
+              </tr>
+            ))}
+            {overheadHppAccounts.length === 0 && (
+              <tr>
+                <td style={{ padding: "2px 0 2px 28px", color: "#9ca3af", fontStyle: "italic" }}>
+                  (Tidak ada transaksi Overhead Dapur)
+                </td>
+                <td style={{ textAlign: "right", padding: "2px 0", fontFamily: "monospace", fontSize: 13 }}>0</td>
+              </tr>
+            )}
+            <tr>
+              <td style={{ padding: "4px 0 4px 14px", fontWeight: 700, color: "#b45309" }}>
+                Subtotal Overhead Dapur
+              </td>
+              <td style={{ textAlign: "right", padding: "4px 0", fontWeight: 700, borderTop: "1px dashed #d1d5db", fontFamily: "monospace", fontSize: 13, color: "#b45309" }}>
+                {fmtCurrency(totalOverheadHpp)}
+              </td>
+            </tr>
+
+            {/* Subtotal Total HPP & Overhead */}
             <tr>
               <td style={{ padding: "8px 0 6px 0", fontWeight: 800, color: "#111827" }}>
-                Jumlah Beban Pokok Penjualan
+                Jumlah Beban Pokok Penjualan (HPP & Overhead)
               </td>
-              <td style={{ textAlign: "right", padding: "8px 0 6px 0", fontWeight: 800, borderTop: "1px solid #111827", fontFamily: "monospace", fontSize: 13.5 }}>
+              <td style={{ textAlign: "right", padding: "8px 0 6px 0", fontWeight: 800, borderTop: "1.5px solid #111827", fontFamily: "monospace", fontSize: 13.5 }}>
                 {fmtCurrency(totalHpp)}
               </td>
             </tr>

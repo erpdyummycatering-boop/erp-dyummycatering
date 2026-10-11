@@ -18,6 +18,7 @@ import {
   Crown,
   Download,
   FileSpreadsheet,
+  Calendar,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import {
@@ -105,10 +106,53 @@ export default function SiapSajiCustomerAnalyticsPage() {
     toast.success(`File Excel Top Customers (${type}) berhasil diunduh!`);
   };
 
-  const fetchAnalytics = async (limitVal = topLimit) => {
+  const getTodayStr = () => new Date().toISOString().split("T")[0];
+  const [dateFrom, setDateFrom] = useState<string>(getTodayStr());
+  const [dateTo, setDateTo] = useState<string>(getTodayStr());
+  const [timeShortcut, setTimeShortcut] = useState<string>("today");
+
+  const handleTimeShortcutChange = (val: string) => {
+    setTimeShortcut(val);
+    const today = new Date();
+    const fmt = (d: Date) => d.toISOString().split("T")[0];
+
+    if (val === "today") {
+      const t = fmt(today);
+      setDateFrom(t);
+      setDateTo(t);
+    } else if (val === "yesterday") {
+      const y = new Date();
+      y.setDate(today.getDate() - 1);
+      const yt = fmt(y);
+      setDateFrom(yt);
+      setDateTo(yt);
+    } else if (val === "week") {
+      const day = today.getDay();
+      const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+      const mon = new Date(today.setDate(diff));
+      setDateFrom(fmt(mon));
+      setDateTo(getTodayStr());
+    } else if (val === "month") {
+      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+      setDateFrom(fmt(firstDay));
+      setDateTo(getTodayStr());
+    } else if (val === "year") {
+      const firstDay = new Date(today.getFullYear(), 0, 1);
+      setDateFrom(fmt(firstDay));
+      setDateTo(getTodayStr());
+    } else if (val === "all") {
+      setDateFrom("");
+      setDateTo("");
+    }
+  };
+
+  const fetchAnalytics = async (limitVal = topLimit, dFrom = dateFrom, dTo = dateTo) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/siap-saji/analytics/customers?top_limit=${limitVal}`);
+      const q = new URLSearchParams({ top_limit: limitVal });
+      if (dFrom) q.append("date_from", dFrom);
+      if (dTo) q.append("date_to", dTo);
+      const res = await fetch(`/api/siap-saji/analytics/customers?${q.toString()}`);
       if (!res.ok) throw new Error("Gagal memuat analitik customer");
       setData(await res.json());
     } catch (err: any) {
@@ -119,8 +163,8 @@ export default function SiapSajiCustomerAnalyticsPage() {
   };
 
   useEffect(() => {
-    fetchAnalytics();
-  }, []);
+    fetchAnalytics(topLimit, dateFrom, dateTo);
+  }, [dateFrom, dateTo]);
 
   const handleRefreshRfm = async () => {
     setIsRefreshing(true);
@@ -128,7 +172,7 @@ export default function SiapSajiCustomerAnalyticsPage() {
       const res = await fetch("/api/siap-saji/rfm", { method: "POST" });
       if (!res.ok) throw new Error("Gagal memperbarui skor RFM");
       toast.success("Skor RFM customer berhasil diperbarui!");
-      fetchAnalytics();
+      fetchAnalytics(topLimit, dateFrom, dateTo);
     } catch (err: any) {
       toast.error(err.message || "Gagal merefresh RFM");
     } finally {
@@ -143,7 +187,10 @@ export default function SiapSajiCustomerAnalyticsPage() {
     setModalSearch("");
     setModalPage(1);
     try {
-      const res = await fetch(`/api/siap-saji/analytics/customers?segment=${encodeURIComponent(segmentName)}`);
+      const q = new URLSearchParams({ segment: segmentName });
+      if (dateFrom) q.append("date_from", dateFrom);
+      if (dateTo) q.append("date_to", dateTo);
+      const res = await fetch(`/api/siap-saji/analytics/customers?${q.toString()}`);
       if (!res.ok) throw new Error("Gagal mengambil daftar customer segmen");
       const result = await res.json();
       setSegmentCustomers(result.customers || []);
@@ -322,6 +369,165 @@ export default function SiapSajiCustomerAnalyticsPage() {
         >
           <MapPin size={16} /> Segmen per Kecamatan
         </button>
+      </div>
+
+      {/* FILTER WAKTU (BERLAKU DI SEMUA TAB) */}
+      <div
+        style={{
+          background: "white",
+          borderRadius: 14,
+          padding: "12px 18px",
+          border: "1px solid #e5e7eb",
+          marginBottom: 24,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: 12,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#374151" }}>Rentang Waktu:</span>
+          <div style={{ background: "#f3f4f6", padding: 3, borderRadius: 8, display: "flex", gap: 3, flexWrap: "wrap" }}>
+            <button
+              onClick={() => handleTimeShortcutChange("today")}
+              style={{
+                padding: "6px 12px",
+                borderRadius: 6,
+                border: "none",
+                background: timeShortcut === "today" ? "#5005A6" : "transparent",
+                color: timeShortcut === "today" ? "white" : "#4b5563",
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              Hari Ini
+            </button>
+            <button
+              onClick={() => handleTimeShortcutChange("yesterday")}
+              style={{
+                padding: "6px 12px",
+                borderRadius: 6,
+                border: "none",
+                background: timeShortcut === "yesterday" ? "#5005A6" : "transparent",
+                color: timeShortcut === "yesterday" ? "white" : "#4b5563",
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              Kemarin
+            </button>
+            <button
+              onClick={() => handleTimeShortcutChange("week")}
+              style={{
+                padding: "6px 12px",
+                borderRadius: 6,
+                border: "none",
+                background: timeShortcut === "week" ? "#5005A6" : "transparent",
+                color: timeShortcut === "week" ? "white" : "#4b5563",
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              Pekan Ini
+            </button>
+            <button
+              onClick={() => handleTimeShortcutChange("month")}
+              style={{
+                padding: "6px 12px",
+                borderRadius: 6,
+                border: "none",
+                background: timeShortcut === "month" ? "#5005A6" : "transparent",
+                color: timeShortcut === "month" ? "white" : "#4b5563",
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              Bulan Ini
+            </button>
+            <button
+              onClick={() => handleTimeShortcutChange("year")}
+              style={{
+                padding: "6px 12px",
+                borderRadius: 6,
+                border: "none",
+                background: timeShortcut === "year" ? "#5005A6" : "transparent",
+                color: timeShortcut === "year" ? "white" : "#4b5563",
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              Tahun Ini
+            </button>
+            <button
+              onClick={() => handleTimeShortcutChange("all")}
+              style={{
+                padding: "6px 12px",
+                borderRadius: 6,
+                border: "none",
+                background: timeShortcut === "all" ? "#5005A6" : "transparent",
+                color: timeShortcut === "all" ? "white" : "#4b5563",
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              Semua Waktu
+            </button>
+          </div>
+        </div>
+
+        {/* Date Inputs & Reset */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#f9fafb", padding: "5px 10px", borderRadius: 8, border: "1px solid #d1d5db" }}>
+            <Calendar size={14} color="#6b7280" />
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => {
+                setDateFrom(e.target.value);
+                setTimeShortcut("custom");
+              }}
+              title="Dari Tanggal"
+              style={{ border: "none", background: "transparent", outline: "none", fontSize: 12.5, color: "#374151" }}
+            />
+            <span style={{ color: "#9ca3af", fontSize: 12 }}>s/d</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => {
+                setDateTo(e.target.value);
+                setTimeShortcut("custom");
+              }}
+              title="Sampai Tanggal"
+              style={{ border: "none", background: "transparent", outline: "none", fontSize: 12.5, color: "#374151" }}
+            />
+          </div>
+
+          {(timeShortcut !== "today" || dateFrom !== getTodayStr() || dateTo !== getTodayStr()) && (
+            <button
+              onClick={() => handleTimeShortcutChange("today")}
+              style={{
+                background: "#fee2e2",
+                color: "#dc2626",
+                border: "1px solid #fecaca",
+                borderRadius: 8,
+                padding: "6px 12px",
+                fontSize: 12,
+                cursor: "pointer",
+                fontWeight: 700,
+              }}
+              title="Reset Filter Tanggal ke Hari Ini"
+            >
+              ✕ Reset Hari Ini
+            </button>
+          )}
+        </div>
       </div>
 
       {/* TAB 1: OVERVIEW (IMAGE 1 + DRILLDOWN MODAL) */}
@@ -835,7 +1041,7 @@ export default function SiapSajiCustomerAnalyticsPage() {
                 value={topLimit}
                 onChange={(e) => {
                   setTopLimit(e.target.value);
-                  fetchAnalytics(e.target.value);
+                  fetchAnalytics(e.target.value, dateFrom, dateTo);
                 }}
                 style={{
                   padding: "6px 12px",

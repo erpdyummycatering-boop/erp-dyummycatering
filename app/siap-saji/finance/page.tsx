@@ -498,8 +498,32 @@ export default function SiapSajiFinancePage() {
       .reduce((sum: number, d: any) => sum + Number(d.total_nominal || 0), 0);
   };
 
+  // Helper to distinguish Food Cost vs Overhead under HPP
+  const isFoodCostAccount = (acc: any) => {
+    const code = String(acc.kode_akun || "").trim();
+    const name = String(acc.nama_akun || "").toLowerCase();
+    // Codes like 5-1001, 5-50000, 5-1002 (Bahan Baku / Kemasan / Food)
+    if (code.startsWith("5-1001") || code.startsWith("5-1002") || code.startsWith("5-50000")) return true;
+    if (name.includes("bahan baku") || name.includes("bahan") || name.includes("kemasan") || name.includes("food cost")) return true;
+    // Overhead keywords: gaji, gas, listrik, air, sewa, transport, bensin, operasional
+    if (name.includes("gaji") || name.includes("gas") || name.includes("listrik") || name.includes("air") || name.includes("sewa") || name.includes("bensin") || name.includes("overhead")) return false;
+    return true; // Default HPP is food cost if not explicitly overhead
+  };
+
   const totalPendapatan = calculatePlCategoryTotal("Pendapatan");
   const totalHpp = calculatePlCategoryTotal("Beban", "Beban Pokok Penjualan");
+
+  // Split HPP into Food Cost and Overhead
+  const hppDetails = (plData?.details || []).filter(
+    (d: any) => d.kelompok === "Beban" && d.sub_kelompok === "Beban Pokok Penjualan"
+  );
+  const totalFoodCost = hppDetails
+    .filter(isFoodCostAccount)
+    .reduce((sum: number, d: any) => sum + Number(d.total_nominal || 0), 0);
+  const totalOverheadHpp = hppDetails
+    .filter((d: any) => !isFoodCostAccount(d))
+    .reduce((sum: number, d: any) => sum + Number(d.total_nominal || 0), 0);
+
   const labaKotor = totalPendapatan - totalHpp;
   const totalBiayaOperasional = calculatePlCategoryTotal("Beban", "Beban Operasional");
   const labaBersih = labaKotor - totalBiayaOperasional;
@@ -540,13 +564,22 @@ export default function SiapSajiFinancePage() {
     rows.push(["Jumlah Pendapatan", totalPendapatan]);
     rows.push([]);
 
-    rows.push(["BEBAN POKOK PENJUALAN", ""]);
-    rows.push(["  Beban Pokok Penjualan", ""]);
-    const hppAccs = plData.details.filter((d: any) => d.kelompok === "Beban" && d.sub_kelompok === "Beban Pokok Penjualan");
-    hppAccs.forEach((acc: any) => {
+    rows.push(["HARGA POKOK PENJUALAN (HPP & OVERHEAD)", ""]);
+    rows.push(["  1. Food Cost (Bahan Baku & Kemasan)", ""]);
+    const foodCostAccs = hppDetails.filter(isFoodCostAccount);
+    foodCostAccs.forEach((acc: any) => {
       rows.push([`    (${acc.kode_akun}) ${acc.nama_akun}`, Number(acc.total_nominal || 0)]);
     });
-    rows.push(["Jumlah Beban Pokok Penjualan", totalHpp]);
+    rows.push(["  Subtotal Food Cost", totalFoodCost]);
+
+    rows.push(["  2. Overhead Dapur (Gaji, Gas, Operasional Dapur)", ""]);
+    const overheadAccs = hppDetails.filter((d: any) => !isFoodCostAccount(d));
+    overheadAccs.forEach((acc: any) => {
+      rows.push([`    (${acc.kode_akun}) ${acc.nama_akun}`, Number(acc.total_nominal || 0)]);
+    });
+    rows.push(["  Subtotal Overhead Dapur", totalOverheadHpp]);
+
+    rows.push(["Jumlah Beban Pokok Penjualan (HPP & Overhead)", totalHpp]);
     rows.push([]);
 
     rows.push(["LABA KOTOR", labaKotor]);
@@ -1193,32 +1226,75 @@ export default function SiapSajiFinancePage() {
               </div>
             </div>
 
-            {/* HARGA POKOK PENJUALAN (HPP) */}
+            {/* HARGA POKOK PENJUALAN (HPP & OVERHEAD) DIBAGI 2: FOOD COST & OVERHEAD */}
             <div style={{ background: "#fafafa", borderRadius: 10, padding: 16, border: "1px solid #f3f4f6" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 800, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     HARGA POKOK PENJUALAN (HPP & OVERHEAD)
                   </div>
-                  <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>
-                    Bahan Baku, Kemasan, Gaji Produksi, & Overhead Dapur (Gas, Listrik Dapur, Bensin Dapur)
+                  <div style={{ fontSize: 11.5, color: "#9ca3af", marginTop: 2 }}>
+                    Terbagi atas Food Cost (Bahan Baku & Kemasan) dan Overhead Dapur (Gaji, Gas, Operasional Dapur)
                   </div>
                 </div>
-                <span style={{ fontWeight: 800, color: "#b45309", fontSize: 16 }}>Rp {totalHpp.toLocaleString("id-ID")}</span>
+                <span style={{ fontWeight: 800, color: "#b45309", fontSize: 17 }}>Rp {totalHpp.toLocaleString("id-ID")}</span>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 4 }}>
-                {(plData?.details?.filter((d: any) => d.kelompok === "Beban" && d.sub_kelompok === "Beban Pokok Penjualan" && Number(d.total_nominal || 0) !== 0) || []).map((acc: any, i: number) => (
-                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, color: "#374151" }}>
-                    <span>({acc.kode_akun}) {acc.nama_akun}</span>
-                    <span style={{ fontWeight: 600, fontFamily: "monospace" }}>Rp {Number(acc.total_nominal || 0).toLocaleString("id-ID")}</span>
+
+              {/* 2 Sub-Bagian: Food Cost & Overhead */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 12 }}>
+                {/* 1. Food Cost */}
+                <div style={{ background: "white", padding: 12, borderRadius: 8, border: "1px solid #e5e7eb" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, borderBottom: "1px solid #f3f4f6", paddingBottom: 6 }}>
+                    <div>
+                      <span style={{ fontSize: 12.5, fontWeight: 800, color: "#15803d" }}>🥗 1. FOOD COST</span>
+                      <div style={{ fontSize: 11, color: "#6b7280" }}>Bahan Baku & Kemasan</div>
+                    </div>
+                    <span style={{ fontWeight: 800, color: "#15803d", fontSize: 14 }}>
+                      Rp {totalFoodCost.toLocaleString("id-ID")}
+                    </span>
                   </div>
-                ))}
-                {(!plData?.details || plData.details.filter((d: any) => d.kelompok === "Beban" && d.sub_kelompok === "Beban Pokok Penjualan" && Number(d.total_nominal || 0) !== 0).length === 0) && (
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, color: "#6b7280" }}>
-                    <span>Total HPP (Bahan & Kemasan)</span>
-                    <span style={{ fontWeight: 600, fontFamily: "monospace" }}>Rp {totalHpp.toLocaleString("id-ID")}</span>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                    {hppDetails.filter(isFoodCostAccount).map((acc: any, i: number) => (
+                      <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#374151" }}>
+                        <span>({acc.kode_akun}) {acc.nama_akun}</span>
+                        <span style={{ fontWeight: 600, fontFamily: "monospace" }}>Rp {Number(acc.total_nominal || 0).toLocaleString("id-ID")}</span>
+                      </div>
+                    ))}
+                    {hppDetails.filter(isFoodCostAccount).length === 0 && (
+                      <div style={{ fontSize: 12, color: "#9ca3af", fontStyle: "italic" }}>Tidak ada akun food cost</div>
+                    )}
                   </div>
-                )}
+                </div>
+
+                {/* 2. Overhead */}
+                <div style={{ background: "white", padding: 12, borderRadius: 8, border: "1px solid #e5e7eb" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, borderBottom: "1px solid #f3f4f6", paddingBottom: 6 }}>
+                    <div>
+                      <span style={{ fontSize: 12.5, fontWeight: 800, color: "#b45309" }}>⚡ 2. OVERHEAD DAPUR</span>
+                      <div style={{ fontSize: 11, color: "#6b7280" }}>Gaji, Gas, Listrik & Operasional</div>
+                    </div>
+                    <span style={{ fontWeight: 800, color: "#b45309", fontSize: 14 }}>
+                      Rp {totalOverheadHpp.toLocaleString("id-ID")}
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                    {hppDetails.filter((d: any) => !isFoodCostAccount(d)).map((acc: any, i: number) => (
+                      <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#374151" }}>
+                        <span>({acc.kode_akun}) {acc.nama_akun}</span>
+                        <span style={{ fontWeight: 600, fontFamily: "monospace" }}>Rp {Number(acc.total_nominal || 0).toLocaleString("id-ID")}</span>
+                      </div>
+                    ))}
+                    {hppDetails.filter((d: any) => !isFoodCostAccount(d)).length === 0 && (
+                      <div style={{ fontSize: 12, color: "#9ca3af", fontStyle: "italic" }}>Tidak ada akun overhead dapur</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Ringkasan Keseluruhan HPP */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, fontWeight: 800, color: "#374151", paddingTop: 8, borderTop: "1px dashed #e5e7eb" }}>
+                <span>TOTAL HPP & OVERHEAD</span>
+                <span style={{ fontFamily: "monospace", color: "#b45309" }}>Rp {totalHpp.toLocaleString("id-ID")}</span>
               </div>
             </div>
 
@@ -1286,7 +1362,7 @@ export default function SiapSajiFinancePage() {
                     Rincian Standar Laba / Rugi (Akun COA)
                   </h3>
                   <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>
-                    Tampilan berjenjang akun nominal pendapatan & beban sesuai format resmi Accurate
+                    Tampilan berjenjang akun nominal pendapatan & beban dengan pemisahan Food Cost dan Overhead
                   </p>
                 </div>
                 <button
@@ -1353,19 +1429,21 @@ export default function SiapSajiFinancePage() {
                       </td>
                     </tr>
 
-                    {/* HPP */}
+                    {/* HPP & OVERHEAD (DIBAGI DUA: FOOD COST & OVERHEAD) */}
                     <tr>
                       <td colSpan={2} style={{ padding: "14px 0 4px", fontWeight: 800, color: "#111827" }}>
-                        BEBAN POKOK PENJUALAN
+                        HARGA POKOK PENJUALAN (HPP & OVERHEAD)
                       </td>
                     </tr>
+
+                    {/* 1. Food Cost */}
                     <tr>
-                      <td colSpan={2} style={{ padding: "2px 0 2px 14px", fontWeight: 700, color: "#4b5563" }}>
-                        Beban Pokok Penjualan
+                      <td colSpan={2} style={{ padding: "4px 0 2px 14px", fontWeight: 700, color: "#15803d" }}>
+                        Food Cost (Bahan Baku & Kemasan)
                       </td>
                     </tr>
-                    {(plData?.details?.filter((d: any) => d.kelompok === "Beban" && d.sub_kelompok === "Beban Pokok Penjualan") || []).map((acc: any, i: number) => (
-                      <tr key={i}>
+                    {hppDetails.filter(isFoodCostAccount).map((acc: any, i: number) => (
+                      <tr key={`fc-${i}`}>
                         <td style={{ padding: "2px 0 2px 28px", color: "#374151" }}>
                           ({acc.kode_akun}) {acc.nama_akun}
                         </td>
@@ -1374,11 +1452,62 @@ export default function SiapSajiFinancePage() {
                         </td>
                       </tr>
                     ))}
+                    {hppDetails.filter(isFoodCostAccount).length === 0 && (
+                      <tr>
+                        <td style={{ padding: "2px 0 2px 28px", color: "#9ca3af", fontStyle: "italic" }}>
+                          (Tidak ada transaksi Food Cost)
+                        </td>
+                        <td style={{ textAlign: "right", padding: "2px 0", fontFamily: "monospace" }}>0</td>
+                      </tr>
+                    )}
                     <tr>
-                      <td style={{ padding: "6px 0 6px 0", fontWeight: 800, color: "#111827" }}>
-                        Jumlah Beban Pokok Penjualan
+                      <td style={{ padding: "4px 0 4px 14px", fontWeight: 700, color: "#15803d" }}>
+                        Subtotal Food Cost
                       </td>
-                      <td style={{ textAlign: "right", padding: "6px 0", fontWeight: 800, borderTop: "1px solid #111827", fontFamily: "monospace" }}>
+                      <td style={{ textAlign: "right", padding: "4px 0", fontWeight: 700, borderTop: "1px dashed #d1d5db", fontFamily: "monospace", color: "#15803d" }}>
+                        {totalFoodCost.toLocaleString("id-ID")}
+                      </td>
+                    </tr>
+
+                    {/* 2. Overhead Dapur */}
+                    <tr>
+                      <td colSpan={2} style={{ padding: "8px 0 2px 14px", fontWeight: 700, color: "#b45309" }}>
+                        Overhead Dapur (Gaji, Gas, Operasional Dapur)
+                      </td>
+                    </tr>
+                    {hppDetails.filter((d: any) => !isFoodCostAccount(d)).map((acc: any, i: number) => (
+                      <tr key={`ov-${i}`}>
+                        <td style={{ padding: "2px 0 2px 28px", color: "#374151" }}>
+                          ({acc.kode_akun}) {acc.nama_akun}
+                        </td>
+                        <td style={{ textAlign: "right", padding: "2px 0", fontFamily: "monospace" }}>
+                          {Number(acc.total_nominal || 0).toLocaleString("id-ID")}
+                        </td>
+                      </tr>
+                    ))}
+                    {hppDetails.filter((d: any) => !isFoodCostAccount(d)).length === 0 && (
+                      <tr>
+                        <td style={{ padding: "2px 0 2px 28px", color: "#9ca3af", fontStyle: "italic" }}>
+                          (Tidak ada transaksi Overhead Dapur)
+                        </td>
+                        <td style={{ textAlign: "right", padding: "2px 0", fontFamily: "monospace" }}>0</td>
+                      </tr>
+                    )}
+                    <tr>
+                      <td style={{ padding: "4px 0 4px 14px", fontWeight: 700, color: "#b45309" }}>
+                        Subtotal Overhead Dapur
+                      </td>
+                      <td style={{ textAlign: "right", padding: "4px 0", fontWeight: 700, borderTop: "1px dashed #d1d5db", fontFamily: "monospace", color: "#b45309" }}>
+                        {totalOverheadHpp.toLocaleString("id-ID")}
+                      </td>
+                    </tr>
+
+                    {/* Total Keseluruhan HPP */}
+                    <tr>
+                      <td style={{ padding: "8px 0 6px 0", fontWeight: 800, color: "#111827" }}>
+                        Jumlah Beban Pokok Penjualan (HPP & Overhead)
+                      </td>
+                      <td style={{ textAlign: "right", padding: "8px 0 6px 0", fontWeight: 800, borderTop: "1.5px solid #111827", fontFamily: "monospace" }}>
                         {totalHpp.toLocaleString("id-ID")}
                       </td>
                     </tr>

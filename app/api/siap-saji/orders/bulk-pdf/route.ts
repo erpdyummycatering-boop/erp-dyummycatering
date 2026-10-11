@@ -101,8 +101,9 @@ export async function GET(req: NextRequest) {
     const measureOrderHeight = (order: any, isLast: boolean = false) => {
       const items = order.items || [];
       let h = 0;
-      // Header: DYummy Catering (26), Jl Sindangsari (16), Kota Bandung (16), SI.Struk (18), line (15)
-      h += 26 + 16 + 16 + 18 + 15;
+      // Header: DYummy Catering (24), Jl Sindangsari (15), Kota Bandung (lines * 15), SI.Struk (18), line (16)
+      const cityLines = wrapText("Kota Bandung Jawa Barat Indonesia", 30);
+      h += 24 + 15 + cityLines.length * 15 + 18 + 16;
 
       // Customer info: Name (18), Phone (16), Address lines (lines * 16), Patokan lines (lines * 15), Kec (16), line (15)
       h += 18;
@@ -182,22 +183,27 @@ export async function GET(req: NextRequest) {
 
       let y = startY;
 
-      // Header (Title 22pt starts at startY which is offset by 36pt from page top)
-      drawCenterTextOnPage(pageObj, "D'Yummy Siap Saji", fontBold, 22, y);
-      y -= 26;
-      drawCenterTextOnPage(pageObj, "Jl Sindangsari 4 No 48", fontRegular, 13, y);
-      y -= 16;
-      drawCenterTextOnPage(pageObj, "Kota Bandung Jawa Barat Indonesia", fontRegular, 13, y);
-      y -= 16;
+      // Header: D'Yummy Siap Saji with proper top breathing room
+      drawCenterTextOnPage(pageObj, "D'Yummy Siap Saji", fontBold, 20, y);
+      y -= 24;
+      drawCenterTextOnPage(pageObj, "Jl Sindangsari 4 No 48", fontRegular, 12, y);
+      y -= 15;
+
+      // Wrap City / Province lines if needed to prevent text cut-off
+      const cityLines = wrapText("Kota Bandung Jawa Barat Indonesia", 30);
+      cityLines.forEach((cLine) => {
+        drawCenterTextOnPage(pageObj, cLine, fontRegular, 12, y);
+        y -= 15;
+      });
 
       const dateFormatted = order.delivery_date
         ? new Date(order.delivery_date).toLocaleDateString("id-ID", { day: "2-digit", month: "2-digit", year: "numeric" })
         : "";
-      drawCenterTextOnPage(pageObj, `${order.no_struk || `SI-${order.id}`} - ${dateFormatted}`, fontBold, 13.5, y);
+      drawCenterTextOnPage(pageObj, `${order.no_struk || `SI-${order.id}`} - ${dateFormatted}`, fontBold, 12.5, y);
       y -= 18;
 
       drawSolidLineOnPage(pageObj, y);
-      y -= 15;
+      y -= 16;
 
       // Customer Info
       pageObj.drawText(order.customer_name || "Pelanggan", { x: margin, y, size: 14, font: fontBold });
@@ -356,9 +362,11 @@ export async function GET(req: NextRequest) {
     } else {
       // ── DYNAMIC EXACT HEIGHT PER RECEIPT PAGE MODE (Zero Wasted Blank Paper) ──
       for (const order of orderRes.rows) {
-        const height = Math.ceil(measureOrderHeight(order, true) + 50);
+        // 65pt vertical margin budget ensures top and bottom margins are completely safe from cutting
+        const height = Math.ceil(measureOrderHeight(order, true) + 65);
         const page = pdfDoc.addPage([width, height]);
-        renderSingleOrder(page, order, height - 36, true);
+        // startY offset by 30pt from top gives clear space from the preceding receipt cut line
+        renderSingleOrder(page, order, height - 30, true);
       }
     }
 
