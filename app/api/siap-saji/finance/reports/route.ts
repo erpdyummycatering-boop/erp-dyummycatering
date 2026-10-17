@@ -246,7 +246,7 @@ export async function GET(req: NextRequest) {
 
       // 1. Get COA detail
       const coaRes = await client.query(
-        `SELECT id, kode_akun, nama_akun, kelompok, sub_kelompok, saldo_normal FROM coa WHERE id = $1`,
+        `SELECT id, kode_akun, nama_akun, kelompok, sub_kelompok FROM coa WHERE id = $1`,
         [Number(coa_id)]
       );
       if (coaRes.rows.length === 0) {

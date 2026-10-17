@@ -366,10 +366,11 @@ export default function SiapSajiFinancePage() {
         limit: String(lim),
       }).toString();
       const res = await fetch(`/api/siap-saji/finance/reports?${q}`);
-      if (res.ok) {
-        const json = await res.json();
-        setLedgerData(json);
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error || "Gagal memuat buku besar");
       }
+      setLedgerData(json);
     } catch (e: any) {
       toast.error(e.message || "Gagal memuat buku besar");
     } finally {
@@ -1395,6 +1396,7 @@ export default function SiapSajiFinancePage() {
 
       {/* Tabs */}
       <div style={{ display: "flex", gap: 6, borderBottom: "2px solid #e5e7eb", marginBottom: 20, overflowX: "auto", flexWrap: "nowrap" }}>
+        {/* 1. Laporan P&L */}
         <button
           onClick={() => setActiveTab("pl")}
           style={{
@@ -1417,6 +1419,30 @@ export default function SiapSajiFinancePage() {
           <PieChart size={15} /> Laporan P&L (Laba Rugi)
         </button>
 
+        {/* 2. Neraca Keuangan */}
+        <button
+          onClick={() => setActiveTab("neraca")}
+          style={{
+            padding: "10px 14px",
+            background: "none",
+            border: "none",
+            borderBottom: activeTab === "neraca" ? "3px solid #5005A6" : "3px solid transparent",
+            color: activeTab === "neraca" ? "#5005A6" : "#6b7280",
+            fontSize: 13,
+            fontWeight: activeTab === "neraca" ? 700 : 500,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            marginBottom: -2,
+            whiteSpace: "nowrap",
+            flexShrink: 0,
+          }}
+        >
+          <PieChart size={15} /> Neraca
+        </button>
+
+        {/* 3. Pembelian HPP */}
         <button
           onClick={() => setActiveTab("purchases")}
           style={{
@@ -1439,6 +1465,7 @@ export default function SiapSajiFinancePage() {
           <FileText size={15} /> Pembelian HPP
         </button>
 
+        {/* 4. Biaya Operasional */}
         <button
           onClick={() => setActiveTab("expenses")}
           style={{
@@ -1461,6 +1488,7 @@ export default function SiapSajiFinancePage() {
           <DollarSign size={15} /> Biaya Operasional
         </button>
 
+        {/* 5. Kas & Bank */}
         <button
           onClick={() => setActiveTab("kas_bank")}
           style={{
@@ -1480,9 +1508,10 @@ export default function SiapSajiFinancePage() {
             flexShrink: 0,
           }}
         >
-          <CreditCard size={15} /> Kas & Rekening Bank
+          <CreditCard size={15} /> Kas & Bank
         </button>
 
+        {/* 6. Jurnal Umum */}
         <button
           onClick={() => setActiveTab("journals")}
           style={{
@@ -1502,14 +1531,19 @@ export default function SiapSajiFinancePage() {
             flexShrink: 0,
           }}
         >
-          <BookOpen size={15} /> Buku Jurnal
+          <BookOpen size={15} /> Jurnal Umum
         </button>
 
+        {/* 7. Buku Besar */}
         <button
           onClick={() => {
             setActiveTab("ledger");
-            if (!ledgerCoaId && coaListAll.length > 0) {
-              setLedgerCoaId(coaListAll[0].id);
+            const targetId = ledgerCoaId || (coaListAll.length > 0 ? coaListAll[0].id : coaList.length > 0 ? coaList[0].id : "");
+            if (targetId && !ledgerCoaId) {
+              setLedgerCoaId(targetId);
+            }
+            if (targetId) {
+              fetchLedgerData(targetId, 1, ledgerLimit, ledgerDateFrom, ledgerDateTo);
             }
           }}
           style={{
@@ -1529,29 +1563,7 @@ export default function SiapSajiFinancePage() {
             flexShrink: 0,
           }}
         >
-          <BookOpen size={15} /> Buku Besar (Ledger)
-        </button>
-
-        <button
-          onClick={() => setActiveTab("neraca")}
-          style={{
-            padding: "10px 14px",
-            background: "none",
-            border: "none",
-            borderBottom: activeTab === "neraca" ? "3px solid #5005A6" : "3px solid transparent",
-            color: activeTab === "neraca" ? "#5005A6" : "#6b7280",
-            fontSize: 13,
-            fontWeight: activeTab === "neraca" ? 700 : 500,
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            marginBottom: -2,
-            whiteSpace: "nowrap",
-            flexShrink: 0,
-          }}
-        >
-          <PieChart size={15} /> Neraca Keuangan
+          <BookOpen size={15} /> Buku Besar
         </button>
 
         <button

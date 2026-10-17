@@ -137,14 +137,14 @@ export async function GET(
       // Summary: Sub Total (17), Diskon (17), line (15), Total (20), line (15)
       h += 17 + 17 + 15 + 20 + 15;
 
-      // Cutter divider line (dashed)
-      h += 43;
+      // Cutter divider line (dashed) + extra bottom breathing room for physical printer cut
+      h += 55;
 
       return h;
     };
 
-    // 50pt total vertical margin budget (top padding 18pt + cap height offset 18pt + bottom padding 14pt)
-    const height = Math.ceil(measureOrderHeight() + 50);
+    // 95pt total vertical margin budget (ensures bottom total, double divider, and dashed cut line have full breathing room and never cut off)
+    const height = Math.ceil(measureOrderHeight() + 95);
 
     const pdfDoc = await PDFDocument.create();
     const page = pdfDoc.addPage([width, height]);

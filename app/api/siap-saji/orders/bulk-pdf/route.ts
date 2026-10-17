@@ -149,9 +149,9 @@ export async function GET(req: NextRequest) {
 
       // Cutter divider line if not last order
 
-      // Cutter divider line if not last order
+      // Cutter divider line if not last order (or bottom tear line)
       if (!isLast) {
-        h += 43; // (14 + 14 + 15)
+        h += 55; // (16 + 18 + 21)
       }
 
       return h;
@@ -349,8 +349,8 @@ export async function GET(req: NextRequest) {
         totalContentHeight += measureOrderHeight(order, isLast);
       });
 
-      // 50pt total vertical margin budget
-      const totalRollHeight = Math.ceil(totalContentHeight + 50);
+      // 80pt total vertical margin budget (generous space between cuts)
+      const totalRollHeight = Math.ceil(totalContentHeight + 80);
 
       const page = pdfDoc.addPage([width, totalRollHeight]);
       let y = totalRollHeight - 36; // Initial baseline offset to avoid top cut-off
@@ -362,8 +362,8 @@ export async function GET(req: NextRequest) {
     } else {
       // ── DYNAMIC EXACT HEIGHT PER RECEIPT PAGE MODE (Zero Wasted Blank Paper) ──
       for (const order of orderRes.rows) {
-        // Budget height including the dashed cut divider line at bottom (isLast: false) + margin
-        const height = Math.ceil(measureOrderHeight(order, false) + 65);
+        // Budget height including the dashed cut divider line at bottom + generous margin
+        const height = Math.ceil(measureOrderHeight(order, false) + 95);
         const page = pdfDoc.addPage([width, height]);
         // startY offset by 30pt from top gives clear space from the preceding receipt cut line
         renderSingleOrder(page, order, height - 30, false);

@@ -19,6 +19,9 @@ const wrapText = (text: string, maxChars: number = 38): string[] => {
   return lines.length > 0 ? lines : [text.substring(0, maxChars)];
 };
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const idsStr = searchParams.get("ids");
@@ -147,6 +150,9 @@ export async function GET(req: NextRequest) {
     const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
+    // Compute overall statistics
+    const totalPorsi = rowsData.reduce((acc, r) => acc + Number(r.total_qty || 0), 0);
+
     // Calculate row heights dynamically based on wrapped product lines & note lines
     const getRowHeight = (row: any) => {
       const pLines = wrapText(row.product_name || "-", 32);
@@ -174,8 +180,17 @@ export async function GET(req: NextRequest) {
       });
       y -= 24;
 
-      const dateStr = new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
-      pg.drawText(`Dicetak Pada: ${dateStr} | Total Item Berbeda: ${rowsData.length}`, {
+      const dateStr = new Date().toLocaleString("id-ID", {
+        timeZone: "Asia/Jakarta",
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      }).replace(/\./g, ":");
+
+      pg.drawText(`Dicetak Pada: ${dateStr} WIB | Total Menu Berbeda: ${rowsData.length} Jenis | Total Produksi: ${totalPorsi} Porsi`, {
         x: margin,
         y: y - 10,
         size: 9.5,
