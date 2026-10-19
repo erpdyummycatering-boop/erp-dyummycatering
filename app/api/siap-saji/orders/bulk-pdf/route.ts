@@ -144,8 +144,8 @@ export async function GET(req: NextRequest) {
 
       h += 15; // line
 
-      // Summary: Sub Total (17), Diskon (17), line (15), Total (20)
-      h += 17 + 17 + 15 + 20;
+      // Summary: Sub Total (17), Diskon (17), line (15), Total (20), line (15)
+      h += 17 + 17 + 15 + 20 + 15;
 
       // Cutter divider line if not last order (garis putus-putus ber-padding)
       if (!isLast) {
@@ -325,15 +325,18 @@ export async function GET(req: NextRequest) {
       pageObj.drawText(grandTotalTextStr, { x: width - margin - grandTotalWidth, y, size: 16, font: fontBold });
       y -= 20;
 
-      // Cutter divider line between receipts (if not last)
+      drawSolidLineOnPage(pageObj, y);
+      y -= 15;
+
+      // Cutter divider line between receipts (garis potong putus-putus membentang penuh ujung ke ujung)
       if (!isLastInRoll) {
-        y -= 25;
+        y -= 22;
         pageObj.drawLine({
           start: { x: 0, y },
           end: { x: width, y },
-          thickness: 1.2,
-          dashArray: [4, 3],
-          color: rgb(0.3, 0.3, 0.3),
+          thickness: 1.0,
+          dashArray: [5, 4],
+          color: rgb(0.2, 0.2, 0.2),
         });
         y -= 35;
       }
@@ -349,11 +352,11 @@ export async function GET(req: NextRequest) {
         totalContentHeight += measureOrderHeight(order, isLast);
       });
 
-      // 80pt total vertical margin budget (generous space between cuts)
-      const totalRollHeight = Math.ceil(totalContentHeight + 80);
+      // 120pt total vertical margin budget (generous space between cuts and bottom safety)
+      const totalRollHeight = Math.ceil(totalContentHeight + 120);
 
       const page = pdfDoc.addPage([width, totalRollHeight]);
-      let y = totalRollHeight - 36; // Initial baseline offset to avoid top cut-off
+      let y = totalRollHeight - 45; // Initial baseline offset so title font is never cut off at top
 
       orderRes.rows.forEach((order, idx) => {
         const isLast = idx === orderRes.rows.length - 1;
@@ -363,10 +366,10 @@ export async function GET(req: NextRequest) {
       // ── DYNAMIC EXACT HEIGHT PER RECEIPT PAGE MODE (Zero Wasted Blank Paper) ──
       for (const order of orderRes.rows) {
         // Budget height including the dashed cut divider line at bottom + generous margin
-        const height = Math.ceil(measureOrderHeight(order, false) + 95);
+        const height = Math.ceil(measureOrderHeight(order, false) + 120);
         const page = pdfDoc.addPage([width, height]);
-        // startY offset by 30pt from top gives clear space from the preceding receipt cut line
-        renderSingleOrder(page, order, height - 30, false);
+        // startY offset by 45pt gives clear top breathing room so header is never cut off
+        renderSingleOrder(page, order, height - 45, false);
       }
     }
 

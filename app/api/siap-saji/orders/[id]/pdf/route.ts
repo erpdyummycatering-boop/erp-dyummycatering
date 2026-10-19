@@ -134,8 +134,8 @@ export async function GET(
 
       h += 15; // line
 
-      // Summary: Sub Total (17), Diskon (17), line (15), Total (20)
-      h += 17 + 17 + 15 + 20;
+      // Summary: Sub Total (17), Diskon (17), line (15), Total (20), line (15)
+      h += 17 + 17 + 15 + 20 + 15;
 
       // Cutter divider line (dashed) + extra bottom breathing room for physical printer cut
       h += 80;
@@ -143,8 +143,8 @@ export async function GET(
       return h;
     };
 
-    // 95pt total vertical margin budget (ensures bottom total and dashed cut line have full breathing room and never cut off)
-    const height = Math.ceil(measureOrderHeight() + 95);
+    // 120pt total vertical margin budget (ensures header top, bottom total, and dashed cut line never cut off)
+    const height = Math.ceil(measureOrderHeight() + 120);
 
     const pdfDoc = await PDFDocument.create();
     const page = pdfDoc.addPage([width, height]);
@@ -152,8 +152,8 @@ export async function GET(
     const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-    // Initial baseline offset at (height - 36) so top cap height of 22pt title font is at (height - 18)
-    let y = height - 36;
+    // Initial baseline offset at (height - 45) so title header is never cut off at the top
+    let y = height - 45;
 
     const drawCenterText = (text: string, font: any, size: number) => {
       const textWidth = font.widthOfTextAtSize(text, size);
@@ -301,14 +301,16 @@ export async function GET(
     page.drawText(grandTotalTextStr, { x: width - margin - grandTotalWidth, y, size: 16, font: fontBold });
     y -= 20;
 
+    drawSolidLine();
+
     // Dashed cutter divider line (garis potong putus-putus membentang penuh hingga kedua ujung kanan-kiri)
-    y -= 25;
+    y -= 22;
     page.drawLine({
       start: { x: 0, y },
       end: { x: width, y },
-      thickness: 1.2,
-      dashArray: [4, 3],
-      color: rgb(0.3, 0.3, 0.3),
+      thickness: 1.0,
+      dashArray: [5, 4],
+      color: rgb(0.2, 0.2, 0.2),
     });
     y -= 35;
 
