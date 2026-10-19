@@ -134,16 +134,16 @@ export async function GET(
 
       h += 15; // line
 
-      // Summary: Sub Total (17), Diskon (17), line (15), Total (20), line (15)
-      h += 17 + 17 + 15 + 20 + 15;
+      // Summary: Sub Total (17), Diskon (17), line (15), Total (20)
+      h += 17 + 17 + 15 + 20;
 
       // Cutter divider line (dashed) + extra bottom breathing room for physical printer cut
-      h += 55;
+      h += 80;
 
       return h;
     };
 
-    // 95pt total vertical margin budget (ensures bottom total, double divider, and dashed cut line have full breathing room and never cut off)
+    // 95pt total vertical margin budget (ensures bottom total and dashed cut line have full breathing room and never cut off)
     const height = Math.ceil(measureOrderHeight() + 95);
 
     const pdfDoc = await PDFDocument.create();
@@ -301,12 +301,16 @@ export async function GET(
     page.drawText(grandTotalTextStr, { x: width - margin - grandTotalWidth, y, size: 16, font: fontBold });
     y -= 20;
 
-    drawSolidLine();
-
-    // Dashed cutter divider line like in roll mode
-    y -= 4;
-    drawCenterText("- - - - - - - - - - - - - - - - - - - -", fontRegular, 9);
-    y -= 10;
+    // Dashed cutter divider line (garis potong putus-putus membentang penuh hingga kedua ujung kanan-kiri)
+    y -= 25;
+    page.drawLine({
+      start: { x: 0, y },
+      end: { x: width, y },
+      thickness: 1.2,
+      dashArray: [4, 3],
+      color: rgb(0.3, 0.3, 0.3),
+    });
+    y -= 35;
 
     const pdfBytes = await pdfDoc.save();
 

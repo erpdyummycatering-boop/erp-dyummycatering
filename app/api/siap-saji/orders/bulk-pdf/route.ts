@@ -144,14 +144,12 @@ export async function GET(req: NextRequest) {
 
       h += 15; // line
 
-      // Summary: Sub Total (17), Diskon (17), line (15), Total (20), line (15)
-      h += 17 + 17 + 15 + 20 + 15;
+      // Summary: Sub Total (17), Diskon (17), line (15), Total (20)
+      h += 17 + 17 + 15 + 20;
 
-      // Cutter divider line if not last order
-
-      // Cutter divider line if not last order (or bottom tear line)
+      // Cutter divider line if not last order (garis putus-putus ber-padding)
       if (!isLast) {
-        h += 55; // (16 + 18 + 21)
+        h += 80;
       }
 
       return h;
@@ -327,15 +325,17 @@ export async function GET(req: NextRequest) {
       pageObj.drawText(grandTotalTextStr, { x: width - margin - grandTotalWidth, y, size: 16, font: fontBold });
       y -= 20;
 
-      drawSolidLineOnPage(pageObj, y);
-      y -= 15;
-
       // Cutter divider line between receipts (if not last)
       if (!isLastInRoll) {
-        y -= 14;
-        drawCenterTextOnPage(pageObj, "- - - - - - - - - - - - - - - - - - - -", fontRegular, 9, y);
-        y -= 14;
-        y -= 15;
+        y -= 25;
+        pageObj.drawLine({
+          start: { x: 0, y },
+          end: { x: width, y },
+          thickness: 1.2,
+          dashArray: [4, 3],
+          color: rgb(0.3, 0.3, 0.3),
+        });
+        y -= 35;
       }
 
       return y;
