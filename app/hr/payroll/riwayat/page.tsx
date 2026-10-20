@@ -14,6 +14,7 @@ import {
   Layers,
   Clock,
   Calendar,
+  Trash2,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -71,6 +72,34 @@ export default function RiwayatPayrollPage() {
       }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleDeletePayroll = async (payroll: any) => {
+    if (payroll.status === "FINAL") {
+      alert("Batch payroll yang sudah berstatus FINAL tidak dapat dihapus.");
+      return;
+    }
+
+    if (!confirm(`Yakin ingin menghapus batch payroll #${payroll.id} (${payroll.nama_periode})? Semua rincian slip di dalam batch ini akan ikut terhapus.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/hr/payroll/${payroll.id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (res.ok) {
+        if (selectedPayroll?.id === payroll.id) {
+          setSelectedPayroll(null);
+        }
+        fetchPayrolls();
+      } else {
+        alert(data.error || "Gagal menghapus batch payroll");
+      }
+    } catch (err: any) {
+      alert(err.message || "Gagal menghapus batch payroll");
     }
   };
 
@@ -258,17 +287,30 @@ export default function RiwayatPayrollPage() {
                   </div>
                 </div>
 
-                <div>
+                <div style={{ display: "flex", gap: 6 }}>
                   <button
                     className="btn btn-secondary btn-sm"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleViewDetails(p.id);
                     }}
-                    style={{ width: "100%", justifyContent: "center" }}
+                    style={{ flex: 1, justifyContent: "center" }}
                   >
                     <Eye size={14} /> Buka Batch Ini
                   </button>
+                  {p.status !== "FINAL" && (
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeletePayroll(p);
+                      }}
+                      title="Hapus batch ini"
+                      style={{ color: "#ef4444", borderColor: "#fecaca", padding: "6px 10px" }}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -359,6 +401,16 @@ export default function RiwayatPayrollPage() {
               >
                 <FileSpreadsheet size={14} /> Export Excel
               </button>
+
+              {selectedPayroll.status !== "FINAL" && (
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => handleDeletePayroll(selectedPayroll)}
+                  style={{ color: "#ef4444", borderColor: "#fecaca" }}
+                >
+                  <Trash2 size={14} /> Hapus Batch
+                </button>
+              )}
             </div>
           </div>
 

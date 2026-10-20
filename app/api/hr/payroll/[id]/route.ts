@@ -82,3 +82,44 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const client = await pool.connect();
+  try {
+    const { id } = await params;
+
+    const payrollRes = await client.query(`SELECT id, status, nama_periode FROM hr_payrolls WHERE id = $1`, [id]);
+    if (payrollRes.rows.length === 0) {
+      return NextResponse.json({ error: "Payroll tidak ditemukan" }, { status: 404 });
+    }
+
+    const payroll = payrollRes.rows[0];
+    if (payroll.status === "FINAL") {
+      return NextResponse.json(
+        { error: "Batch payroll berstatus FINAL tidak dapat dihapus." },
+        { status: 400 }
+      );
+    }
+
+    await client.query("BEGIN");
+
+    // Delete details first
+    await client.query(`DELETE FROM hr_payroll_details WHERE payroll_id = $1`, [id]);
+
+    // Delete payroll header
+    await client.query(`DELETE FROM hr_payrolls WHERE id = $1`, [id]);
+
+    await client.query("COMMIT");
+
+    return NextResponse.json({
+      success: true,
+      message: `Batch payroll #${id} (${payroll.nama_periode}) berhasil dihapus.`,
+    });
+  } catch (error: any) {
+    await client.query("ROLLBACK");
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  } finally {
+    client.release();
+  }
+}
+

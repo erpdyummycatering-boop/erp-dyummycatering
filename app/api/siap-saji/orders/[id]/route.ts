@@ -269,24 +269,38 @@ export async function PUT(
       [orderId]
     );
 
-    // Lookup Coa Accounts for update in case bank / payment status changed
-    let targetDebitKodes: string[] = ["1-0002", "1-1002"];
+    let debitId: number | null = null;
     if (!isLunas) {
-      targetDebitKodes = ["1-1004", "1-0004"]; // Piutang Usaha SS
+      const piutangRes = await client.query(
+        "SELECT id FROM coa WHERE kode_akun IN ('1-1004', '1-0004') AND lini = 'siap_saji' LIMIT 1"
+      );
+      if (piutangRes.rows.length > 0) debitId = piutangRes.rows[0].id;
     } else {
-      if (paymentBankName.toUpperCase().includes("MANDIRI")) targetDebitKodes = ["1-0003", "1-1003"];
-      else if (paymentBankName.toUpperCase().includes("KAS")) targetDebitKodes = ["1-0001", "1-1001"];
-      else if (paymentBankName.toUpperCase().includes("CIMB")) targetDebitKodes = ["1-0004", "1-1004"];
+      if (kas_bank_id) {
+        const kbRes = await client.query("SELECT coa_id FROM kas_bank WHERE id = $1", [kas_bank_id]);
+        if (kbRes.rows.length > 0 && kbRes.rows[0].coa_id) {
+          debitId = Number(kbRes.rows[0].coa_id);
+        }
+      }
+      if (!debitId) {
+        let targetDebitKodes: string[] = ["1-0002", "1-1002"];
+        if (paymentBankName.toUpperCase().includes("MANDIRI")) targetDebitKodes = ["1-0003", "1-1003"];
+        else if (paymentBankName.toUpperCase().includes("KAS")) targetDebitKodes = ["1-0001", "1-1001"];
+        else if (paymentBankName.toUpperCase().includes("CIMB")) targetDebitKodes = ["1-0004", "1-1004"];
+
+        const coaDebitRes = await client.query(
+          "SELECT id FROM coa WHERE kode_akun = ANY($1) AND lini = 'siap_saji' LIMIT 1",
+          [targetDebitKodes]
+        );
+        if (coaDebitRes.rows.length > 0) debitId = coaDebitRes.rows[0].id;
+      }
     }
 
-    let coaDebitRes = await client.query(
-      "SELECT id FROM coa WHERE kode_akun = ANY($1) AND lini = 'siap_saji' LIMIT 1",
-      [targetDebitKodes]
-    );
-    if (coaDebitRes.rows.length === 0) {
-      coaDebitRes = await client.query(
+    if (!debitId) {
+      const fallbackRes = await client.query(
         "SELECT id FROM coa WHERE kode_akun LIKE '1-%' AND lini = 'siap_saji' ORDER BY id ASC LIMIT 1"
       );
+      if (fallbackRes.rows.length > 0) debitId = fallbackRes.rows[0].id;
     }
 
     const coaAccountsRes = await client.query(
@@ -300,8 +314,7 @@ export async function PUT(
     const ongkirCoaId = coaMap["4-1002"];
     const discountCoaId = coaMap["4-40100"];
 
-    if (coaDebitRes.rows.length > 0 && salesCoaId) {
-      const debitId = coaDebitRes.rows[0].id;
+    if (debitId && salesCoaId) {
       let primaryJournalId: number | null = null;
       const orderDateToUse = existingOrder.order_date || delivery_date || new Date();
 

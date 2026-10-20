@@ -44,7 +44,16 @@ export async function GET(req: NextRequest) {
   const client = await pool.connect();
   try {
     const [accountsRes, mutasiRes, coaRes] = await Promise.all([
-      client.query("SELECT * FROM kas_bank WHERE lini = 'siap_saji' ORDER BY is_payment_default DESC, id ASC"),
+      client.query(`
+        SELECT 
+          kb.*,
+          c.kode_akun AS coa_kode,
+          c.nama_akun AS coa_nama
+        FROM kas_bank kb
+        LEFT JOIN coa c ON kb.coa_id = c.id
+        WHERE kb.lini = 'siap_saji' 
+        ORDER BY kb.is_payment_default DESC, kb.id ASC
+      `),
       client.query(
         `SELECT 
           km.*,
@@ -74,7 +83,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { nama_rekening, jenis, no_rekening, nama_bank, saldo_awal, is_payment_default } = body;
+  const { nama_rekening, jenis, no_rekening, nama_bank, saldo_awal, is_payment_default, coa_id } = body;
 
   if (!nama_rekening) {
     return NextResponse.json({ error: "Nama rekening wajib diisi." }, { status: 400 });
@@ -85,8 +94,8 @@ export async function POST(req: NextRequest) {
     const saldo = Number(saldo_awal || 0);
 
     const res = await client.query(
-      `INSERT INTO kas_bank (lini, nama_rekening, jenis, no_rekening, nama_bank, saldo_awal, saldo_kini, is_payment_default)
-       VALUES ('siap_saji', $1, $2, $3, $4, $5, $5, $6)
+      `INSERT INTO kas_bank (lini, nama_rekening, jenis, no_rekening, nama_bank, saldo_awal, saldo_kini, is_payment_default, coa_id)
+       VALUES ('siap_saji', $1, $2, $3, $4, $5, $5, $6, $7)
        RETURNING *`,
       [
         nama_rekening.trim(),
@@ -95,12 +104,58 @@ export async function POST(req: NextRequest) {
         nama_bank || null,
         saldo,
         Boolean(is_payment_default),
+        coa_id ? Number(coa_id) : null,
       ]
     );
 
     return NextResponse.json(res.rows[0], { status: 201 });
   } catch (error: any) {
     console.error("Gagal menambah akun kas/bank:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  } finally {
+    client.release();
+  }
+}
+
+export async function PUT(req: NextRequest) {
+  const body = await req.json();
+  const { id, nama_rekening, jenis, no_rekening, nama_bank, is_payment_default, coa_id } = body;
+
+  if (!id) {
+    return NextResponse.json({ error: "ID rekening wajib diisi." }, { status: 400 });
+  }
+
+  const client = await pool.connect();
+  try {
+    const res = await client.query(
+      `UPDATE kas_bank 
+       SET nama_rekening = COALESCE($1, nama_rekening),
+           jenis = COALESCE($2, jenis),
+           no_rekening = $3,
+           nama_bank = $4,
+           is_payment_default = COALESCE($5, is_payment_default),
+           coa_id = $6,
+           updated_at = NOW()
+       WHERE id = $7 AND lini = 'siap_saji'
+       RETURNING *`,
+      [
+        nama_rekening ? nama_rekening.trim() : null,
+        jenis || null,
+        no_rekening || null,
+        nama_bank || null,
+        is_payment_default !== undefined ? Boolean(is_payment_default) : null,
+        coa_id ? Number(coa_id) : null,
+        id,
+      ]
+    );
+
+    if (res.rows.length === 0) {
+      return NextResponse.json({ error: "Rekening kas/bank tidak ditemukan." }, { status: 404 });
+    }
+
+    return NextResponse.json(res.rows[0]);
+  } catch (error: any) {
+    console.error("Gagal mengupdate akun kas/bank:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   } finally {
     client.release();

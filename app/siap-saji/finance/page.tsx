@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, Fragment } from "react";
-import { CreditCard, DollarSign, Plus, FileText, PieChart, BookOpen, ArrowUpRight, ArrowDownLeft, X, CheckCircle, RefreshCw, Search, Edit3, Trash2, Calendar, Printer, Download, FileSpreadsheet, Eye, AlertTriangle } from "lucide-react";
+import { CreditCard, DollarSign, Plus, FileText, PieChart, BookOpen, ArrowUpRight, ArrowDownLeft, X, Check, CheckCircle, RefreshCw, Search, Edit3, Trash2, Calendar, Printer, Download, FileSpreadsheet, Eye, AlertTriangle, Receipt } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/ui/Pagination";
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
@@ -202,6 +202,17 @@ export default function SiapSajiFinancePage() {
   const [coaFormActive, setCoaFormActive] = useState(true);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Tab 4: Kas & Bank Account Modal (Add & Edit)
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
+  const [editingAccountId, setEditingAccountId] = useState<number | null>(null);
+  const [accFormNama, setAccFormNama] = useState("");
+  const [accFormJenis, setAccFormJenis] = useState("Bank");
+  const [accFormNamaBank, setAccFormNamaBank] = useState("");
+  const [accFormNoRek, setAccFormNoRek] = useState("");
+  const [accFormSaldoAwal, setAccFormSaldoAwal] = useState<number>(0);
+  const [accFormCoaId, setAccFormCoaId] = useState<number | "">("");
+  const [accFormIsDefault, setAccFormIsDefault] = useState(false);
 
   // Tab 4: Kas Masuk & Kas Keluar Modal State (Req 4 & Screenshot 4)
   const [isKasMutasiModalOpen, setIsKasMutasiModalOpen] = useState(false);
@@ -1140,6 +1151,71 @@ export default function SiapSajiFinancePage() {
 
   const handlePrintNeracaPDF = () => {
     window.print();
+  };
+
+  const handleOpenAddAccount = () => {
+    setEditingAccountId(null);
+    setAccFormNama("");
+    setAccFormJenis("Bank");
+    setAccFormNamaBank("");
+    setAccFormNoRek("");
+    setAccFormSaldoAwal(0);
+    setAccFormCoaId("");
+    setAccFormIsDefault(false);
+    setIsAccountModalOpen(true);
+  };
+
+  const handleOpenEditAccount = (acc: any) => {
+    setEditingAccountId(acc.id);
+    setAccFormNama(acc.nama_rekening || "");
+    setAccFormJenis(acc.jenis || "Bank");
+    setAccFormNamaBank(acc.nama_bank || "");
+    setAccFormNoRek(acc.no_rekening || "");
+    setAccFormSaldoAwal(Number(acc.saldo_awal || 0));
+    setAccFormCoaId(acc.coa_id ? Number(acc.coa_id) : "");
+    setAccFormIsDefault(Boolean(acc.is_payment_default));
+    setIsAccountModalOpen(true);
+  };
+
+  const handleSubmitAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!accFormNama.trim()) {
+      toast.error("Nama rekening wajib diisi.");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const method = editingAccountId ? "PUT" : "POST";
+      const payload = {
+        id: editingAccountId,
+        nama_rekening: accFormNama.trim(),
+        jenis: accFormJenis,
+        nama_bank: accFormNamaBank.trim() || null,
+        no_rekening: accFormNoRek.trim() || null,
+        saldo_awal: accFormSaldoAwal,
+        coa_id: accFormCoaId ? Number(accFormCoaId) : null,
+        is_payment_default: accFormIsDefault,
+      };
+
+      const res = await fetch("/api/siap-saji/finance/kas-bank", {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json();
+        throw new Error(errJson.error || "Gagal menyimpan rekening kas/bank");
+      }
+
+      toast.success(editingAccountId ? "Rekening kas/bank berhasil diperbarui!" : "Rekening kas/bank berhasil ditambahkan!");
+      setIsAccountModalOpen(false);
+      fetchKasBankMaster();
+    } catch (err: any) {
+      toast.error(err.message || "Gagal menyimpan rekening");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Handlers for Kas Masuk / Keluar & Jurnal Umum Manual
@@ -2494,7 +2570,7 @@ export default function SiapSajiFinancePage() {
                               }}
                               title="Lihat Detail Nota"
                             >
-                              <Eye size={14} />
+                              <FileText size={14} />
                             </button>
 
                             {/* Bayar Hutang / Cicilan (if not cancelled & sisa > 0) */}
@@ -2735,7 +2811,7 @@ export default function SiapSajiFinancePage() {
                             }}
                             title="Lihat Detail Biaya"
                           >
-                            <Eye size={14} />
+                            <FileText size={14} />
                           </button>
 
                           {/* Bayar Hutang / Cicilan (if not cancelled & sisa > 0) */}
@@ -2824,6 +2900,32 @@ export default function SiapSajiFinancePage() {
       {/* ── TAB 4: KAS & REKENING BANK ────────────────────────────── */}
       {activeTab === "kas_bank" && (
         <div>
+          {/* Account Cards Header */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 800, color: "#111827", margin: 0 }}>
+              Daftar Rekening Kas & Bank
+            </h3>
+            <button
+              onClick={handleOpenAddAccount}
+              style={{
+                padding: "8px 14px",
+                background: "#5005A6",
+                color: "white",
+                border: "none",
+                borderRadius: 8,
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                boxShadow: "0 2px 6px rgba(80, 5, 166, 0.2)",
+              }}
+            >
+              <Plus size={15} /> Tambah Rekening Baru
+            </button>
+          </div>
+
           {/* Account Cards */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16, marginBottom: 24 }}>
             {accounts.map((acc) => (
@@ -2835,22 +2937,51 @@ export default function SiapSajiFinancePage() {
                   padding: "16px 20px",
                   border: "1px solid #e5e7eb",
                   boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                  position: "relative",
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: "#374151" }}>{acc.nama_rekening}</span>
-                  {acc.is_payment_default && (
-                    <span style={{ fontSize: 10, fontWeight: 800, background: "#f0fdf4", color: "#639922", padding: "2px 6px", borderRadius: 4 }}>
-                      Default Order
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <div>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: "#374151", display: "block" }}>{acc.nama_rekening}</span>
+                    <span style={{ fontSize: 11, color: "#6b7280" }}>
+                      {acc.jenis === "Kas" ? "Uang Kas Tunai" : (acc.nama_bank || "Bank")} • {acc.no_rekening || "-"}
                     </span>
-                  )}
+                  </div>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    {acc.is_payment_default && (
+                      <span style={{ fontSize: 10, fontWeight: 800, background: "#f0fdf4", color: "#639922", padding: "2px 6px", borderRadius: 4 }}>
+                        Default Order
+                      </span>
+                    )}
+                    <button
+                      onClick={() => handleOpenEditAccount(acc)}
+                      style={{
+                        padding: "4px 8px",
+                        background: "#f3f4f6",
+                        border: "1px solid #d1d5db",
+                        borderRadius: 6,
+                        color: "#4b5563",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                      title="Edit Rekening & Akun CoA"
+                    >
+                      Edit
+                    </button>
+                  </div>
                 </div>
-                <p style={{ fontSize: 22, fontWeight: 800, color: "#5005A6", marginTop: 8 }}>
+
+                <p style={{ fontSize: 22, fontWeight: 800, color: "#5005A6", marginTop: 12, marginBottom: 6 }}>
                   Rp {Number(acc.saldo_kini).toLocaleString("id-ID")}
                 </p>
-                <p style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
-                  No. Rek: {acc.no_rekening || "Kas Tunai"}
-                </p>
+
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 6, borderTop: "1px dashed #e5e7eb", paddingTop: 8 }}>
+                  <span style={{ fontSize: 11, color: "#6b7280" }}>Akun CoA Buku Besar:</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: acc.coa_kode ? "#2563eb" : "#ef4444", background: acc.coa_kode ? "#eff6ff" : "#fef2f2", padding: "2px 6px", borderRadius: 4 }}>
+                    {acc.coa_kode ? `(${acc.coa_kode}) ${acc.coa_nama}` : "⚠️ Belum Terhubung CoA"}
+                  </span>
+                </div>
               </div>
             ))}
           </div>
@@ -3437,24 +3568,38 @@ export default function SiapSajiFinancePage() {
                   <input
                     type="text"
                     placeholder="0"
-                    value={formatThousand(purchasePaidAmount)}
-                    onChange={(e) => setPurchasePaidAmount(Math.min(purchaseAmount, parseThousand(e.target.value)))}
+                    value={purchasePaidAmount === 0 ? "0" : formatThousand(purchasePaidAmount)}
+                    onChange={(e) => {
+                      const raw = e.target.value.trim();
+                      if (raw === "" || raw === "0") {
+                        setPurchasePaidAmount(0);
+                      } else {
+                        setPurchasePaidAmount(Math.min(purchaseAmount, parseThousand(raw)));
+                      }
+                    }}
                     style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 14, fontWeight: 700, textAlign: "right", background: "white" }}
                   />
-                  <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                  <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
                     <button
                       type="button"
                       onClick={() => setPurchasePaidAmount(purchaseAmount)}
-                      style={{ fontSize: 11, padding: "2px 8px", background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 4, cursor: "pointer" }}
+                      style={{ fontSize: 11, padding: "3px 8px", background: purchasePaidAmount === purchaseAmount && purchaseAmount > 0 ? "#e0e7ff" : "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 4, cursor: "pointer", fontWeight: 600 }}
                     >
                       Bayar Lunas (100%)
                     </button>
                     <button
                       type="button"
                       onClick={() => setPurchasePaidAmount(Math.round(purchaseAmount * 0.5))}
-                      style={{ fontSize: 11, padding: "2px 8px", background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 4, cursor: "pointer" }}
+                      style={{ fontSize: 11, padding: "3px 8px", background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 4, cursor: "pointer", fontWeight: 600 }}
                     >
                       DP 50%
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPurchasePaidAmount(0)}
+                      style={{ fontSize: 11, padding: "3px 8px", background: purchasePaidAmount === 0 ? "#fee2e2" : "#f1f5f9", color: purchasePaidAmount === 0 ? "#dc2626" : "#475569", border: "1px solid #cbd5e1", borderRadius: 4, cursor: "pointer", fontWeight: 700 }}
+                    >
+                      Belum Dibayar (Rp 0 / Tempo)
                     </button>
                   </div>
                 </div>
@@ -3600,8 +3745,15 @@ export default function SiapSajiFinancePage() {
                   </div>
                   <input
                     type="text"
-                    value={formatThousand(editPurPaidAmount)}
-                    onChange={(e) => setEditPurPaidAmount(Math.min(editPurTotalAmount, parseThousand(e.target.value)))}
+                    value={editPurPaidAmount === 0 ? "0" : formatThousand(editPurPaidAmount)}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/[^0-9]/g, "");
+                      if (raw === "" || raw === "0") {
+                        setEditPurPaidAmount(0);
+                      } else {
+                        setEditPurPaidAmount(Math.min(editPurTotalAmount, parseInt(raw, 10)));
+                      }
+                    }}
                     style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 14, fontWeight: 700, textAlign: "right", background: "white" }}
                   />
                   <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
@@ -3610,7 +3762,7 @@ export default function SiapSajiFinancePage() {
                       onClick={() => setEditPurPaidAmount(editPurTotalAmount)}
                       style={{ fontSize: 11, padding: "2px 8px", background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 4, cursor: "pointer" }}
                     >
-                      Set Lunas (100%)
+                      Bayar Lunas (100%)
                     </button>
                     <button
                       type="button"
@@ -3618,6 +3770,13 @@ export default function SiapSajiFinancePage() {
                       style={{ fontSize: 11, padding: "2px 8px", background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 4, cursor: "pointer" }}
                     >
                       DP 50%
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditPurPaidAmount(0)}
+                      style={{ fontSize: 11, padding: "2px 8px", background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", borderRadius: 4, cursor: "pointer", fontWeight: 600 }}
+                    >
+                      Belum Dibayar (Rp 0 / Tempo)
                     </button>
                   </div>
                 </div>
@@ -3754,24 +3913,39 @@ export default function SiapSajiFinancePage() {
                   </div>
                   <input
                     type="text"
-                    value={formatThousand(expensePaidAmount)}
-                    onChange={(e) => setExpensePaidAmount(Math.min(expenseAmount, parseThousand(e.target.value)))}
+                    placeholder="0"
+                    value={expensePaidAmount === 0 ? "0" : formatThousand(expensePaidAmount)}
+                    onChange={(e) => {
+                      const raw = e.target.value.trim();
+                      if (raw === "" || raw === "0") {
+                        setExpensePaidAmount(0);
+                      } else {
+                        setExpensePaidAmount(Math.min(expenseAmount, parseThousand(raw)));
+                      }
+                    }}
                     style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 14, fontWeight: 700, textAlign: "right", background: "white" }}
                   />
-                  <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                  <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
                     <button
                       type="button"
                       onClick={() => setExpensePaidAmount(expenseAmount)}
-                      style={{ fontSize: 11, padding: "2px 8px", background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 4, cursor: "pointer" }}
+                      style={{ fontSize: 11, padding: "3px 8px", background: expensePaidAmount === expenseAmount && expenseAmount > 0 ? "#e0e7ff" : "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 4, cursor: "pointer", fontWeight: 600 }}
                     >
                       Bayar Lunas (100%)
                     </button>
                     <button
                       type="button"
                       onClick={() => setExpensePaidAmount(Math.round(expenseAmount * 0.5))}
-                      style={{ fontSize: 11, padding: "2px 8px", background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 4, cursor: "pointer" }}
+                      style={{ fontSize: 11, padding: "3px 8px", background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 4, cursor: "pointer", fontWeight: 600 }}
                     >
                       DP 50%
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setExpensePaidAmount(0)}
+                      style={{ fontSize: 11, padding: "3px 8px", background: expensePaidAmount === 0 ? "#fee2e2" : "#f1f5f9", color: expensePaidAmount === 0 ? "#dc2626" : "#475569", border: "1px solid #cbd5e1", borderRadius: 4, cursor: "pointer", fontWeight: 700 }}
+                    >
+                      Belum Dibayar (Rp 0 / Tempo)
                     </button>
                   </div>
                 </div>
@@ -3907,24 +4081,39 @@ export default function SiapSajiFinancePage() {
                   </div>
                   <input
                     type="text"
-                    value={formatThousand(editExpPaidAmount)}
-                    onChange={(e) => setEditExpPaidAmount(Math.min(editExpNominal, parseThousand(e.target.value)))}
+                    placeholder="0"
+                    value={editExpPaidAmount === 0 ? "0" : formatThousand(editExpPaidAmount)}
+                    onChange={(e) => {
+                      const raw = e.target.value.trim();
+                      if (raw === "" || raw === "0") {
+                        setEditExpPaidAmount(0);
+                      } else {
+                        setEditExpPaidAmount(Math.min(editExpNominal, parseThousand(raw)));
+                      }
+                    }}
                     style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 14, fontWeight: 700, textAlign: "right", background: "white" }}
                   />
-                  <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                  <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
                     <button
                       type="button"
                       onClick={() => setEditExpPaidAmount(editExpNominal)}
-                      style={{ fontSize: 11, padding: "2px 8px", background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 4, cursor: "pointer" }}
+                      style={{ fontSize: 11, padding: "3px 8px", background: editExpPaidAmount === editExpNominal && editExpNominal > 0 ? "#e0e7ff" : "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 4, cursor: "pointer", fontWeight: 600 }}
                     >
                       Set Lunas (100%)
                     </button>
                     <button
                       type="button"
                       onClick={() => setEditExpPaidAmount(Math.round(editExpNominal * 0.5))}
-                      style={{ fontSize: 11, padding: "2px 8px", background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 4, cursor: "pointer" }}
+                      style={{ fontSize: 11, padding: "3px 8px", background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 4, cursor: "pointer", fontWeight: 600 }}
                     >
                       DP 50%
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditExpPaidAmount(0)}
+                      style={{ fontSize: 11, padding: "3px 8px", background: editExpPaidAmount === 0 ? "#fee2e2" : "#f1f5f9", color: editExpPaidAmount === 0 ? "#dc2626" : "#475569", border: "1px solid #cbd5e1", borderRadius: 4, cursor: "pointer", fontWeight: 700 }}
+                    >
+                      Belum Dibayar (Rp 0 / Tempo)
                     </button>
                   </div>
                 </div>
@@ -5388,6 +5577,153 @@ export default function SiapSajiFinancePage() {
           </div>
         </div>
       )}
+      {/* MODAL TAMBAH / EDIT REKENING KAS & BANK DENGAN PILIHAN COA DINAMIS */}
+      {isAccountModalOpen && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: "white", borderRadius: 16, maxWidth: 500, width: "100%", padding: 24, boxShadow: "0 20px 25px -5px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 800, color: "#111827", margin: 0 }}>
+                {editingAccountId ? "✏️ Edit Rekening Kas / Bank" : "➕ Tambah Rekening Kas / Bank Baru"}
+              </h3>
+              <button onClick={() => setIsAccountModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280" }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitAccount}>
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                  Nama Rekening / Akun *
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: Bank BCA SS, Bank BSI Operasional, Kas Kasir 1"
+                  value={accFormNama}
+                  onChange={(e) => setAccFormNama(e.target.value)}
+                  required
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                    Jenis Rekening *
+                  </label>
+                  <select
+                    value={accFormJenis}
+                    onChange={(e) => setAccFormJenis(e.target.value)}
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                  >
+                    <option value="Bank">Bank (Rekening Transfer/QRIS)</option>
+                    <option value="Kas">Kas (Uang Tunai/Cash Drawer)</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                    Nama Bank / Vendor
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="BCA, Mandiri, BSI, CIMB..."
+                    value={accFormNamaBank}
+                    onChange={(e) => setAccFormNamaBank(e.target.value)}
+                    disabled={accFormJenis === "Kas"}
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, background: accFormJenis === "Kas" ? "#f3f4f6" : "white" }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                  Nomor Rekening
+                </label>
+                <input
+                  type="text"
+                  placeholder={accFormJenis === "Kas" ? "Tidak diperlukan untuk Kas" : "Nomor rekening bank..."}
+                  value={accFormNoRek}
+                  onChange={(e) => setAccFormNoRek(e.target.value)}
+                  disabled={accFormJenis === "Kas"}
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, background: accFormJenis === "Kas" ? "#f3f4f6" : "white" }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#5005A6", marginBottom: 4 }}>
+                  🔗 Hubungkan ke Akun Buku Besar CoA * (Penting untuk Jurnal)
+                </label>
+                {(() => {
+                  const master = coaListAll.length > 0 ? coaListAll : coaList;
+                  const asetLancarCoas = master.filter((c: any) =>
+                    c.kelompok === "Aset" && (c.sub_kelompok === "Aset Lancar" || c.kode_akun?.startsWith("1-0") || c.kode_akun?.startsWith("1-1"))
+                  );
+                  const listToRender = asetLancarCoas.length > 0 ? asetLancarCoas : master;
+                  return (
+                    <SearchableSelect
+                      options={listToRender.map((c: any) => ({
+                        value: c.id,
+                        label: `(${c.kode_akun}) ${c.nama_akun}`,
+                        category: c.sub_kelompok || c.kelompok,
+                      }))}
+                      value={accFormCoaId}
+                      onChange={(val) => setAccFormCoaId(val ? Number(val) : "")}
+                      placeholder="-- Pilih Akun CoA Aset Lancar / Kas & Bank --"
+                    />
+                  );
+                })()}
+                <span style={{ fontSize: 11, color: "#6b7280", marginTop: 4, display: "block" }}>
+                  Semua transaksi masuk/keluar dari rekening ini akan otomatis dibukukan ke akun CoA yang dipilih.
+                </span>
+              </div>
+
+              {!editingAccountId && (
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                    Saldo Awal (Rp)
+                  </label>
+                  <input
+                    type="number"
+                    value={accFormSaldoAwal || ""}
+                    onChange={(e) => setAccFormSaldoAwal(Number(e.target.value) || 0)}
+                    placeholder="0"
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                  />
+                </div>
+              )}
+
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#374151", cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={accFormIsDefault}
+                    onChange={(e) => setAccFormIsDefault(e.target.checked)}
+                    style={{ width: 16, height: 16 }}
+                  />
+                  Gunakan sebagai rekening pembayaran default untuk Order Siap Saji
+                </label>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setIsAccountModalOpen(false)}
+                  style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "white", cursor: "pointer", fontSize: 13 }}
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#5005A6", color: "white", fontWeight: 700, cursor: "pointer", fontSize: 13 }}
+                >
+                  {isSubmitting ? "Menyimpan..." : (editingAccountId ? "Simpan Perubahan" : "Tambah Rekening")}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* MODAL KAS MASUK / KAS KELUAR (REQ 4 & SCREENSHOT 4) */}
       {isKasMutasiModalOpen && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
@@ -5794,6 +6130,61 @@ export default function SiapSajiFinancePage() {
                   ? "Dibatalkan"
                   : (detailModalItem.data.status_pembayaran || "Lunas")}
               </span>
+            </div>
+
+            {/* Riwayat Pembayaran / Cicilan */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", display: "flex", alignItems: "center", gap: 6 }}>
+                  <Receipt size={15} color="#5005A6" /> Riwayat Pembayaran / Cicilan:
+                </span>
+                <span style={{ fontSize: 11, color: "#64748b" }}>
+                  {(detailModalItem.data.cicilan_history && detailModalItem.data.cicilan_history.length > 0)
+                    ? `${detailModalItem.data.cicilan_history.length} Kali Pembayaran`
+                    : "Belum Ada Pembayaran"}
+                </span>
+              </div>
+
+              {detailModalItem.data.cicilan_history && detailModalItem.data.cicilan_history.length > 0 ? (
+                <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, overflow: "hidden", background: "#fafafa" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, textAlign: "left" }}>
+                    <thead>
+                      <tr style={{ background: "#f1f5f9", borderBottom: "1px solid #e2e8f0", color: "#475569", fontWeight: 700 }}>
+                        <th style={{ padding: "8px 10px", width: 35 }}>No</th>
+                        <th style={{ padding: "8px 10px" }}>Tanggal</th>
+                        <th style={{ padding: "8px 10px", textAlign: "right" }}>Nominal</th>
+                        <th style={{ padding: "8px 10px" }}>Rekening / Bank</th>
+                        <th style={{ padding: "8px 10px" }}>Keterangan</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {detailModalItem.data.cicilan_history.map((c: any, cIdx: number) => (
+                        <tr key={c.id || cIdx} style={{ borderBottom: "1px solid #f1f5f9", background: "white" }}>
+                          <td style={{ padding: "8px 10px", color: "#64748b" }}>{cIdx + 1}</td>
+                          <td style={{ padding: "8px 10px", fontWeight: 600, color: "#334155" }}>{formatDate(c.tanggal)}</td>
+                          <td style={{ padding: "8px 10px", textAlign: "right", fontWeight: 700, color: "#16a34a" }}>
+                            Rp {Number(c.nominal || 0).toLocaleString("id-ID")}
+                          </td>
+                          <td style={{ padding: "8px 10px", color: "#475569" }}>
+                            {c.rekening || c.bank || "-"}
+                          </td>
+                          <td style={{ padding: "8px 10px", color: "#64748b", fontSize: 11, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={c.keterangan || ""}>
+                            {c.keterangan || "-"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div style={{ padding: "12px 14px", background: "#f8fafc", border: "1px dashed #cbd5e1", borderRadius: 8, textAlign: "center", color: "#64748b", fontSize: 12 }}>
+                  {Number(detailModalItem.data.dibayar || 0) === 0 ? (
+                    <span>Transaksi ini berstatus <strong>Tempo / Belum Dibayar (Rp 0)</strong>. Belum ada pembayaran dicatat.</span>
+                  ) : (
+                    <span>Belum ada rincian mutasi cicilan. Pembayaran dilakukan lunas saat pembuatan awal.</span>
+                  )}
+                </div>
+              )}
             </div>
 
             {(detailModalItem.data.cancel_reason) && (

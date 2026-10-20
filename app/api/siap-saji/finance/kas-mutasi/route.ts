@@ -26,21 +26,9 @@ export async function POST(req: NextRequest) {
     const kasBank = kbRes.rows[0];
 
     // Find linked COA for this Kas/Bank
-    let targetKodes = ["1-0001", "1-1001"]; // Kas Tunai default
-    const bName = ((kasBank.nama_bank || "") + " " + (kasBank.nama_rekening || "")).toUpperCase();
-    if (bName.includes("BCA")) {
-      targetKodes = ["1-0002", "1-1002"];
-    } else if (bName.includes("MANDIRI")) {
-      targetKodes = ["1-0003", "1-1003"];
-    } else if (bName.includes("CIMB")) {
-      targetKodes = ["1-0004", "1-1004"];
-    }
-    const coaKasRes = await client.query(
-      "SELECT id FROM coa WHERE kode_akun = ANY($1) AND lini = 'siap_saji' LIMIT 1",
-      [targetKodes]
-    );
-    let kasCoaId = coaKasRes.rows[0]?.id;
+    let kasCoaId: number | null = kasBank.coa_id ? Number(kasBank.coa_id) : null;
     if (!kasCoaId) {
+      const bName = ((kasBank.nama_bank || "") + " " + (kasBank.nama_rekening || "")).toUpperCase();
       const fallbackRes = await client.query(
         `SELECT id FROM coa 
          WHERE lini = 'siap_saji' 

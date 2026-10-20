@@ -48,7 +48,26 @@ export async function GET(req: NextRequest) {
           c.nama_akun AS coa_nama,
           c.kode_akun AS coa_kode,
           kb.nama_rekening AS kas_bank_nama,
-          kb.no_rekening AS kas_bank_norek
+          kb.no_rekening AS kas_bank_norek,
+          COALESCE(
+            (
+              SELECT json_agg(
+                json_build_object(
+                  'id', km.id,
+                  'tanggal', km.mutasi_date,
+                  'nominal', km.nominal,
+                  'rekening', kbm.nama_rekening,
+                  'bank', kbm.nama_bank,
+                  'keterangan', km.keterangan,
+                  'created_at', km.created_at
+                ) ORDER BY km.mutasi_date ASC, km.id ASC
+              )
+              FROM kas_mutasi km
+              LEFT JOIN kas_bank kbm ON km.kas_bank_id = kbm.id
+              WHERE km.ref_type = 'pembelian' AND km.ref_id = pu.id AND km.jenis = 'Keluar'
+            ),
+            '[]'::json
+          ) AS cicilan_history
         FROM purchases pu
         LEFT JOIN coa c ON pu.coa_id = c.id
         LEFT JOIN kas_bank kb ON pu.kas_bank_id = kb.id
@@ -153,19 +172,10 @@ export async function POST(req: NextRequest) {
         const kbRes = await client.query("SELECT * FROM kas_bank WHERE id = $1", [kas_bank_id]);
         let coaKasId: number | null = null;
         if (kbRes.rows.length > 0) {
-          const bankName = (kbRes.rows[0].nama_bank || kbRes.rows[0].nama_rekening || "").toUpperCase();
-          let targetKodes: string[] = ["1-0002", "1-1002"];
-          if (bankName.includes("MANDIRI")) targetKodes = ["1-0003", "1-1003"];
-          else if (bankName.includes("KAS") || kbRes.rows[0].jenis === "Kas") targetKodes = ["1-0001", "1-1001"];
-          else if (bankName.includes("CIMB")) targetKodes = ["1-0004", "1-1004"];
-
-          const coaRes = await client.query(
-            "SELECT id FROM coa WHERE kode_akun = ANY($1) AND lini = 'siap_saji' LIMIT 1",
-            [targetKodes]
-          );
-          if (coaRes.rows.length > 0) {
-            coaKasId = coaRes.rows[0].id;
+          if (kbRes.rows[0].coa_id) {
+            coaKasId = Number(kbRes.rows[0].coa_id);
           } else {
+            const bankName = (kbRes.rows[0].nama_bank || kbRes.rows[0].nama_rekening || "").toUpperCase();
             const fallbackRes = await client.query(
               `SELECT id FROM coa 
                WHERE lini = 'siap_saji' 
@@ -330,19 +340,10 @@ export async function PUT(req: NextRequest) {
         const kbRes = await client.query("SELECT * FROM kas_bank WHERE id = $1", [kas_bank_id]);
         let coaKasId: number | null = null;
         if (kbRes.rows.length > 0) {
-          const bankName = (kbRes.rows[0].nama_bank || kbRes.rows[0].nama_rekening || "").toUpperCase();
-          let targetKodes: string[] = ["1-0002", "1-1002"];
-          if (bankName.includes("MANDIRI")) targetKodes = ["1-0003", "1-1003"];
-          else if (bankName.includes("KAS") || kbRes.rows[0].jenis === "Kas") targetKodes = ["1-0001", "1-1001"];
-          else if (bankName.includes("CIMB")) targetKodes = ["1-0004", "1-1004"];
-
-          const coaRes = await client.query(
-            "SELECT id FROM coa WHERE kode_akun = ANY($1) AND lini = 'siap_saji' LIMIT 1",
-            [targetKodes]
-          );
-          if (coaRes.rows.length > 0) {
-            coaKasId = coaRes.rows[0].id;
+          if (kbRes.rows[0].coa_id) {
+            coaKasId = Number(kbRes.rows[0].coa_id);
           } else {
+            const bankName = (kbRes.rows[0].nama_bank || kbRes.rows[0].nama_rekening || "").toUpperCase();
             const fallbackRes = await client.query(
               `SELECT id FROM coa 
                WHERE lini = 'siap_saji' 
@@ -545,19 +546,10 @@ export async function PATCH(req: NextRequest) {
     const kbRes = await client.query("SELECT * FROM kas_bank WHERE id = $1", [kas_bank_id]);
     let coaKasId: number | null = null;
     if (kbRes.rows.length > 0) {
-      const bankName = (kbRes.rows[0].nama_bank || kbRes.rows[0].nama_rekening || "").toUpperCase();
-      let targetKodes: string[] = ["1-0002", "1-1002"];
-      if (bankName.includes("MANDIRI")) targetKodes = ["1-0003", "1-1003"];
-      else if (bankName.includes("KAS") || kbRes.rows[0].jenis === "Kas") targetKodes = ["1-0001", "1-1001"];
-      else if (bankName.includes("CIMB")) targetKodes = ["1-0004", "1-1004"];
-
-      const coaRes = await client.query(
-        "SELECT id FROM coa WHERE kode_akun = ANY($1) AND lini = 'siap_saji' LIMIT 1",
-        [targetKodes]
-      );
-      if (coaRes.rows.length > 0) {
-        coaKasId = coaRes.rows[0].id;
+      if (kbRes.rows[0].coa_id) {
+        coaKasId = Number(kbRes.rows[0].coa_id);
       } else {
+        const bankName = (kbRes.rows[0].nama_bank || kbRes.rows[0].nama_rekening || "").toUpperCase();
         const fallbackRes = await client.query(
           `SELECT id FROM coa 
            WHERE lini = 'siap_saji' 

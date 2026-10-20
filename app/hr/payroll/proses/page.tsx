@@ -67,7 +67,7 @@ export default function ProsesPayrollPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [payrollDetail, pageSize]);
+  }, [payrollDetail?.id, pageSize]);
 
   const handleCalculatePayroll = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -135,10 +135,23 @@ export default function ProsesPayrollPage() {
     });
 
     let existingRincian: RincianPotonganItem[] = [];
-    if (Array.isArray(det.rincian_potongan) && det.rincian_potongan.length > 0) {
-      existingRincian = det.rincian_potongan;
-    } else if (det.potongan_tabungan > 0) {
-      existingRincian = [{ nama: "Potongan Tabungan", nominal: Number(det.potongan_tabungan) }];
+    let parsedRincian = det.rincian_potongan;
+    if (typeof parsedRincian === "string") {
+      try {
+        parsedRincian = JSON.parse(parsedRincian);
+      } catch (e) {
+        parsedRincian = [];
+      }
+    }
+    if (Array.isArray(parsedRincian) && parsedRincian.length > 0) {
+      existingRincian = parsedRincian.map((item: any) => ({
+        nama: item.nama || "Potongan Lain",
+        nominal: Number(item.nominal) || 0,
+      }));
+    } else if (Number(det.potongan_tabungan) > 0) {
+      existingRincian.push({ nama: "Potongan Tabungan", nominal: Number(det.potongan_tabungan) });
+    } else if (Number(det.potongan_lain) > 0) {
+      existingRincian.push({ nama: "Potongan Lain", nominal: Number(det.potongan_lain) });
     }
     setPotonganList(existingRincian);
   };
@@ -154,7 +167,7 @@ export default function ProsesPayrollPage() {
   const handlePotonganRowChange = (index: number, field: "nama" | "nominal", val: any) => {
     const updated = [...potonganList];
     if (field === "nominal") {
-      updated[index].nominal = Number(val) || 0;
+      updated[index].nominal = val === "" ? ("" as any) : Number(val);
     } else {
       updated[index].nama = val;
     }

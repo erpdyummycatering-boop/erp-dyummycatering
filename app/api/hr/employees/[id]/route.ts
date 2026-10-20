@@ -49,6 +49,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 }
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const client = await pool.connect();
   try {
     const { id } = await params;
     const body = await req.json();
@@ -70,26 +71,90 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       }
     });
 
-    if (updates.length === 0) {
+    const hasSalaryFields =
+      body.gaji_pokok_harian !== undefined ||
+      body.lembur_per_jam !== undefined ||
+      body.tunjangan_km_tier1 !== undefined ||
+      body.tunjangan_km_tier2 !== undefined ||
+      body.tunjangan_km_tier3 !== undefined;
+
+    if (updates.length === 0 && !hasSalaryFields) {
       return NextResponse.json({ error: "Tidak ada field yang diubah" }, { status: 400 });
     }
 
-    values.push(id);
-    const query = `
-      UPDATE hr_employees
-      SET ${updates.join(", ")}, updated_at = NOW()
-      WHERE id = $${values.length}
-      RETURNING *
-    `;
+    await client.query("BEGIN");
 
-    const { rows } = await pool.query(query, values);
-    if (rows.length === 0) {
-      return NextResponse.json({ error: "Karyawan tidak ditemukan" }, { status: 404 });
+    let updatedEmployee = null;
+    if (updates.length > 0) {
+      values.push(id);
+      const query = `
+        UPDATE hr_employees
+        SET ${updates.join(", ")}, updated_at = NOW()
+        WHERE id = $${values.length}
+        RETURNING *
+      `;
+
+      const empRes = await client.query(query, values);
+      if (empRes.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return NextResponse.json({ error: "Karyawan tidak ditemukan" }, { status: 404 });
+      }
+      updatedEmployee = empRes.rows[0];
+    } else {
+      const empRes = await client.query(`SELECT * FROM hr_employees WHERE id = $1`, [id]);
+      if (empRes.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return NextResponse.json({ error: "Karyawan tidak ditemukan" }, { status: 404 });
+      }
+      updatedEmployee = empRes.rows[0];
     }
 
-    return NextResponse.json(rows[0]);
+    // Update / insert salary structure if salary fields are present
+    if (hasSalaryFields) {
+      const gajiPokok = body.gaji_pokok_harian !== undefined ? Number(body.gaji_pokok_harian) : null;
+      const lembur = body.lembur_per_jam !== undefined 
+        ? Number(body.lembur_per_jam) 
+        : (gajiPokok ? Math.round(gajiPokok / 8) : 0);
+      const tier1 = body.tunjangan_km_tier1 !== undefined ? (body.tunjangan_km_tier1 === "" ? null : Number(body.tunjangan_km_tier1)) : null;
+      const tier2 = body.tunjangan_km_tier2 !== undefined ? (body.tunjangan_km_tier2 === "" ? null : Number(body.tunjangan_km_tier2)) : null;
+      const tier3 = body.tunjangan_km_tier3 !== undefined ? (body.tunjangan_km_tier3 === "" ? null : Number(body.tunjangan_km_tier3)) : null;
+
+      // Check if employee already has an active salary structure
+      const existingSalaryRes = await client.query(
+        `SELECT id FROM hr_salary_structures WHERE employee_id = $1 ORDER BY effective_date DESC LIMIT 1`,
+        [id]
+      );
+
+      if (existingSalaryRes.rows.length > 0) {
+        const salaryId = existingSalaryRes.rows[0].id;
+        await client.query(
+          `UPDATE hr_salary_structures
+           SET gaji_pokok_harian = COALESCE($1, gaji_pokok_harian),
+               lembur_per_jam = COALESCE($2, lembur_per_jam),
+               tunjangan_km_tier1 = COALESCE($3, tunjangan_km_tier1),
+               tunjangan_km_tier2 = COALESCE($4, tunjangan_km_tier2),
+               tunjangan_km_tier3 = COALESCE($5, tunjangan_km_tier3)
+           WHERE id = $6`,
+          [gajiPokok, lembur, tier1, tier2, tier3, salaryId]
+        );
+      } else if (gajiPokok !== null) {
+        await client.query(
+          `INSERT INTO hr_salary_structures (
+            employee_id, effective_date, gaji_pokok_harian, lembur_per_jam,
+            tunjangan_km_tier1, tunjangan_km_tier2, tunjangan_km_tier3
+          ) VALUES ($1, CURRENT_DATE, $2, $3, $4, $5, $6)`,
+          [id, gajiPokok, lembur, tier1, tier2, tier3]
+        );
+      }
+    }
+
+    await client.query("COMMIT");
+    return NextResponse.json(updatedEmployee);
   } catch (error: any) {
+    await client.query("ROLLBACK");
     return NextResponse.json({ error: error.message }, { status: 500 });
+  } finally {
+    client.release();
   }
 }
 

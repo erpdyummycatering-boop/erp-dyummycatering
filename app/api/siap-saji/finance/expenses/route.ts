@@ -46,11 +46,35 @@ export async function GET(req: NextRequest) {
           c.nama_akun AS beban_nama,
           c.kode_akun AS beban_kode,
           ck.nama_akun AS kredit_nama,
-          km.kas_bank_id
+          (
+            SELECT km.kas_bank_id 
+            FROM kas_mutasi km 
+            WHERE km.ref_type = 'biaya' AND km.ref_id = j.id AND km.jenis = 'Keluar'
+            ORDER BY km.id ASC 
+            LIMIT 1
+          ) AS kas_bank_id,
+          COALESCE(
+            (
+              SELECT json_agg(
+                json_build_object(
+                  'id', km.id,
+                  'tanggal', km.mutasi_date,
+                  'nominal', km.nominal,
+                  'rekening', kb.nama_rekening,
+                  'bank', kb.nama_bank,
+                  'keterangan', km.keterangan,
+                  'created_at', km.created_at
+                ) ORDER BY km.mutasi_date ASC, km.id ASC
+              )
+              FROM kas_mutasi km
+              LEFT JOIN kas_bank kb ON km.kas_bank_id = kb.id
+              WHERE km.ref_type = 'biaya' AND km.ref_id = j.id AND km.jenis = 'Keluar'
+            ),
+            '[]'::json
+          ) AS cicilan_history
         FROM journals j
         LEFT JOIN coa c ON j.akun_debit = c.id
         LEFT JOIN coa ck ON j.akun_kredit = ck.id
-        LEFT JOIN kas_mutasi km ON km.ref_type = 'biaya' AND km.ref_id = j.id
         WHERE ${whereSql}
         ORDER BY j.journal_date DESC, j.id DESC
         LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
@@ -114,20 +138,11 @@ export async function POST(req: NextRequest) {
     if (paidAmount > 0 && !isHutang) {
       const kbRes = await client.query("SELECT * FROM kas_bank WHERE id = $1", [kas_bank_id]);
       if (kbRes.rows.length > 0) {
-        const bankName = (kbRes.rows[0].nama_bank || kbRes.rows[0].nama_rekening || "").toUpperCase();
-        let targetKodes: string[] = ["1-0002", "1-1002"];
-        if (bankName.includes("MANDIRI")) targetKodes = ["1-0003", "1-1003"];
-        else if (bankName.includes("KAS") || kbRes.rows[0].jenis === "Kas") targetKodes = ["1-0001", "1-1001"];
-        else if (bankName.includes("CIMB")) targetKodes = ["1-0004", "1-1004"];
-
-        const coaKreditRes = await client.query(
-          "SELECT id FROM coa WHERE kode_akun = ANY($1) AND lini = 'siap_saji' LIMIT 1",
-          [targetKodes]
-        );
-        if (coaKreditRes.rows.length > 0) {
-          coaKasId = coaKreditRes.rows[0].id;
+        if (kbRes.rows[0].coa_id) {
+          coaKasId = Number(kbRes.rows[0].coa_id);
         } else {
-          // Fallback to matching by account name or first Aset Lancar Kas/Bank
+          // Fallback if coa_id not yet linked
+          const bankName = (kbRes.rows[0].nama_bank || kbRes.rows[0].nama_rekening || "").toUpperCase();
           const fallbackRes = await client.query(
             `SELECT id FROM coa 
              WHERE lini = 'siap_saji' 
@@ -283,19 +298,10 @@ export async function PUT(req: NextRequest) {
     if (paidAmount > 0 && !isHutang) {
       const kbRes = await client.query("SELECT * FROM kas_bank WHERE id = $1", [kas_bank_id]);
       if (kbRes.rows.length > 0) {
-        const bankName = (kbRes.rows[0].nama_bank || kbRes.rows[0].nama_rekening || "").toUpperCase();
-        let targetKodes: string[] = ["1-0002", "1-1002"];
-        if (bankName.includes("MANDIRI")) targetKodes = ["1-0003", "1-1003"];
-        else if (bankName.includes("KAS") || kbRes.rows[0].jenis === "Kas") targetKodes = ["1-0001", "1-1001"];
-        else if (bankName.includes("CIMB")) targetKodes = ["1-0004", "1-1004"];
-
-        const coaKreditRes = await client.query(
-          "SELECT id FROM coa WHERE kode_akun = ANY($1) AND lini = 'siap_saji' LIMIT 1",
-          [targetKodes]
-        );
-        if (coaKreditRes.rows.length > 0) {
-          coaKasId = coaKreditRes.rows[0].id;
+        if (kbRes.rows[0].coa_id) {
+          coaKasId = Number(kbRes.rows[0].coa_id);
         } else {
+          const bankName = (kbRes.rows[0].nama_bank || kbRes.rows[0].nama_rekening || "").toUpperCase();
           const fallbackRes = await client.query(
             `SELECT id FROM coa 
              WHERE lini = 'siap_saji' 
@@ -439,19 +445,10 @@ export async function PATCH(req: NextRequest) {
     const kbRes = await client.query("SELECT * FROM kas_bank WHERE id = $1", [kas_bank_id]);
     let coaKasId: number | null = null;
     if (kbRes.rows.length > 0) {
-      const bankName = (kbRes.rows[0].nama_bank || kbRes.rows[0].nama_rekening || "").toUpperCase();
-      let targetKodes: string[] = ["1-0002", "1-1002"];
-      if (bankName.includes("MANDIRI")) targetKodes = ["1-0003", "1-1003"];
-      else if (bankName.includes("KAS") || kbRes.rows[0].jenis === "Kas") targetKodes = ["1-0001", "1-1001"];
-      else if (bankName.includes("CIMB")) targetKodes = ["1-0004", "1-1004"];
-
-      const coaRes = await client.query(
-        "SELECT id FROM coa WHERE kode_akun = ANY($1) AND lini = 'siap_saji' LIMIT 1",
-        [targetKodes]
-      );
-      if (coaRes.rows.length > 0) {
-        coaKasId = coaRes.rows[0].id;
+      if (kbRes.rows[0].coa_id) {
+        coaKasId = Number(kbRes.rows[0].coa_id);
       } else {
+        const bankName = (kbRes.rows[0].nama_bank || kbRes.rows[0].nama_rekening || "").toUpperCase();
         const fallbackRes = await client.query(
           `SELECT id FROM coa 
            WHERE lini = 'siap_saji' 

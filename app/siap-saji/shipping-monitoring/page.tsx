@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Truck, Search, Filter, Calendar, CheckCircle2, Clock, MapPin, Phone, User, Edit3, Save, RefreshCw } from "lucide-react";
+import { Truck, Search, Filter, Calendar, Check, CheckCircle2, Clock, MapPin, Phone, User, Edit3, Save, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { Pagination } from "@/components/ui/Pagination";
