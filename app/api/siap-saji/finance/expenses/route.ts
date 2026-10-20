@@ -114,13 +114,29 @@ export async function POST(req: NextRequest) {
     if (paidAmount > 0 && !isHutang) {
       const kbRes = await client.query("SELECT * FROM kas_bank WHERE id = $1", [kas_bank_id]);
       if (kbRes.rows.length > 0) {
-        const bankName = kbRes.rows[0].nama_bank || kbRes.rows[0].nama_rekening;
-        let kreditKode = "1-1002";
-        if (bankName.toUpperCase().includes("MANDIRI")) kreditKode = "1-1003";
-        else if (bankName.toUpperCase().includes("KAS")) kreditKode = "1-1001";
+        const bankName = (kbRes.rows[0].nama_bank || kbRes.rows[0].nama_rekening || "").toUpperCase();
+        let targetKodes: string[] = ["1-0002", "1-1002"];
+        if (bankName.includes("MANDIRI")) targetKodes = ["1-0003", "1-1003"];
+        else if (bankName.includes("KAS") || kbRes.rows[0].jenis === "Kas") targetKodes = ["1-0001", "1-1001"];
+        else if (bankName.includes("CIMB")) targetKodes = ["1-0004", "1-1004"];
 
-        const coaKreditRes = await client.query("SELECT id FROM coa WHERE kode_akun = $1 AND lini = 'siap_saji' LIMIT 1", [kreditKode]);
-        if (coaKreditRes.rows.length > 0) coaKasId = coaKreditRes.rows[0].id;
+        const coaKreditRes = await client.query(
+          "SELECT id FROM coa WHERE kode_akun = ANY($1) AND lini = 'siap_saji' LIMIT 1",
+          [targetKodes]
+        );
+        if (coaKreditRes.rows.length > 0) {
+          coaKasId = coaKreditRes.rows[0].id;
+        } else {
+          // Fallback to matching by account name or first Aset Lancar Kas/Bank
+          const fallbackRes = await client.query(
+            `SELECT id FROM coa 
+             WHERE lini = 'siap_saji' 
+               AND (nama_akun ILIKE $1 OR (kode_akun LIKE '1-%' AND (nama_akun ILIKE '%kas%' OR nama_akun ILIKE '%bank%')))
+             ORDER BY id ASC LIMIT 1`,
+            [`%${bankName}%`]
+          );
+          if (fallbackRes.rows.length > 0) coaKasId = fallbackRes.rows[0].id;
+        }
       }
     }
 
@@ -267,13 +283,28 @@ export async function PUT(req: NextRequest) {
     if (paidAmount > 0 && !isHutang) {
       const kbRes = await client.query("SELECT * FROM kas_bank WHERE id = $1", [kas_bank_id]);
       if (kbRes.rows.length > 0) {
-        const bankName = kbRes.rows[0].nama_bank || kbRes.rows[0].nama_rekening;
-        let kreditKode = "1-1002";
-        if (bankName.toUpperCase().includes("MANDIRI")) kreditKode = "1-1003";
-        else if (bankName.toUpperCase().includes("KAS")) kreditKode = "1-1001";
+        const bankName = (kbRes.rows[0].nama_bank || kbRes.rows[0].nama_rekening || "").toUpperCase();
+        let targetKodes: string[] = ["1-0002", "1-1002"];
+        if (bankName.includes("MANDIRI")) targetKodes = ["1-0003", "1-1003"];
+        else if (bankName.includes("KAS") || kbRes.rows[0].jenis === "Kas") targetKodes = ["1-0001", "1-1001"];
+        else if (bankName.includes("CIMB")) targetKodes = ["1-0004", "1-1004"];
 
-        const coaKreditRes = await client.query("SELECT id FROM coa WHERE kode_akun = $1 AND lini = 'siap_saji' LIMIT 1", [kreditKode]);
-        if (coaKreditRes.rows.length > 0) coaKasId = coaKreditRes.rows[0].id;
+        const coaKreditRes = await client.query(
+          "SELECT id FROM coa WHERE kode_akun = ANY($1) AND lini = 'siap_saji' LIMIT 1",
+          [targetKodes]
+        );
+        if (coaKreditRes.rows.length > 0) {
+          coaKasId = coaKreditRes.rows[0].id;
+        } else {
+          const fallbackRes = await client.query(
+            `SELECT id FROM coa 
+             WHERE lini = 'siap_saji' 
+               AND (nama_akun ILIKE $1 OR (kode_akun LIKE '1-%' AND (nama_akun ILIKE '%kas%' OR nama_akun ILIKE '%bank%')))
+             ORDER BY id ASC LIMIT 1`,
+            [`%${bankName}%`]
+          );
+          if (fallbackRes.rows.length > 0) coaKasId = fallbackRes.rows[0].id;
+        }
       }
     }
 
@@ -408,12 +439,28 @@ export async function PATCH(req: NextRequest) {
     const kbRes = await client.query("SELECT * FROM kas_bank WHERE id = $1", [kas_bank_id]);
     let coaKasId: number | null = null;
     if (kbRes.rows.length > 0) {
-      const bankName = kbRes.rows[0].nama_bank || kbRes.rows[0].nama_rekening;
-      let kreditKode = "1-1002";
-      if (bankName.toUpperCase().includes("MANDIRI")) kreditKode = "1-1003";
-      else if (bankName.toUpperCase().includes("KAS")) kreditKode = "1-1001";
-      const coaRes = await client.query("SELECT id FROM coa WHERE kode_akun = $1 AND lini = 'siap_saji' LIMIT 1", [kreditKode]);
-      if (coaRes.rows.length > 0) coaKasId = coaRes.rows[0].id;
+      const bankName = (kbRes.rows[0].nama_bank || kbRes.rows[0].nama_rekening || "").toUpperCase();
+      let targetKodes: string[] = ["1-0002", "1-1002"];
+      if (bankName.includes("MANDIRI")) targetKodes = ["1-0003", "1-1003"];
+      else if (bankName.includes("KAS") || kbRes.rows[0].jenis === "Kas") targetKodes = ["1-0001", "1-1001"];
+      else if (bankName.includes("CIMB")) targetKodes = ["1-0004", "1-1004"];
+
+      const coaRes = await client.query(
+        "SELECT id FROM coa WHERE kode_akun = ANY($1) AND lini = 'siap_saji' LIMIT 1",
+        [targetKodes]
+      );
+      if (coaRes.rows.length > 0) {
+        coaKasId = coaRes.rows[0].id;
+      } else {
+        const fallbackRes = await client.query(
+          `SELECT id FROM coa 
+           WHERE lini = 'siap_saji' 
+             AND (nama_akun ILIKE $1 OR (kode_akun LIKE '1-%' AND (nama_akun ILIKE '%kas%' OR nama_akun ILIKE '%bank%')))
+           ORDER BY id ASC LIMIT 1`,
+          [`%${bankName}%`]
+        );
+        if (fallbackRes.rows.length > 0) coaKasId = fallbackRes.rows[0].id;
+      }
     }
 
     // Resolve Utang Usaha CoA (2-1001) -> DEBET Utang Usaha, KREDIT Kas/Bank

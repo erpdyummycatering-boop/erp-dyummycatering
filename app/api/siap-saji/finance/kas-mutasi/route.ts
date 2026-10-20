@@ -26,18 +26,30 @@ export async function POST(req: NextRequest) {
     const kasBank = kbRes.rows[0];
 
     // Find linked COA for this Kas/Bank
-    let kasKode = "1-1001"; // Kas Tunai default
+    let targetKodes = ["1-0001", "1-1001"]; // Kas Tunai default
     const bName = ((kasBank.nama_bank || "") + " " + (kasBank.nama_rekening || "")).toUpperCase();
     if (bName.includes("BCA")) {
-      kasKode = "1-1002";
+      targetKodes = ["1-0002", "1-1002"];
     } else if (bName.includes("MANDIRI")) {
-      kasKode = "1-1003";
+      targetKodes = ["1-0003", "1-1003"];
+    } else if (bName.includes("CIMB")) {
+      targetKodes = ["1-0004", "1-1004"];
     }
     const coaKasRes = await client.query(
-      "SELECT id FROM coa WHERE kode_akun = $1 AND lini = 'siap_saji' LIMIT 1",
-      [kasKode]
+      "SELECT id FROM coa WHERE kode_akun = ANY($1) AND lini = 'siap_saji' LIMIT 1",
+      [targetKodes]
     );
     let kasCoaId = coaKasRes.rows[0]?.id;
+    if (!kasCoaId) {
+      const fallbackRes = await client.query(
+        `SELECT id FROM coa 
+         WHERE lini = 'siap_saji' 
+           AND (nama_akun ILIKE $1 OR (kode_akun LIKE '1-%' AND (nama_akun ILIKE '%kas%' OR nama_akun ILIKE '%bank%')))
+         ORDER BY id ASC LIMIT 1`,
+        [`%${bName}%`]
+      );
+      if (fallbackRes.rows.length > 0) kasCoaId = fallbackRes.rows[0].id;
+    }
 
     const tgl = mutasi_date || new Date().toISOString().split("T")[0];
     const ket = keterangan ? String(keterangan).trim() : (jenis === "Keluar" ? "Kas Keluar (Prive / Lainya)" : "Kas Masuk (Modal / Lainnya)");

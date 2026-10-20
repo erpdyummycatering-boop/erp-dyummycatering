@@ -270,21 +270,22 @@ export async function PUT(
     );
 
     // Lookup Coa Accounts for update in case bank / payment status changed
-    let debitKode = "1-1002";
+    let targetDebitKodes: string[] = ["1-0002", "1-1002"];
     if (!isLunas) {
-      debitKode = "1-1004"; // Piutang Usaha SS
+      targetDebitKodes = ["1-1004", "1-0004"]; // Piutang Usaha SS
     } else {
-      if (paymentBankName.toUpperCase().includes("MANDIRI")) debitKode = "1-1003";
-      else if (paymentBankName.toUpperCase().includes("KAS")) debitKode = "1-1001";
+      if (paymentBankName.toUpperCase().includes("MANDIRI")) targetDebitKodes = ["1-0003", "1-1003"];
+      else if (paymentBankName.toUpperCase().includes("KAS")) targetDebitKodes = ["1-0001", "1-1001"];
+      else if (paymentBankName.toUpperCase().includes("CIMB")) targetDebitKodes = ["1-0004", "1-1004"];
     }
 
     let coaDebitRes = await client.query(
-      "SELECT id FROM coa WHERE kode_akun = $1 AND lini = 'siap_saji' LIMIT 1",
-      [debitKode]
+      "SELECT id FROM coa WHERE kode_akun = ANY($1) AND lini = 'siap_saji' LIMIT 1",
+      [targetDebitKodes]
     );
-    if (!isLunas && coaDebitRes.rows.length === 0) {
+    if (coaDebitRes.rows.length === 0) {
       coaDebitRes = await client.query(
-        "SELECT id FROM coa WHERE (kode_akun LIKE '1-%' OR tipe = 'Aktiva') AND lini = 'siap_saji' ORDER BY id ASC LIMIT 1"
+        "SELECT id FROM coa WHERE kode_akun LIKE '1-%' AND lini = 'siap_saji' ORDER BY id ASC LIMIT 1"
       );
     }
 

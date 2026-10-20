@@ -44,9 +44,12 @@ export async function POST(req: NextRequest) {
          JOIN coa c ON c.id = $1
          WHERE kb.lini = 'siap_saji' 
            AND (
-             (c.kode_akun = '1-1001' AND kb.jenis = 'Kas') OR
-             (c.kode_akun = '1-1002' AND (kb.nama_bank ILIKE '%BCA%' OR kb.nama_rekening ILIKE '%BCA%')) OR
-             (c.kode_akun = '1-1003' AND (kb.nama_bank ILIKE '%MANDIRI%' OR kb.nama_rekening ILIKE '%MANDIRI%'))
+             (c.kode_akun IN ('1-0001', '1-1001') AND kb.jenis = 'Kas') OR
+             (c.kode_akun IN ('1-0002', '1-1002') AND (kb.nama_bank ILIKE '%BCA%' OR kb.nama_rekening ILIKE '%BCA%')) OR
+             (c.kode_akun IN ('1-0003', '1-1003') AND (kb.nama_bank ILIKE '%MANDIRI%' OR kb.nama_rekening ILIKE '%MANDIRI%')) OR
+             (c.kode_akun IN ('1-0004', '1-1004') AND (kb.nama_bank ILIKE '%CIMB%' OR kb.nama_rekening ILIKE '%CIMB%')) OR
+             (c.nama_akun ILIKE '%' || COALESCE(kb.nama_bank, '') || '%' AND kb.nama_bank IS NOT NULL) OR
+             (c.nama_akun ILIKE '%' || kb.nama_rekening || '%')
            )
          LIMIT 1`,
         [coaId]
@@ -146,9 +149,12 @@ export async function PUT(req: NextRequest) {
          JOIN coa c ON c.id = $1
          WHERE kb.lini = 'siap_saji' 
            AND (
-             (c.kode_akun = '1-1001' AND kb.jenis = 'Kas') OR
-             (c.kode_akun = '1-1002' AND (kb.nama_bank ILIKE '%BCA%' OR kb.nama_rekening ILIKE '%BCA%')) OR
-             (c.kode_akun = '1-1003' AND (kb.nama_bank ILIKE '%MANDIRI%' OR kb.nama_rekening ILIKE '%MANDIRI%'))
+             (c.kode_akun IN ('1-0001', '1-1001') AND kb.jenis = 'Kas') OR
+             (c.kode_akun IN ('1-0002', '1-1002') AND (kb.nama_bank ILIKE '%BCA%' OR kb.nama_rekening ILIKE '%BCA%')) OR
+             (c.kode_akun IN ('1-0003', '1-1003') AND (kb.nama_bank ILIKE '%MANDIRI%' OR kb.nama_rekening ILIKE '%MANDIRI%')) OR
+             (c.kode_akun IN ('1-0004', '1-1004') AND (kb.nama_bank ILIKE '%CIMB%' OR kb.nama_rekening ILIKE '%CIMB%')) OR
+             (c.nama_akun ILIKE '%' || COALESCE(kb.nama_bank, '') || '%' AND kb.nama_bank IS NOT NULL) OR
+             (c.nama_akun ILIKE '%' || kb.nama_rekening || '%')
            )
          LIMIT 1`,
         [coaId]
