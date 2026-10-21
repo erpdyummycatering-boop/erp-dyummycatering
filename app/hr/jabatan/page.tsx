@@ -285,7 +285,7 @@ export default function JabatanPage() {
                         <td style={{ fontWeight: 600 }}>{p.nama}</td>
                         <td>{p.department_nama || "-"}</td>
                         <td>
-                          <Badge color={p.tipe_gaji === "HARIAN_DRIVER" ? "purple" : "blue"}>
+                          <Badge color={p.tipe_gaji === "BULANAN" ? "green" : p.tipe_gaji === "HARIAN_DRIVER" ? "purple" : "blue"}>
                             {p.tipe_gaji}
                           </Badge>
                         </td>
@@ -413,6 +413,7 @@ export default function JabatanPage() {
               >
                 <option value="HARIAN_PRODUKSI">Harian Produksi</option>
                 <option value="HARIAN_DRIVER">Harian Driver</option>
+                <option value="BULANAN">Bulanan (Staff / Tetap)</option>
               </select>
             </FormField>
           </FormRow>

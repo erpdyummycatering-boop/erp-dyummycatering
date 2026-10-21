@@ -290,7 +290,7 @@ export default function StrukturGajiPage() {
                         <div style={{ fontSize: 12, color: "#6b7280" }}>{s.kode_karyawan}</div>
                       </td>
                       <td>
-                        <Badge color={s.tipe_gaji === "HARIAN_DRIVER" ? "purple" : "blue"}>
+                        <Badge color={s.tipe_gaji === "BULANAN" ? "green" : s.tipe_gaji === "HARIAN_DRIVER" ? "purple" : "blue"}>
                           {s.tipe_gaji}
                         </Badge>
                       </td>

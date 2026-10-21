@@ -15,7 +15,10 @@ import {
   Clock,
   Calendar,
   Trash2,
+  Copy,
+  Building2,
 } from "lucide-react";
+import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Pagination } from "@/components/ui/Pagination";
@@ -413,6 +416,100 @@ export default function RiwayatPayrollPage() {
               )}
             </div>
           </div>
+
+          {/* Department Breakdown Widget for Finance Review */}
+          {(() => {
+            const details: any[] = selectedPayroll.details || [];
+            const deptMap: { [key: string]: { count: number; gajiPokok: number; lembur: number; bonus: number; potongan: number; gajiBersih: number } } = {};
+
+            details.forEach((d) => {
+              const deptName = d.snapshot_departemen || "Lainnya / Umum";
+              if (!deptMap[deptName]) {
+                deptMap[deptName] = { count: 0, gajiPokok: 0, lembur: 0, bonus: 0, potongan: 0, gajiBersih: 0 };
+              }
+              const lembur = Number(d.subtotal_lembur || 0) + Number(d.subtotal_lembur_pagi || 0);
+              const bonus = Number(d.tunjangan_bonus || d.subtotal_bonus || 0);
+              deptMap[deptName].count += 1;
+              deptMap[deptName].gajiPokok += Number(d.subtotal_gaji_pokok || 0);
+              deptMap[deptName].lembur += lembur;
+              deptMap[deptName].bonus += bonus;
+              deptMap[deptName].potongan += Number(d.total_potongan || 0);
+              deptMap[deptName].gajiBersih += Number(d.gaji_bersih || 0);
+            });
+
+            const deptList = Object.entries(deptMap).map(([name, val]) => ({ name, ...val }));
+            const totalNet = Number(selectedPayroll.total_gaji_bersih || 0);
+
+            const handleCopySummaryFinance = () => {
+              let text = `📌 *REKAP DANA PAYROLL ${selectedPayroll.tipe_payroll || "PEKANAN"}*\n`;
+              text += `Batch  : ${selectedPayroll.nama_periode}\n`;
+              if (selectedPayroll.tanggal_mulai && selectedPayroll.tanggal_selesai) {
+                text += `Rentang: ${selectedPayroll.tanggal_mulai} s/d ${selectedPayroll.tanggal_selesai}\n`;
+              }
+              text += `Status : ${selectedPayroll.status}\n`;
+              text += `----------------------------------------\n`;
+              text += `*Rincian Per Divisi:*\n`;
+              deptList.forEach((d) => {
+                const pct = totalNet > 0 ? ((d.gajiBersih / totalNet) * 100).toFixed(1) : "0";
+                text += `• ${d.name} (${d.count} orang): Rp ${d.gajiBersih.toLocaleString("id-ID")} (${pct}%)\n`;
+              });
+              text += `----------------------------------------\n`;
+              text += `*TOTAL BERSIH: Rp ${totalNet.toLocaleString("id-ID")}*\n`;
+              text += `Total: ${selectedPayroll.total_karyawan} orang\n`;
+
+              navigator.clipboard.writeText(text);
+              toast.success("Ringkasan alokasi divisi berhasil disalin ke clipboard!");
+            };
+
+            return (
+              <div style={{ margin: "14px 20px 0 20px", borderRadius: 12, border: "1px solid #f0abfc", background: "#fdf4ff", overflow: "hidden" }}>
+                <div style={{ padding: "10px 16px", background: "#fae8ff", borderBottom: "1px solid #f0abfc", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <Building2 size={16} color="#86198f" />
+                    <span style={{ fontSize: 13, fontWeight: 800, color: "#86198f" }}>
+                      Ringkasan Alokasi Dana Per Divisi ({selectedPayroll.nama_periode})
+                    </span>
+                  </div>
+                  <button
+                    onClick={handleCopySummaryFinance}
+                    style={{
+                      padding: "4px 10px",
+                      background: "#86198f",
+                      color: "white",
+                      border: "none",
+                      borderRadius: 6,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
+                    <Copy size={12} /> Salin Format WA Finance
+                  </button>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 10, padding: 12 }}>
+                  {deptList.map((dept) => {
+                    const pct = totalNet > 0 ? ((dept.gajiBersih / totalNet) * 100).toFixed(1) : "0";
+                    return (
+                      <div key={dept.name} style={{ background: "white", borderRadius: 8, padding: "8px 12px", border: "1px solid #f5d0fe" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: "#1f2937" }}>{dept.name}</span>
+                          <span style={{ fontSize: 10, fontWeight: 700, background: "#f3e8ff", color: "#7e22ce", padding: "1px 6px", borderRadius: 10 }}>{pct}%</span>
+                        </div>
+                        <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>{dept.count} Karyawan</div>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: "#5005A6", marginTop: 4 }}>
+                          Rp {dept.gajiBersih.toLocaleString("id-ID")}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
 
           <div style={{ overflowX: "auto" }}>
             <table>

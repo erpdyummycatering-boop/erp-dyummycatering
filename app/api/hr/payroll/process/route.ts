@@ -251,7 +251,21 @@ export async function POST(req: Request) {
         }
       }
 
-      const subtotalGajiPokok = gajiPokokHarian * hariHadir;
+      // Subtotal Gaji Pokok: jika tipe_gaji 'BULANAN', gunakan nilai gaji bulanan utuh (jika tipe_payroll BULANAN) atau proporsional bila pekanan
+      let subtotalGajiPokok = 0;
+      if (emp.tipe_gaji === "BULANAN") {
+        if (tipe_payroll === "BULANAN") {
+          // Gaji bulanan utuh
+          subtotalGajiPokok = gajiPokokHarian;
+        } else {
+          // Jika proses pekanan untuk staf bulanan, dibagi 4 pekan
+          subtotalGajiPokok = Math.round(gajiPokokHarian / 4);
+        }
+      } else {
+        // Harian (Produksi / Driver): gaji per hari * total hari kehadiran
+        subtotalGajiPokok = gajiPokokHarian * hariHadir;
+      }
+
       const subtotalLembur = Math.round(lemburPerJam * (totalLemburDiakui / 60));
       const subtotalLemburPagi = Math.round(lemburPerJam * (totalLemburPagiMenit / 60));
       const subtotalBonus = totalBonusHarian;

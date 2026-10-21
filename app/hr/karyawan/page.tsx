@@ -493,10 +493,18 @@ export default function KaryawanPage() {
             <FormField label="Tipe Gaji">
               <select
                 value={formData.tipe_gaji}
-                onChange={(e) => setFormData({ ...formData, tipe_gaji: e.target.value })}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setFormData({
+                    ...formData,
+                    tipe_gaji: val,
+                    tipe_periode_gaji: val === "BULANAN" ? "BULANAN" : formData.tipe_periode_gaji,
+                  });
+                }}
               >
                 <option value="HARIAN_PRODUKSI">Harian Produksi</option>
                 <option value="HARIAN_DRIVER">Harian Driver</option>
+                <option value="BULANAN">Gaji Bulanan</option>
               </select>
             </FormField>
             <FormField label="Periode Gaji">
@@ -523,7 +531,7 @@ export default function KaryawanPage() {
               Komponen Gaji Dasar (Rupiah)
             </h4>
             <FormRow>
-              <FormField label="Gaji Pokok / Hari *">
+              <FormField label={formData.tipe_gaji === "BULANAN" ? "Gaji Pokok / Bulan *" : "Gaji Pokok / Hari *"}>
                 <input
                   type="number"
                   required

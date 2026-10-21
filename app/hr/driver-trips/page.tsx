@@ -15,7 +15,9 @@ import {
   Calculator,
   RefreshCw,
   LayoutGrid,
-  Table as TableIcon
+  Table as TableIcon,
+  Trash2,
+  Edit,
 } from "lucide-react";
 import { toast } from "sonner";
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
@@ -56,6 +58,7 @@ export default function HRDriverTripsPage() {
 
   // Form State Modal Input/Edit
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingTripId, setEditingTripId] = useState<number | null>(null);
   const [selectedEmpId, setSelectedEmpId] = useState<number | "">("");
   const [tanggalInput, setTanggalInput] = useState(() => new Date().toISOString().split("T")[0]);
   const [totalTrip, setTotalTrip] = useState<number>(1);
@@ -86,6 +89,7 @@ export default function HRDriverTripsPage() {
   }, [month]);
 
   const handleOpenAdd = (empId?: number) => {
+    setEditingTripId(null);
     if (empId) setSelectedEmpId(empId);
     else setSelectedEmpId("");
     setTanggalInput(new Date().toISOString().split("T")[0]);
@@ -97,6 +101,39 @@ export default function HRDriverTripsPage() {
     setIsModalOpen(true);
   };
 
+  const handleOpenEdit = (trip: DriverTrip) => {
+    setEditingTripId(trip.id);
+    setSelectedEmpId(trip.employee_id);
+    setTanggalInput(trip.tanggal.substring(0, 10));
+    setTotalTrip(trip.total_trip || 1);
+    setTotalDestinasi(trip.total_destinasi || 1);
+    setKmInput(trip.km || 0);
+    setInsentifInput(trip.insentif_trip || 0);
+    setKeteranganInput(trip.keterangan || "");
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteTrip = async (trip: DriverTrip) => {
+    const drv = drivers.find((d) => d.employee_id === trip.employee_id);
+    const drvName = drv?.nama_lengkap || `Driver #${trip.employee_id}`;
+    if (!confirm(`Yakin ingin menghapus log trip ${drvName} tanggal ${formatDate(trip.tanggal)} (${trip.km} KM)?`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/hr/driver-trips?id=${trip.id}`, {
+        method: "DELETE",
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Gagal menghapus log trip");
+
+      toast.success("Log trip berhasil dihapus");
+      fetchTripData();
+    } catch (err: any) {
+      toast.error(err.message || "Gagal menghapus trip");
+    }
+  };
+
   const handleSaveTrip = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedEmpId) {
@@ -106,25 +143,44 @@ export default function HRDriverTripsPage() {
 
     setIsSaving(true);
     try {
-      const res = await fetch("/api/hr/driver-trips", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          employee_id: Number(selectedEmpId),
-          tanggal: tanggalInput,
-          total_trip: Number(totalTrip),
-          total_destinasi: Number(totalDestinasi),
-          km: Number(kmInput),
-          insentif_trip: Number(insentifInput),
-          keterangan: keteranganInput,
-        }),
-      });
+      let res;
+      if (editingTripId) {
+        // Koreksi / Update
+        res = await fetch("/api/hr/driver-trips", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: editingTripId,
+            total_trip: Number(totalTrip),
+            total_destinasi: Number(totalDestinasi),
+            km: Number(kmInput),
+            insentif_trip: Number(insentifInput),
+            keterangan: keteranganInput,
+          }),
+        });
+      } else {
+        // Create Baru
+        res = await fetch("/api/hr/driver-trips", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            employee_id: Number(selectedEmpId),
+            tanggal: tanggalInput,
+            total_trip: Number(totalTrip),
+            total_destinasi: Number(totalDestinasi),
+            km: Number(kmInput),
+            insentif_trip: Number(insentifInput),
+            keterangan: keteranganInput,
+          }),
+        });
+      }
 
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Gagal menyimpan log trip");
 
-      toast.success("Data trip & KM driver berhasil disimpan!");
+      toast.success(editingTripId ? "Data trip berhasil dikoreksi!" : "Data trip & KM driver berhasil disimpan!");
       setIsModalOpen(false);
+      setEditingTripId(null);
       fetchTripData();
     } catch (err: any) {
       toast.error(err.message || "Terjadi kesalahan");
@@ -502,12 +558,13 @@ export default function HRDriverTripsPage() {
               <th style={{ padding: "10px 14px", textAlign: "right" }}>Tunjangan KM</th>
               <th style={{ padding: "10px 14px", textAlign: "right" }}>Insentif Trip</th>
               <th style={{ padding: "10px 14px", textAlign: "left" }}>Keterangan / Rute</th>
+              <th style={{ padding: "10px 14px", textAlign: "center" }}>Aksi</th>
             </tr>
           </thead>
           <tbody>
             {trips.length === 0 ? (
               <tr>
-                <td colSpan={9} style={{ padding: 30, textAlign: "center", color: "#6b7280" }}>
+                <td colSpan={10} style={{ padding: 30, textAlign: "center", color: "#6b7280" }}>
                   Belum ada log trip pengantaran diinput pada periode ini.
                 </td>
               </tr>
@@ -535,6 +592,47 @@ export default function HRDriverTripsPage() {
                       Rp {Number(t.insentif_trip).toLocaleString("id-ID")}
                     </td>
                     <td style={{ padding: "10px 14px", color: "#6b7280", fontSize: 12 }}>{t.keterangan || "-"}</td>
+                    <td style={{ padding: "10px 14px", textAlign: "center" }}>
+                      <div style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                        <button
+                          onClick={() => handleOpenEdit(t)}
+                          title="Edit / Koreksi Log Trip"
+                          style={{
+                            padding: "4px 8px",
+                            background: "#ede9fe",
+                            color: "#5005A6",
+                            border: "1px solid #ddd6fe",
+                            borderRadius: 6,
+                            fontSize: 11,
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                        >
+                          <Edit size={12} /> Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteTrip(t)}
+                          title="Hapus Log Trip"
+                          style={{
+                            padding: "4px 8px",
+                            background: "#fef2f2",
+                            color: "#ef4444",
+                            border: "1px solid #fecaca",
+                            borderRadius: 6,
+                            fontSize: 11,
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                          }}
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 );
               })
@@ -543,7 +641,7 @@ export default function HRDriverTripsPage() {
         </table>
       </div>
 
-      {/* ── MODAL INPUT LOG TRIP ────────────────────────────────────────── */}
+      {/* ── MODAL INPUT / KOREKSI LOG TRIP ────────────────────────────────── */}
       {isModalOpen && (
         <div
           style={{
@@ -558,9 +656,16 @@ export default function HRDriverTripsPage() {
         >
           <div style={{ background: "white", width: "100%", maxWidth: 500, borderRadius: 12, padding: 20, overflow: "hidden" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h3 style={{ fontSize: 17, fontWeight: 800, color: "#111827", margin: 0 }}>
-                Input Log Trip & KM Driver
-              </h3>
+              <div>
+                <h3 style={{ fontSize: 17, fontWeight: 800, color: "#111827", margin: 0 }}>
+                  {editingTripId ? "Koreksi Log Trip Driver" : "Input Log Trip & KM Driver"}
+                </h3>
+                {editingTripId && (
+                  <span style={{ fontSize: 11, color: "#6b7280" }}>
+                    ID Log: #{editingTripId} (Perubahan akan langsung memperbarui kalkulasi tunjangan KM)
+                  </span>
+                )}
+              </div>
               <button onClick={() => setIsModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#6b7280" }}>
                 ✕
               </button>
@@ -576,6 +681,7 @@ export default function HRDriverTripsPage() {
                   value={selectedEmpId}
                   onChange={(val) => setSelectedEmpId(val ? Number(val) : "")}
                   placeholder="-- Pilih Driver --"
+                  disabled={Boolean(editingTripId)}
                 />
               </div>
 
@@ -588,7 +694,8 @@ export default function HRDriverTripsPage() {
                   value={tanggalInput}
                   onChange={(e) => setTanggalInput(e.target.value)}
                   required
-                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13 }}
+                  disabled={Boolean(editingTripId)}
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, background: editingTripId ? "#f9fafb" : "white" }}
                 />
               </div>
 
@@ -676,7 +783,7 @@ export default function HRDriverTripsPage() {
                   disabled={isSaving}
                   style={{ padding: "8px 18px", borderRadius: 8, border: "none", background: "#5005A6", color: "white", fontWeight: 700, cursor: isSaving ? "not-allowed" : "pointer" }}
                 >
-                  {isSaving ? "Menyimpan..." : "Simpan Trip"}
+                  {isSaving ? "Menyimpan..." : editingTripId ? "Simpan Koreksi" : "Simpan Trip"}
                 </button>
               </div>
             </form>

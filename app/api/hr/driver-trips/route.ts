@@ -159,3 +159,114 @@ export async function POST(req: NextRequest) {
     client.release();
   }
 }
+
+// PUT API untuk mengoreksi / update log trip driver tertentu berdasarkan id
+export async function PUT(req: NextRequest) {
+  const body = await req.json();
+  const { id, km, total_trip, total_destinasi, insentif_trip, keterangan } = body;
+
+  if (!id) {
+    return NextResponse.json({ error: "ID trip wajib disertakan." }, { status: 400 });
+  }
+
+  const client = await pool.connect();
+  try {
+    // Ambil data trip yang ada
+    const existingRes = await client.query(
+      `SELECT id, employee_id, tanggal FROM hr_driver_trips WHERE id = $1`,
+      [id]
+    );
+
+    if (existingRes.rows.length === 0) {
+      return NextResponse.json({ error: "Data trip tidak ditemukan." }, { status: 404 });
+    }
+
+    const employee_id = existingRes.rows[0].employee_id;
+
+    // Ambil setting tunjangan KM per-tier karyawan dari struktur gaji terbarunya
+    const salRes = await client.query(
+      `SELECT tunjangan_km_tier1, tunjangan_km_tier2, tunjangan_km_tier3
+       FROM hr_salary_structures
+       WHERE employee_id = $1
+       ORDER BY effective_date DESC LIMIT 1`,
+      [employee_id]
+    );
+    const sal = salRes.rows[0] || {};
+    const rateTier1 = Number(sal.tunjangan_km_tier1) || 10000;
+    const rateTier2 = Number(sal.tunjangan_km_tier2) || 15000;
+    const rateTier3 = Number(sal.tunjangan_km_tier3) || 20000;
+
+    const kmNum = Number(km) || 0;
+    let tier = "TIER1";
+    let rateKm = rateTier1;
+
+    if (kmNum > 15) {
+      tier = "TIER3";
+      rateKm = rateTier3;
+    } else if (kmNum >= 6) {
+      tier = "TIER2";
+      rateKm = rateTier2;
+    }
+
+    const tunjanganKm = kmNum > 0 ? rateKm : 0;
+
+    const updateRes = await client.query(
+      `UPDATE hr_driver_trips
+       SET km = $1,
+           total_trip = $2,
+           total_destinasi = $3,
+           tier = $4,
+           tunjangan_km = $5,
+           insentif_trip = $6,
+           keterangan = $7
+       WHERE id = $8
+       RETURNING *`,
+      [
+        kmNum,
+        total_trip || 1,
+        total_destinasi || 1,
+        tier,
+        tunjanganKm,
+        insentif_trip || 0,
+        keterangan || null,
+        id,
+      ]
+    );
+
+    return NextResponse.json({ success: true, data: updateRes.rows[0] });
+  } catch (error: any) {
+    console.error("Gagal mengoreksi trip driver:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  } finally {
+    client.release();
+  }
+}
+
+// DELETE API untuk menghapus 1 entri log trip driver secara aman
+export async function DELETE(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get("id");
+
+  if (!id) {
+    return NextResponse.json({ error: "ID trip wajib disertakan." }, { status: 400 });
+  }
+
+  const client = await pool.connect();
+  try {
+    const delRes = await client.query(
+      `DELETE FROM hr_driver_trips WHERE id = $1 RETURNING id`,
+      [id]
+    );
+
+    if (delRes.rows.length === 0) {
+      return NextResponse.json({ error: "Data trip tidak ditemukan atau sudah dihapus." }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, message: "Log trip berhasil dihapus." });
+  } catch (error: any) {
+    console.error("Gagal menghapus trip driver:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  } finally {
+    client.release();
+  }
+}

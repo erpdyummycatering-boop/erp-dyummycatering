@@ -2733,15 +2733,16 @@ export default function SiapSajiFinancePage() {
                   const isCancelled = e.status === "dibatalkan" || e.status_pembayaran === "Dibatalkan";
                   const sisa = Number(e.sisa_hutang || 0);
                   const dibayar = Number(e.dibayar || 0);
-                  const total = Number(e.nominal || 0);
+                  const total = (dibayar + sisa) > 0 ? (dibayar + sisa) : Number(e.nominal || 0);
                   const statusBayar = isCancelled ? "Dibatalkan" : (e.status_pembayaran || (sisa > 0 ? (dibayar > 0 ? "Sebagian" : "Belum Lunas") : "Lunas"));
+                  const cleanKeterangan = (e.keterangan || "").replace(/^Biaya Operasional \([^)]+\):\s*/i, "");
 
                   return (
                     <tr key={e.id} style={{ borderBottom: "1px solid #f3f4f6", opacity: isCancelled ? 0.6 : 1 }}>
                       <td style={{ padding: "14px 16px", color: "#6b7280" }}>{(expPage - 1) * expLimit + idx + 1}</td>
                       <td style={{ padding: "14px 16px", fontWeight: 600 }}>{formatDate(e.journal_date)}</td>
                       <td style={{ padding: "14px 16px", color: "#111827", fontWeight: 600, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis" }}>
-                        <div>{e.keterangan}</div>
+                        <div>{cleanKeterangan || e.keterangan}</div>
                         {isCancelled && e.cancel_reason && (
                           <div style={{ fontSize: 11, color: "#dc2626", fontStyle: "italic", marginTop: 2 }}>
                             Alasan Batal: &ldquo;{e.cancel_reason}&rdquo;
@@ -6063,7 +6064,9 @@ export default function SiapSajiFinancePage() {
               </div>
               <div style={{ gridColumn: "span 2" }}>
                 <span style={{ color: "#6b7280", display: "block", fontSize: 11 }}>Keterangan:</span>
-                <span style={{ fontWeight: 600, color: "#111827" }}>{detailModalItem.data.keterangan || "-"}</span>
+                <span style={{ fontWeight: 600, color: "#111827" }}>
+                  {(detailModalItem.data.keterangan || "-").replace(/^Biaya Operasional \([^)]+\):\s*/i, "")}
+                </span>
               </div>
               <div>
                 <span style={{ color: "#6b7280", display: "block", fontSize: 11 }}>Akun Beban / CoA:</span>
@@ -6084,26 +6087,36 @@ export default function SiapSajiFinancePage() {
             </div>
 
             {/* Rincian Finansial Card */}
-            <div style={{ background: "#f8fafc", borderRadius: 12, padding: 14, border: "1px solid #e2e8f0", marginBottom: 16 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 13 }}>
-                <span style={{ color: "#64748b" }}>Total Nilai Transaksi:</span>
-                <strong style={{ color: "#111827", fontFamily: "monospace" }}>
-                  Rp {Number(detailModalItem.type === "purchase" ? detailModalItem.data.total_amount : detailModalItem.data.nominal || 0).toLocaleString("id-ID")}
-                </strong>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 13 }}>
-                <span style={{ color: "#64748b" }}>Sudah Dibayar:</span>
-                <strong style={{ color: "#15803d", fontFamily: "monospace" }}>
-                  Rp {Number(detailModalItem.data.dibayar || (detailModalItem.data.status_pembayaran === "Lunas" ? (detailModalItem.type === "purchase" ? detailModalItem.data.total_amount : detailModalItem.data.nominal) : 0)).toLocaleString("id-ID")}
-                </strong>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 6, borderTop: "1px dashed #cbd5e1", fontSize: 14 }}>
-                <span style={{ fontWeight: 700, color: "#334155" }}>Sisa Hutang:</span>
-                <strong style={{ color: Number(detailModalItem.data.sisa_hutang || 0) > 0 ? "#E24B4A" : "#64748b", fontFamily: "monospace", fontSize: 15 }}>
-                  Rp {Number(detailModalItem.data.sisa_hutang || 0).toLocaleString("id-ID")}
-                </strong>
-              </div>
-            </div>
+            {(() => {
+              const modalDibayar = Number(detailModalItem.data.dibayar || (detailModalItem.data.status_pembayaran === "Lunas" ? (detailModalItem.type === "purchase" ? detailModalItem.data.total_amount : detailModalItem.data.nominal) : 0));
+              const modalSisa = Number(detailModalItem.data.sisa_hutang || 0);
+              const modalTotal = detailModalItem.type === "purchase"
+                ? Number(detailModalItem.data.total_amount || 0)
+                : ((modalDibayar + modalSisa) > 0 ? (modalDibayar + modalSisa) : Number(detailModalItem.data.nominal || 0));
+
+              return (
+                <div style={{ background: "#f8fafc", borderRadius: 12, padding: 14, border: "1px solid #e2e8f0", marginBottom: 16 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 13 }}>
+                    <span style={{ color: "#64748b" }}>Total Nilai Biaya / Hutang:</span>
+                    <strong style={{ color: "#111827", fontFamily: "monospace", fontSize: 14 }}>
+                      Rp {modalTotal.toLocaleString("id-ID")}
+                    </strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 13 }}>
+                    <span style={{ color: "#16a34a" }}>- Sudah Dibayar (DP / Cicilan):</span>
+                    <strong style={{ color: "#16a34a", fontFamily: "monospace" }}>
+                      Rp {modalDibayar.toLocaleString("id-ID")}
+                    </strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 8, borderTop: "1px dashed #cbd5e1", fontSize: 14 }}>
+                    <span style={{ fontWeight: 700, color: "#334155" }}>Sisa Hutang:</span>
+                    <strong style={{ color: modalSisa > 0 ? "#E24B4A" : "#64748b", fontFamily: "monospace", fontSize: 15 }}>
+                      Rp {modalSisa.toLocaleString("id-ID")}
+                    </strong>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Status Info */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>

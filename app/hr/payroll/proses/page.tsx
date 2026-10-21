@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { DollarSign, Play, CheckCircle, Calculator, FileText, AlertCircle, Edit, Plus, Trash2, Calendar, Clock, ChevronRight } from "lucide-react";
+import { DollarSign, Play, CheckCircle, Calculator, FileText, AlertCircle, Edit, Plus, Trash2, Calendar, Clock, ChevronRight, Copy, Building2 } from "lucide-react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { PageHeader, FormField } from "@/components/ui/PageHeader";
 import { Pagination } from "@/components/ui/Pagination";
 import { Badge } from "@/components/ui/Badge";
@@ -465,6 +466,157 @@ export default function ProsesPayrollPage() {
               </div>
             </div>
           </div>
+
+          {/* Department Breakdown Widget for Finance Approval */}
+          {(() => {
+            const details: any[] = payrollDetail.details || [];
+            const deptMap: { [key: string]: { count: number; gajiPokok: number; lembur: number; bonus: number; potongan: number; gajiBersih: number } } = {};
+
+            details.forEach((d) => {
+              const deptName = d.snapshot_departemen || "Lainnya / Umum";
+              if (!deptMap[deptName]) {
+                deptMap[deptName] = { count: 0, gajiPokok: 0, lembur: 0, bonus: 0, potongan: 0, gajiBersih: 0 };
+              }
+              const lembur = Number(d.subtotal_lembur || 0) + Number(d.subtotal_lembur_pagi || 0);
+              const bonus = Number(d.tunjangan_bonus || d.subtotal_bonus || 0);
+              deptMap[deptName].count += 1;
+              deptMap[deptName].gajiPokok += Number(d.subtotal_gaji_pokok || 0);
+              deptMap[deptName].lembur += lembur;
+              deptMap[deptName].bonus += bonus;
+              deptMap[deptName].potongan += Number(d.total_potongan || 0);
+              deptMap[deptName].gajiBersih += Number(d.gaji_bersih || 0);
+            });
+
+            const deptList = Object.entries(deptMap).map(([name, val]) => ({ name, ...val }));
+            const totalNet = Number(payrollDetail.total_gaji_bersih || 0);
+
+            const handleCopySummaryFinance = () => {
+              let text = `📌 *PENGAJUAN APPROVAL PAYROLL ${payrollDetail.tipe_payroll || "PEKANAN"}*\n`;
+              text += `Periode: ${payrollDetail.nama_periode}\n`;
+              if (payrollDetail.tanggal_mulai && payrollDetail.tanggal_selesai) {
+                text += `Rentang: ${payrollDetail.tanggal_mulai} s/d ${payrollDetail.tanggal_selesai}\n`;
+              }
+              text += `Status : ${payrollDetail.status}\n`;
+              text += `----------------------------------------\n`;
+              text += `*Rincian Per Divisi:*\n`;
+              deptList.forEach((d) => {
+                const pct = totalNet > 0 ? ((d.gajiBersih / totalNet) * 100).toFixed(1) : "0";
+                text += `• ${d.name} (${d.count} orang): Rp ${d.gajiBersih.toLocaleString("id-ID")} (${pct}%)\n`;
+              });
+              text += `----------------------------------------\n`;
+              text += `*TOTAL DANA PENGAJUAN: Rp ${totalNet.toLocaleString("id-ID")}*\n`;
+              text += `Total Karyawan: ${payrollDetail.total_karyawan} orang\n\n`;
+              text += `Mohon konfirmasi dan persetujuan bagian Finance. Terima Kasih.`;
+
+              navigator.clipboard.writeText(text);
+              toast.success("Ringkasan alokasi per divisi berhasil disalin ke clipboard!");
+            };
+
+            return (
+              <div style={{ background: "white", borderRadius: 16, border: "1px solid #e5e7eb", overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
+                <div style={{ padding: "14px 20px", background: "#fdf4ff", borderBottom: "1px solid #f0abfc", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <Building2 size={18} color="#a21caf" />
+                    <div>
+                      <h3 style={{ fontSize: 15, fontWeight: 800, color: "#86198f", margin: 0 }}>
+                        Alokasi Dana Payroll Per Divisi (Untuk Approval Finance)
+                      </h3>
+                      <p style={{ fontSize: 12, color: "#a21caf", margin: 0 }}>
+                        Ringkasan pembagian beban gaji per departemen untuk dasar pencairan dana
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleCopySummaryFinance}
+                    style={{
+                      padding: "6px 14px",
+                      background: "#86198f",
+                      color: "white",
+                      border: "none",
+                      borderRadius: 8,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      boxShadow: "0 2px 6px rgba(134, 25, 143, 0.2)",
+                    }}
+                  >
+                    <Copy size={13} /> Salin Ringkasan Memo Finance
+                  </button>
+                </div>
+
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                    <thead>
+                      <tr style={{ background: "#fafafa", borderBottom: "1px solid #e5e7eb", color: "#4b5563", fontSize: 11, fontWeight: 700, textTransform: "uppercase" }}>
+                        <th style={{ padding: "10px 16px", textAlign: "left" }}>Divisi / Departemen</th>
+                        <th style={{ padding: "10px 16px", textAlign: "center" }}>Jumlah Karyawan</th>
+                        <th style={{ padding: "10px 16px", textAlign: "right" }}>Total Gaji Pokok</th>
+                        <th style={{ padding: "10px 16px", textAlign: "right" }}>Total Lembur</th>
+                        <th style={{ padding: "10px 16px", textAlign: "right" }}>Total Bonus</th>
+                        <th style={{ padding: "10px 16px", textAlign: "right" }}>Total Potongan</th>
+                        <th style={{ padding: "10px 16px", textAlign: "right", color: "#5005A6" }}>Total Gaji Bersih</th>
+                        <th style={{ padding: "10px 16px", textAlign: "center" }}>Porsi (%)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {deptList.map((dept) => {
+                        const pct = totalNet > 0 ? ((dept.gajiBersih / totalNet) * 100).toFixed(1) : "0";
+                        return (
+                          <tr key={dept.name} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                            <td style={{ padding: "10px 16px", fontWeight: 700, color: "#111827" }}>
+                              {dept.name}
+                            </td>
+                            <td style={{ padding: "10px 16px", textAlign: "center", fontWeight: 600 }}>
+                              {dept.count} orang
+                            </td>
+                            <td style={{ padding: "10px 16px", textAlign: "right" }}>
+                              Rp {dept.gajiPokok.toLocaleString("id-ID")}
+                            </td>
+                            <td style={{ padding: "10px 16px", textAlign: "right", color: "#0284c7" }}>
+                              Rp {dept.lembur.toLocaleString("id-ID")}
+                            </td>
+                            <td style={{ padding: "10px 16px", textAlign: "right", color: "#b45309" }}>
+                              Rp {dept.bonus.toLocaleString("id-ID")}
+                            </td>
+                            <td style={{ padding: "10px 16px", textAlign: "right", color: "#ef4444" }}>
+                              -Rp {dept.potongan.toLocaleString("id-ID")}
+                            </td>
+                            <td style={{ padding: "10px 16px", textAlign: "right", fontWeight: 800, color: "#5005A6", fontSize: 14 }}>
+                              Rp {dept.gajiBersih.toLocaleString("id-ID")}
+                            </td>
+                            <td style={{ padding: "10px 16px", textAlign: "center" }}>
+                              <span style={{ padding: "3px 8px", borderRadius: 12, background: "#f3e8ff", color: "#7e22ce", fontSize: 11, fontWeight: 700 }}>
+                                {pct}%
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr style={{ background: "#f9fafb", borderTop: "2px solid #e5e7eb", fontWeight: 800 }}>
+                        <td style={{ padding: "12px 16px", color: "#111827" }}>TOTAL KESELURUHAN</td>
+                        <td style={{ padding: "12px 16px", textAlign: "center" }}>{payrollDetail.total_karyawan} orang</td>
+                        <td style={{ padding: "12px 16px", textAlign: "right" }}>-</td>
+                        <td style={{ padding: "12px 16px", textAlign: "right" }}>-</td>
+                        <td style={{ padding: "12px 16px", textAlign: "right" }}>-</td>
+                        <td style={{ padding: "12px 16px", textAlign: "right", color: "#ef4444" }}>
+                          -Rp {Number(payrollDetail.total_potongan || 0).toLocaleString("id-ID")}
+                        </td>
+                        <td style={{ padding: "12px 16px", textAlign: "right", color: "#5005A6", fontSize: 15 }}>
+                          Rp {totalNet.toLocaleString("id-ID")}
+                        </td>
+                        <td style={{ padding: "12px 16px", textAlign: "center" }}>100%</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Details Table */}
           <div className="erp-card-flush">

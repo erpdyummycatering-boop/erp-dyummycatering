@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   const date_from = p.get("date_from") || "";
   const date_to = p.get("date_to") || "";
 
-  const wheres: string[] = ["j.lini = 'siap_saji'", "j.ref_type = 'biaya'"];
+  const wheres: string[] = ["j.lini = 'siap_saji'", "j.ref_type = 'biaya'", "(j.id = j.ref_id OR j.ref_id IS NULL OR j.ref_id = 0)"];
   const vals: any[] = [];
   let idx = 1;
 
@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
           (
             SELECT km.kas_bank_id 
             FROM kas_mutasi km 
-            WHERE km.ref_type = 'biaya' AND km.ref_id = j.id AND km.jenis = 'Keluar'
+            WHERE km.ref_type = 'biaya' AND (km.ref_id = j.id OR km.ref_id = j.ref_id) AND km.jenis = 'Keluar'
             ORDER BY km.id ASC 
             LIMIT 1
           ) AS kas_bank_id,
@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
               )
               FROM kas_mutasi km
               LEFT JOIN kas_bank kb ON km.kas_bank_id = kb.id
-              WHERE km.ref_type = 'biaya' AND km.ref_id = j.id AND km.jenis = 'Keluar'
+              WHERE km.ref_type = 'biaya' AND (km.ref_id = j.id OR km.ref_id = j.ref_id) AND km.jenis = 'Keluar'
             ),
             '[]'::json
           ) AS cicilan_history
