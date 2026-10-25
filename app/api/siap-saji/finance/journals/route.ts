@@ -10,14 +10,26 @@ export async function POST(req: NextRequest) {
     const numNominal = Number(nominal);
     if (!akun_debit || !akun_kredit || isNaN(numNominal) || numNominal <= 0) {
       return NextResponse.json(
-        { error: "Akun debet, akun kredit, dan nominal valid wajib diisi." },
+        { error: "Transaksi ditolak: Jurnal wajib memiliki pasangan Akun Debet dan Akun Kredit yang lengkap dengan nominal lebih dari Rp 0." },
         { status: 400 }
       );
     }
 
     if (Number(akun_debit) === Number(akun_kredit)) {
       return NextResponse.json(
-        { error: "Akun Debet dan Akun Kredit tidak boleh sama." },
+        { error: "Transaksi ditolak: Akun Debet dan Akun Kredit tidak boleh sama (harus ada akun lawan yang valid)." },
+        { status: 400 }
+      );
+    }
+
+    // Validasi keberadaan akun lawan di CoA
+    const coaCheck = await client.query(
+      "SELECT id FROM coa WHERE id IN ($1, $2) AND lini = 'siap_saji'",
+      [Number(akun_debit), Number(akun_kredit)]
+    );
+    if (coaCheck.rows.length < 2) {
+      return NextResponse.json(
+        { error: "Transaksi ditolak: Salah satu atau kedua akun (Debet/Kredit) tidak ditemukan di Chart of Accounts." },
         { status: 400 }
       );
     }
@@ -112,14 +124,26 @@ export async function PUT(req: NextRequest) {
     const numNominal = Number(nominal);
     if (!journalId || !akun_debit || !akun_kredit || isNaN(numNominal) || numNominal <= 0) {
       return NextResponse.json(
-        { error: "ID jurnal, akun debet, akun kredit, dan nominal valid wajib diisi." },
+        { error: "Transaksi ditolak: ID jurnal, Akun Debet, Akun Kredit, dan nominal valid (> 0) wajib diisi." },
         { status: 400 }
       );
     }
 
     if (Number(akun_debit) === Number(akun_kredit)) {
       return NextResponse.json(
-        { error: "Akun Debet dan Akun Kredit tidak boleh sama." },
+        { error: "Transaksi ditolak: Akun Debet dan Akun Kredit tidak boleh sama (harus ada akun lawan yang valid)." },
+        { status: 400 }
+      );
+    }
+
+    // Validasi keberadaan akun lawan di CoA
+    const coaCheck = await client.query(
+      "SELECT id FROM coa WHERE id IN ($1, $2) AND lini = 'siap_saji'",
+      [Number(akun_debit), Number(akun_kredit)]
+    );
+    if (coaCheck.rows.length < 2) {
+      return NextResponse.json(
+        { error: "Transaksi ditolak: Salah satu atau kedua akun (Debet/Kredit) tidak ditemukan di Chart of Accounts." },
         { status: 400 }
       );
     }

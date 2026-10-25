@@ -492,23 +492,128 @@ export async function DELETE(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  // Parsial / Pelunasan Hutang Pembelian HPP
+  // Parsial / Pelunasan Hutang Pembelian HPP (Mendukung Single maupun Bulk Pay)
   const body = await req.json();
-  const { id, nominal_bayar, kas_bank_id, tanggal_bayar, keterangan } = body;
-
-  const purchaseId = Number(id);
-  const payAmount = Number(nominal_bayar);
-
-  if (!purchaseId || isNaN(payAmount) || payAmount <= 0 || !kas_bank_id) {
-    return NextResponse.json(
-      { error: "ID, nominal pembayaran valid, dan Rekening Kas/Bank wajib diisi." },
-      { status: 400 }
-    );
-  }
+  const { id, ids, nominal_bayar, kas_bank_id, tanggal_bayar, keterangan } = body;
 
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+
+    // Tangani skenario Bulk Payment jika `ids` dikirimkan (array of ID)
+    if (Array.isArray(ids) && ids.length > 0) {
+      if (!kas_bank_id) {
+        await client.query("ROLLBACK");
+        return NextResponse.json({ error: "Rekening Kas/Bank wajib dipilih." }, { status: 400 });
+      }
+
+      const payDate = tanggal_bayar || new Date().toISOString().split("T")[0];
+
+      // Resolve kas_bank CoA
+      const kbRes = await client.query("SELECT * FROM kas_bank WHERE id = $1", [kas_bank_id]);
+      let coaKasId: number | null = null;
+      if (kbRes.rows.length > 0) {
+        if (kbRes.rows[0].coa_id) {
+          coaKasId = Number(kbRes.rows[0].coa_id);
+        } else {
+          const bankName = (kbRes.rows[0].nama_bank || kbRes.rows[0].nama_rekening || "").toUpperCase();
+          const fallbackRes = await client.query(
+            `SELECT id FROM coa 
+             WHERE lini = 'siap_saji' 
+               AND (nama_akun ILIKE $1 OR (kode_akun LIKE '1-%' AND (nama_akun ILIKE '%kas%' OR nama_akun ILIKE '%bank%')))
+             ORDER BY id ASC LIMIT 1`,
+            [`%${bankName}%`]
+          );
+          if (fallbackRes.rows.length > 0) coaKasId = fallbackRes.rows[0].id;
+        }
+      }
+
+      const coaUtangRes = await client.query("SELECT id FROM coa WHERE kode_akun = '2-1001' AND lini = 'siap_saji' LIMIT 1");
+      const coaUtangId = coaUtangRes.rows.length > 0 ? coaUtangRes.rows[0].id : null;
+
+      let totalBulkPaid = 0;
+      const processedPurchases: any[] = [];
+
+      for (const rawId of ids) {
+        const pId = Number(rawId);
+        if (!pId) continue;
+
+        const pCheck = await client.query("SELECT * FROM purchases WHERE id = $1 FOR UPDATE", [pId]);
+        if (pCheck.rows.length === 0) continue;
+        const p = pCheck.rows[0];
+        const sisaSekarang = Number(p.sisa_hutang || 0);
+        if (sisaSekarang <= 0) continue; // Lewati yang sudah lunas
+
+        const newPaid = Number(p.dibayar || 0) + sisaSekarang;
+        const newSisa = 0;
+        const newStatus = "Lunas";
+
+        await client.query(
+          `UPDATE purchases
+           SET dibayar = $1,
+               sisa_hutang = $2,
+               status_pembayaran = $3,
+               status = 'Final',
+               updated_at = NOW()
+           WHERE id = $4`,
+          [newPaid, newSisa, newStatus, pId]
+        );
+
+        if (coaUtangId && coaKasId) {
+          await client.query(
+            `INSERT INTO journals (lini, journal_date, ref_type, ref_id, ref_no, akun_debit, akun_kredit, nominal, keterangan, dibayar, sisa_hutang, status_pembayaran)
+             VALUES ('siap_saji', $1, 'pembelian', $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+            [
+              payDate,
+              pId,
+              p.nota_ref || `NOTA-${pId}`,
+              coaUtangId,
+              coaKasId,
+              sisaSekarang,
+              `Pembayaran Lunas (Bulk) Hutang HPP ${p.nota_ref || `NOTA-${pId}`}: ${keterangan || p.keterangan}`,
+              newPaid,
+              newSisa,
+              newStatus,
+            ]
+          );
+
+          await client.query(
+            `INSERT INTO kas_mutasi (kas_bank_id, lini, mutasi_date, jenis, nominal, ref_type, ref_id, keterangan)
+             VALUES ($1, 'siap_saji', $2, 'Keluar', $3, 'pembelian', $4, $5)`,
+            [kas_bank_id, payDate, sisaSekarang, pId, `Bulk Bayar Hutang HPP ${p.nota_ref || `NOTA-${pId}`}: ${keterangan || p.keterangan}`]
+          );
+        }
+
+        totalBulkPaid += sisaSekarang;
+        processedPurchases.push(pId);
+      }
+
+      if (totalBulkPaid > 0) {
+        await client.query(
+          "UPDATE kas_bank SET saldo_kini = saldo_kini - $1, updated_at = NOW() WHERE id = $2",
+          [totalBulkPaid, kas_bank_id]
+        );
+      }
+
+      await client.query("COMMIT");
+      return NextResponse.json({
+        message: `Berhasil melunasi ${processedPurchases.length} nota hutang HPP sekaligus (Total: Rp ${totalBulkPaid.toLocaleString("id-ID")})!`,
+        total_paid: totalBulkPaid,
+        processed_ids: processedPurchases,
+      });
+    }
+
+    // Skenario Single Pay
+    const purchaseId = Number(id);
+    const payAmount = Number(nominal_bayar);
+
+    if (!purchaseId || isNaN(payAmount) || payAmount <= 0 || !kas_bank_id) {
+      await client.query("ROLLBACK");
+      return NextResponse.json(
+        { error: "ID, nominal pembayaran valid, dan Rekening Kas/Bank wajib diisi." },
+        { status: 400 }
+      );
+    }
 
     const pCheck = await client.query("SELECT * FROM purchases WHERE id = $1 FOR UPDATE", [purchaseId]);
     if (pCheck.rows.length === 0) {

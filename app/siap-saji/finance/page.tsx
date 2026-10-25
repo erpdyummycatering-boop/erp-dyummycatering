@@ -164,6 +164,14 @@ export default function SiapSajiFinancePage() {
   const [payDebtKeterangan, setPayDebtKeterangan] = useState("");
   const [isSubmittingPayDebt, setIsSubmittingPayDebt] = useState(false);
 
+  // Bulk Pay State for Purchases (Hutang HPP)
+  const [selectedPurIds, setSelectedPurIds] = useState<number[]>([]);
+  const [isBulkPayModalOpen, setIsBulkPayModalOpen] = useState(false);
+  const [bulkPayKasBankId, setBulkPayKasBankId] = useState<number | "">("");
+  const [bulkPayDate, setBulkPayDate] = useState(new Date().toISOString().split("T")[0]);
+  const [bulkPayKeterangan, setBulkPayKeterangan] = useState("");
+  const [isSubmittingBulkPay, setIsSubmittingBulkPay] = useState(false);
+
   // Shared Cancel Modal State with Mandatory Reason
   const [cancelModalItem, setCancelModalItem] = useState<{ type: "purchase" | "expense"; data: any } | null>(null);
   const [cancelReasonInput, setCancelReasonInput] = useState("");
@@ -855,6 +863,53 @@ export default function SiapSajiFinancePage() {
       toast.error(err.message || "Gagal membayar hutang");
     } finally {
       setIsSubmittingPayDebt(false);
+    }
+  };
+
+  // Open Bulk Pay Modal for selected purchases
+  const handleOpenBulkPayModal = () => {
+    if (selectedPurIds.length === 0) {
+      return toast.error("Pilih minimal satu nota hutang untuk dibayar.");
+    }
+    const unpaidSelected = purchases.filter((p) => selectedPurIds.includes(p.id) && Number(p.sisa_hutang || 0) > 0 && p.status !== "Dibatalkan");
+    if (unpaidSelected.length === 0) {
+      return toast.error("Semua nota yang dipilih sudah lunas atau dibatalkan.");
+    }
+    setBulkPayDate(new Date().toISOString().split("T")[0]);
+    setBulkPayKeterangan(`Bulk Pelunasan ${unpaidSelected.length} Nota Hutang HPP`);
+    setBulkPayKasBankId(accounts.length > 0 ? accounts[0].id : "");
+    setIsBulkPayModalOpen(true);
+  };
+
+  // Submit Bulk Payment
+  const handleSubmitBulkPay = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedPurIds.length === 0 || !bulkPayKasBankId) {
+      return toast.error("Rekening Kas/Bank wajib dipilih.");
+    }
+    setIsSubmittingBulkPay(true);
+    try {
+      const res = await fetch("/api/siap-saji/finance/purchases", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ids: selectedPurIds,
+          kas_bank_id: bulkPayKasBankId,
+          tanggal_bayar: bulkPayDate,
+          keterangan: bulkPayKeterangan,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Gagal melakukan pembayaran massal (bulk bayar)");
+      toast.success(data.message || "Bulk pembayaran hutang berhasil dicatat!");
+      setIsBulkPayModalOpen(false);
+      setSelectedPurIds([]);
+      fetchTabData();
+      fetchKasBankMaster();
+    } catch (err: any) {
+      toast.error(err.message || "Gagal melakukan bulk bayar");
+    } finally {
+      setIsSubmittingBulkPay(false);
     }
   };
 
@@ -2414,51 +2469,126 @@ export default function SiapSajiFinancePage() {
       {/* ── TAB 2: PEMBELIAN HPP (NOTA BELANJA) ────────────────────── */}
       {activeTab === "purchases" && (
         <div>
-          {/* Filter Toolbar */}
-          <div style={{ background: "white", borderRadius: 12, padding: "12px 16px", border: "1px solid #e5e7eb", marginBottom: 20, display: "flex", alignItems: "center", gap: 10, overflowX: "auto", whiteSpace: "nowrap" }}>
-            <div style={{ flex: "1 1 240px", minWidth: 180, position: "relative" }}>
-              <Search size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
-              <input
-                type="text"
-                placeholder="Cari Ref Nota, Keterangan, Akun, Rekening..."
-                value={purSearch}
-                onChange={(e) => { setPurSearch(e.target.value); setPurPage(1); }}
-                style={{ width: "100%", padding: "7px 12px 7px 34px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, outline: "none" }}
-              />
+            {/* Filter Toolbar */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flex: "1 1 300px", overflowX: "auto", whiteSpace: "nowrap" }}>
+                <div style={{ flex: "1 1 240px", minWidth: 180, position: "relative" }}>
+                  <Search size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
+                  <input
+                    type="text"
+                    placeholder="Cari Ref Nota, Keterangan, Akun, Rekening..."
+                    value={purSearch}
+                    onChange={(e) => { setPurSearch(e.target.value); setPurPage(1); }}
+                    style={{ width: "100%", padding: "7px 12px 7px 34px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, outline: "none" }}
+                  />
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                  <span style={{ fontSize: 12, color: "#6b7280", fontWeight: 600 }}>Dari:</span>
+                  <input
+                    type="date"
+                    value={purDateFrom}
+                    onChange={(e) => { setPurDateFrom(e.target.value); setPurPage(1); }}
+                    style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13 }}
+                  />
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                  <span style={{ fontSize: 12, color: "#6b7280", fontWeight: 600 }}>s/d:</span>
+                  <input
+                    type="date"
+                    value={purDateTo}
+                    onChange={(e) => { setPurDateTo(e.target.value); setPurPage(1); }}
+                    style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13 }}
+                  />
+                </div>
+                {(purSearch || purDateFrom || purDateTo) && (
+                  <button
+                    onClick={() => { setPurSearch(""); setPurDateFrom(""); setPurDateTo(""); setPurPage(1); }}
+                    style={{ padding: "7px 12px", background: "#f3f4f6", color: "#4b5563", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer", fontWeight: 600, flexShrink: 0 }}
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+
+              {/* Bulk Pay Action Button */}
+              {selectedPurIds.length > 0 && (
+                <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#f0fdf4", border: "1px solid #bbf7d0", padding: "6px 14px", borderRadius: 8 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#166534" }}>
+                    {selectedPurIds.length} Nota Dipilih (Total Hutang: Rp {
+                      purchases
+                        .filter((p) => selectedPurIds.includes(p.id))
+                        .reduce((acc, p) => acc + Number(p.sisa_hutang || 0), 0)
+                        .toLocaleString("id-ID")
+                    })
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleOpenBulkPayModal}
+                    style={{
+                      padding: "6px 14px",
+                      background: "#639922",
+                      color: "white",
+                      border: "none",
+                      borderRadius: 6,
+                      fontSize: 12.5,
+                      fontWeight: 800,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      boxShadow: "0 2px 4px rgba(99, 153, 34, 0.3)",
+                    }}
+                  >
+                    <DollarSign size={14} /> Bulk Bayar Hutang
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPurIds([])}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "#6b7280",
+                      fontSize: 12,
+                      cursor: "pointer",
+                      textDecoration: "underline",
+                    }}
+                  >
+                    Batal Pilih
+                  </button>
+                </div>
+              )}
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-              <span style={{ fontSize: 12, color: "#6b7280", fontWeight: 600 }}>Dari:</span>
-              <input
-                type="date"
-                value={purDateFrom}
-                onChange={(e) => { setPurDateFrom(e.target.value); setPurPage(1); }}
-                style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13 }}
-              />
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-              <span style={{ fontSize: 12, color: "#6b7280", fontWeight: 600 }}>s/d:</span>
-              <input
-                type="date"
-                value={purDateTo}
-                onChange={(e) => { setPurDateTo(e.target.value); setPurPage(1); }}
-                style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13 }}
-              />
-            </div>
-            {(purSearch || purDateFrom || purDateTo) && (
-              <button
-                onClick={() => { setPurSearch(""); setPurDateFrom(""); setPurDateTo(""); setPurPage(1); }}
-                style={{ padding: "7px 12px", background: "#f3f4f6", color: "#4b5563", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer", fontWeight: 600, flexShrink: 0 }}
-              >
-                Reset
-              </button>
-            )}
-          </div>
 
           <div className="datagrid-sticky-container" style={{ background: "white", borderRadius: 12, border: "1px solid #e5e7eb", maxHeight: "65vh" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 14, whiteSpace: "nowrap" }}>
               <thead>
                 <tr style={{ background: "#fafafa", borderBottom: "1px solid #e5e7eb", color: "#6b7280", fontWeight: 700, fontSize: 12, textTransform: "uppercase" }}>
-                  <th style={{ padding: "12px 16px", width: 50 }}>No.</th>
+                  <th style={{ padding: "12px 14px", width: 40, textAlign: "center" }}>
+                    {(() => {
+                      const curPageItems = purchases.slice((purPage - 1) * purLimit, purPage * purLimit);
+                      const payableItems = curPageItems.filter((p) => Number(p.sisa_hutang || 0) > 0 && p.status !== "Dibatalkan" && p.status_pembayaran !== "Dibatalkan");
+                      const allSelected = payableItems.length > 0 && payableItems.every((p) => selectedPurIds.includes(p.id));
+                      return (
+                        <input
+                          type="checkbox"
+                          checked={allSelected}
+                          disabled={payableItems.length === 0}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              const newIds = Array.from(new Set([...selectedPurIds, ...payableItems.map((p) => p.id)]));
+                              setSelectedPurIds(newIds);
+                            } else {
+                              const removeIds = new Set(payableItems.map((p) => p.id));
+                              setSelectedPurIds(selectedPurIds.filter((id) => !removeIds.has(id)));
+                            }
+                          }}
+                          style={{ cursor: payableItems.length === 0 ? "not-allowed" : "pointer", width: 16, height: 16, accentColor: "#639922" }}
+                          title={payableItems.length > 0 ? "Pilih semua nota hutang di halaman ini" : "Tidak ada nota hutang di halaman ini"}
+                        />
+                      );
+                    })()}
+                  </th>
+                  <th style={{ padding: "12px 14px", width: 45 }}>No.</th>
                   <th style={{ padding: "12px 16px" }}>Tanggal</th>
                   <th style={{ padding: "12px 16px" }}>Ref Nota</th>
                   <th style={{ padding: "12px 16px" }}>Keterangan Belanja</th>
@@ -2474,13 +2604,13 @@ export default function SiapSajiFinancePage() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={11} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                    <td colSpan={12} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
                       Memuat data nota HPP...
                     </td>
                   </tr>
                 ) : purchases.length === 0 ? (
                   <tr>
-                    <td colSpan={11} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                    <td colSpan={12} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
                       Belum ada riwayat pembelian HPP.
                     </td>
                   </tr>
@@ -2492,9 +2622,28 @@ export default function SiapSajiFinancePage() {
                     const total = Number(p.total_amount || 0);
                     const statusBayar = isCancelled ? "Dibatalkan" : (p.status_pembayaran || (sisa > 0 ? (dibayar > 0 ? "Sebagian" : "Belum Lunas") : "Lunas"));
 
+                    const isPayable = !isCancelled && sisa > 0;
+                    const isSelected = selectedPurIds.includes(p.id);
+
                     return (
-                      <tr key={p.id} style={{ borderBottom: "1px solid #f3f4f6", opacity: isCancelled ? 0.6 : 1 }}>
-                        <td style={{ padding: "14px 16px", color: "#6b7280" }}>{(purPage - 1) * purLimit + idx + 1}</td>
+                      <tr key={p.id} style={{ borderBottom: "1px solid #f3f4f6", opacity: isCancelled ? 0.6 : 1, background: isSelected ? "#f0fdf4" : "transparent" }}>
+                        <td style={{ padding: "14px 14px", textAlign: "center" }}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            disabled={!isPayable}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedPurIds([...selectedPurIds, p.id]);
+                              } else {
+                                setSelectedPurIds(selectedPurIds.filter((id) => id !== p.id));
+                              }
+                            }}
+                            style={{ cursor: !isPayable ? "not-allowed" : "pointer", width: 16, height: 16, accentColor: "#639922" }}
+                            title={isPayable ? "Pilih untuk bayar hutang" : (isCancelled ? "Nota dibatalkan" : "Sudah Lunas")}
+                          />
+                        </td>
+                        <td style={{ padding: "14px 14px", color: "#6b7280" }}>{(purPage - 1) * purLimit + idx + 1}</td>
                         <td style={{ padding: "14px 16px", fontWeight: 600 }}>{formatDate(p.purchase_date)}</td>
                         <td style={{ padding: "14px 16px", fontFamily: "monospace", color: "#5005A6", fontWeight: 700 }}>
                           {p.nota_ref || `NOTA-${p.id}`}
@@ -5931,7 +6080,7 @@ export default function SiapSajiFinancePage() {
                 />
               </div>
 
-              <div style={{ marginBottom: 20 }}>
+              <div style={{ marginBottom: 16 }}>
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
                   Keterangan Jurnal *
                 </label>
@@ -5943,6 +6092,46 @@ export default function SiapSajiFinancePage() {
                   required
                   style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
                 />
+              </div>
+
+              {/* Status Validasi Keseimbangan Double-Entry */}
+              <div style={{
+                marginBottom: 20,
+                padding: "10px 14px",
+                borderRadius: 8,
+                fontSize: 12.5,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                background: (!jouFormDebitCoaId || !jouFormCreditCoaId || jouFormDebitCoaId === jouFormCreditCoaId || !jouFormNominal || jouFormNominal <= 0)
+                  ? "#fef2f2"
+                  : "#f0fdf4",
+                border: (!jouFormDebitCoaId || !jouFormCreditCoaId || jouFormDebitCoaId === jouFormCreditCoaId || !jouFormNominal || jouFormNominal <= 0)
+                  ? "1px solid #fecaca"
+                  : "1px solid #bbf7d0",
+                color: (!jouFormDebitCoaId || !jouFormCreditCoaId || jouFormDebitCoaId === jouFormCreditCoaId || !jouFormNominal || jouFormNominal <= 0)
+                  ? "#991b1b"
+                  : "#166534",
+              }}>
+                <div>
+                  <strong>Aturan Double-Entry:</strong>{" "}
+                  {!jouFormDebitCoaId || !jouFormCreditCoaId
+                    ? "Akun Debet & Kredit harus dipilih keduanya."
+                    : jouFormDebitCoaId === jouFormCreditCoaId
+                    ? "Akun Debet dan Kredit tidak boleh sama."
+                    : !jouFormNominal || jouFormNominal <= 0
+                    ? "Nominal harus lebih dari Rp 0."
+                    : `Debet (Rp ${jouFormNominal.toLocaleString("id-ID")}) = Kredit (Rp ${jouFormNominal.toLocaleString("id-ID")})`}
+                </div>
+                <span style={{
+                  fontSize: 11,
+                  fontWeight: 800,
+                  padding: "3px 8px",
+                  borderRadius: 4,
+                  background: (!jouFormDebitCoaId || !jouFormCreditCoaId || jouFormDebitCoaId === jouFormCreditCoaId || !jouFormNominal || jouFormNominal <= 0) ? "#fee2e2" : "#dcfce7",
+                }}>
+                  {(!jouFormDebitCoaId || !jouFormCreditCoaId || jouFormDebitCoaId === jouFormCreditCoaId || !jouFormNominal || jouFormNominal <= 0) ? "BELUM VALID" : "SEIMBANG (BALANCED)"}
+                </span>
               </div>
 
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
@@ -6316,6 +6505,130 @@ export default function SiapSajiFinancePage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: BULK BAYAR HUTANG HPP (MASSAL) ────────────────────── */}
+      {isBulkPayModalOpen && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 120, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: "white", borderRadius: 16, maxWidth: 520, width: "100%", padding: 24, boxShadow: "0 20px 25px -5px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 800, color: "#111827", margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                <DollarSign size={20} color="#639922" /> Bulk Bayar / Pelunasan Hutang HPP
+              </h3>
+              <button onClick={() => setIsBulkPayModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280" }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            {(() => {
+              const selectedItems = purchases.filter((p) => selectedPurIds.includes(p.id) && Number(p.sisa_hutang || 0) > 0);
+              const totalHutangSelected = selectedItems.reduce((acc, p) => acc + Number(p.sisa_hutang || 0), 0);
+
+              return (
+                <form onSubmit={handleSubmitBulkPay}>
+                  <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10, padding: "12px 16px", marginBottom: 16 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: 13, color: "#166534", fontWeight: 600 }}>Jumlah Nota Dipilih:</span>
+                      <strong style={{ fontSize: 14, color: "#166534" }}>{selectedItems.length} Nota</strong>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4, paddingTop: 6, borderTop: "1px dashed #bbf7d0" }}>
+                      <span style={{ fontSize: 13, color: "#166534", fontWeight: 700 }}>Total Pembayaran Pelunasan:</span>
+                      <strong style={{ fontSize: 18, color: "#15803d", fontFamily: "monospace", fontWeight: 900 }}>
+                        Rp {totalHutangSelected.toLocaleString("id-ID")}
+                      </strong>
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#374151", marginBottom: 4 }}>
+                      Tanggal Pembayaran *
+                    </label>
+                    <input
+                      type="date"
+                      value={bulkPayDate}
+                      onChange={(e) => setBulkPayDate(e.target.value)}
+                      required
+                      style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#374151", marginBottom: 4 }}>
+                      Rekening Kas/Bank Pembayaran *
+                    </label>
+                    <SearchableSelect
+                      options={accounts.map((a) => ({
+                        value: a.id,
+                        label: `${a.nama_rekening || a.nama_bank} (Saldo: Rp${Number(a.saldo_kini || a.saldo_saat_ini || 0).toLocaleString("id-ID")})`,
+                        category: "Kas/Bank",
+                      }))}
+                      value={bulkPayKasBankId}
+                      onChange={(val) => setBulkPayKasBankId(val ? Number(val) : "")}
+                      placeholder="-- Pilih Rekening Kas/Bank --"
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#374151", marginBottom: 4 }}>
+                      Catatan / Keterangan Bulk Bayar
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Contoh: Pembayaran dadan sayur 10 nota..."
+                      value={bulkPayKeterangan}
+                      onChange={(e) => setBulkPayKeterangan(e.target.value)}
+                      style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                    />
+                  </div>
+
+                  <div style={{ maxHeight: 150, overflowY: "auto", border: "1px solid #e5e7eb", borderRadius: 8, padding: 8, marginBottom: 16, background: "#fafafa" }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", marginBottom: 6, textTransform: "uppercase" }}>
+                      Rincian Nota Yang Akan Dilunasi:
+                    </div>
+                    {selectedItems.map((item, i) => (
+                      <div key={item.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "4px 0", borderBottom: i < selectedItems.length - 1 ? "1px dashed #e5e7eb" : "none" }}>
+                        <span style={{ color: "#374151" }}>
+                          <strong>{item.nota_ref || `NOTA-${item.id}`}</strong> - {item.keterangan}
+                        </span>
+                        <span style={{ fontWeight: 700, color: "#b91c1c", fontFamily: "monospace" }}>
+                          Rp {Number(item.sisa_hutang || 0).toLocaleString("id-ID")}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => setIsBulkPayModalOpen(false)}
+                      style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "white", cursor: "pointer" }}
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSubmittingBulkPay || totalHutangSelected <= 0}
+                      style={{
+                        padding: "8px 20px",
+                        borderRadius: 8,
+                        border: "none",
+                        background: "#639922",
+                        color: "white",
+                        fontWeight: 700,
+                        cursor: isSubmittingBulkPay || totalHutangSelected <= 0 ? "not-allowed" : "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                      }}
+                    >
+                      <DollarSign size={16} /> {isSubmittingBulkPay ? "Memproses..." : `Bayar Lunas ${selectedItems.length} Nota (Rp ${totalHutangSelected.toLocaleString("id-ID")})`}
+                    </button>
+                  </div>
+                </form>
+              );
+            })()}
           </div>
         </div>
       )}
