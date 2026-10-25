@@ -101,9 +101,9 @@ export async function GET(req: NextRequest) {
     const measureOrderHeight = (order: any, isLast: boolean = false) => {
       const items = order.items || [];
       let h = 0;
-      // Header: DYummy Catering (24), Jl Sindangsari (15), Kota Bandung (lines * 15), SI.Struk (18), line (16)
+      // Header: DYummy Catering (24), Jl Sindangsari (15), Kota Bandung (lines * 15), SI.Struk (18), garis (34)
       const cityLines = wrapText("Kota Bandung Jawa Barat Indonesia", 30);
-      h += 24 + 15 + cityLines.length * 15 + 18 + 16;
+      h += 24 + 15 + cityLines.length * 15 + 18 + 34;
 
       // Customer info: Name (18), Phone (16), Address lines (lines * 16), Patokan lines (lines * 15), Kec (16), line (15)
       h += 18;
@@ -116,10 +116,10 @@ export async function GET(req: NextRequest) {
       }
       const kecText = `Kec. ${order.area_kecamatan || "-"} (${order.area_kota || "-"})`;
       const kecLines = wrapText(kecText, 29);
-      h += kecLines.length * 16 + 15;
+      h += kecLines.length * 16 + 34;
 
-      // Table header bar: "Nama Barang .... Total Harga" (18), line (15)
-      h += 18 + 15;
+      // Table header bar: "Nama Barang .... Total Harga" (18), garis (34)
+      h += 18 + 34;
 
       // Items
       items.forEach((it: any) => {
@@ -142,26 +142,28 @@ export async function GET(req: NextRequest) {
         h += 17;
       }
 
-      h += 15; // line
+      h += 34; // garis sebelum ringkasan
 
-      // Summary: Sub Total (17), Diskon (17), line (15), Total (20), line (15)
-      h += 17 + 17 + 15 + 20 + 15;
+      // Summary: Sub Total (17), Diskon (17), garis (34), Total (20), garis (34)
+      h += 17 + 17 + 34 + 20 + 34;
 
-      // Cutter divider line if not last order (garis putus-putus ber-padding)
+      // Garis potong putus-putus: 40pt di atas + 50pt di bawah
       if (!isLast) {
-        h += 80;
+        h += 90;
       }
 
       return h;
     };
 
     const drawSolidLineOnPage = (pageObj: any, yPos: number) => {
+      const lineY = yPos - 10;
       pageObj.drawLine({
-        start: { x: margin, y: yPos },
-        end: { x: width - margin, y: yPos },
+        start: { x: margin, y: lineY },
+        end: { x: width - margin, y: lineY },
         thickness: 1.0,
         color: rgb(0.05, 0.05, 0.05),
       });
+      return lineY - 24;
     };
 
     const drawCenterTextOnPage = (pageObj: any, text: string, font: any, size: number, yPos: number) => {
@@ -200,8 +202,7 @@ export async function GET(req: NextRequest) {
       drawCenterTextOnPage(pageObj, `${order.no_struk || `SI-${order.id}`} - ${dateFormatted}`, fontBold, 12.5, y);
       y -= 18;
 
-      drawSolidLineOnPage(pageObj, y);
-      y -= 16;
+      y = drawSolidLineOnPage(pageObj, y);
 
       // Customer Info
       pageObj.drawText(order.customer_name || "Pelanggan", { x: margin, y, size: 14, font: fontBold });
@@ -233,8 +234,7 @@ export async function GET(req: NextRequest) {
         y -= 16;
       });
 
-      drawSolidLineOnPage(pageObj, y);
-      y -= 15;
+      y = drawSolidLineOnPage(pageObj, y);
 
       // Table Header Bar: "Nama Barang" vs "Total Harga"
       pageObj.drawText("Nama Barang", { x: margin, y, size: 13.5, font: fontBold });
@@ -243,8 +243,7 @@ export async function GET(req: NextRequest) {
       pageObj.drawText(headerRightText, { x: width - margin - headerRightWidth, y, size: 13.5, font: fontBold });
       y -= 18;
 
-      drawSolidLineOnPage(pageObj, y);
-      y -= 15;
+      y = drawSolidLineOnPage(pageObj, y);
 
       // Items List
       let subtotalItems = 0;
@@ -294,8 +293,7 @@ export async function GET(req: NextRequest) {
         y -= 17;
       }
 
-      drawSolidLineOnPage(pageObj, y);
-      y -= 15;
+      y = drawSolidLineOnPage(pageObj, y);
 
       // Summary: Sub Total & Diskon & Total
       const subTotalAll = subtotalItems + shippingFee;
@@ -315,8 +313,7 @@ export async function GET(req: NextRequest) {
       pageObj.drawText(diskonTextStr, { x: width - margin - diskonWidth, y, size: 13.5, font: fontBold });
       y -= 17;
 
-      drawSolidLineOnPage(pageObj, y);
-      y -= 15;
+      y = drawSolidLineOnPage(pageObj, y);
 
       // Grand Total Line
       pageObj.drawText("Total", { x: margin, y, size: 16, font: fontBold });
@@ -325,12 +322,11 @@ export async function GET(req: NextRequest) {
       pageObj.drawText(grandTotalTextStr, { x: width - margin - grandTotalWidth, y, size: 16, font: fontBold });
       y -= 20;
 
-      drawSolidLineOnPage(pageObj, y);
-      y -= 15;
+      y = drawSolidLineOnPage(pageObj, y);
 
-      // Cutter divider line between receipts (garis potong putus-putus membentang penuh ujung ke ujung)
+      // Garis potong putus-putus, menjauh dari garis Total dan dari judul nota berikutnya
       if (!isLastInRoll) {
-        y -= 22;
+        y -= 40;
         pageObj.drawLine({
           start: { x: 0, y },
           end: { x: width, y },
@@ -338,7 +334,7 @@ export async function GET(req: NextRequest) {
           dashArray: [5, 4],
           color: rgb(0.2, 0.2, 0.2),
         });
-        y -= 35;
+        y -= 50;
       }
 
       return y;

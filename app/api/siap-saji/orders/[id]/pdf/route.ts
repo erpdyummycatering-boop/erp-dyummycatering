@@ -92,8 +92,8 @@ export async function GET(
     // Helper for measuring single order height accurately with 1.3-1.5x line spacing
     const measureOrderHeight = () => {
       let h = 0;
-      // Header: D'Yummy Siap Saji (26), Jl Sindangsari (16), Kota Bandung (16), SI.Struk (18), line (15)
-      h += 26 + 16 + 16 + 18 + 15;
+      // Header: D'Yummy Siap Saji (26), Jl Sindangsari (16), Kota Bandung (16), SI.Struk (18), garis (34)
+      h += 26 + 16 + 16 + 18 + 34;
 
       // Customer info: Name (18), Phone (16), Address lines (lines * 16), Patokan lines (lines * 15), Kec (16), line (15)
       h += 18;
@@ -106,10 +106,10 @@ export async function GET(
       }
       const kecText = `Kec. ${order.area_kecamatan || "-"} (${order.area_kota || "-"})`;
       const kecLines = wrapText(kecText, 29);
-      h += kecLines.length * 16 + 15;
+      h += kecLines.length * 16 + 34;
 
-      // Table header bar: "Nama Barang .... Total Harga" (18), line (15)
-      h += 18 + 15;
+      // Table header bar: "Nama Barang .... Total Harga" (18), garis (34)
+      h += 18 + 34;
 
       // Items
       items.forEach((it: any) => {
@@ -132,13 +132,13 @@ export async function GET(
         h += 17;
       }
 
-      h += 15; // line
+      h += 34; // garis sebelum ringkasan
 
-      // Summary: Sub Total (17), Diskon (17), line (15), Total (20), line (15)
-      h += 17 + 17 + 15 + 20 + 15;
+      // Summary: Sub Total (17), Diskon (17), garis (34), Total (20), garis (34)
+      h += 17 + 17 + 34 + 20 + 34;
 
-      // Cutter divider line (dashed) + extra bottom breathing room for physical printer cut
-      h += 80;
+      // Garis potong putus-putus: 40pt di atas + 50pt di bawah
+      h += 90;
 
       return h;
     };
@@ -163,13 +163,16 @@ export async function GET(
     };
 
     const drawSolidLine = () => {
+      // 10pt di atas garis supaya tidak nempel ke baseline teks sebelumnya
+      y -= 10;
       page.drawLine({
         start: { x: margin, y },
         end: { x: width - margin, y },
         thickness: 1.0,
         color: rgb(0.05, 0.05, 0.05),
       });
-      y -= 15;
+      // 24pt di bawah garis supaya cap-height teks berikutnya tidak mepet
+      y -= 24;
     };
 
     // Header (Title font size 22pt starts at y = height - 36, cap height top = height - 18pt)
@@ -303,8 +306,8 @@ export async function GET(
 
     drawSolidLine();
 
-    // Dashed cutter divider line (garis potong putus-putus membentang penuh hingga kedua ujung kanan-kiri)
-    y -= 22;
+    // Garis potong putus-putus, menjauh dari garis Total dan dari tepi potong kertas
+    y -= 40;
     page.drawLine({
       start: { x: 0, y },
       end: { x: width, y },
@@ -312,7 +315,7 @@ export async function GET(
       dashArray: [5, 4],
       color: rgb(0.2, 0.2, 0.2),
     });
-    y -= 35;
+    y -= 50;
 
     const pdfBytes = await pdfDoc.save();
 
