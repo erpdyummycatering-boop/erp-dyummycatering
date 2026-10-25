@@ -30,11 +30,15 @@ export default function SiapSajiFinancePage() {
   const [drillTotalNominal, setDrillTotalNominal] = useState(0);
   const [drillLoading, setDrillLoading] = useState(false);
 
+  // Helper functions for Year-to-Date (YTD)
+  const getYtdStartStr = () => `${new Date().getFullYear()}-01-01`;
+  const getTodayStr = () => new Date().toISOString().split("T")[0];
+
   // ── State Tab Buku Besar (General Ledger) ──
   const [ledgerCoaId, setLedgerCoaId] = useState<number | "">("");
-  const [ledgerDateFrom, setLedgerDateFrom] = useState(new Date().toISOString().split("T")[0]);
-  const [ledgerDateTo, setLedgerDateTo] = useState(new Date().toISOString().split("T")[0]);
-  const [ledgerPreset, setLedgerPreset] = useState("today");
+  const [ledgerDateFrom, setLedgerDateFrom] = useState(getYtdStartStr());
+  const [ledgerDateTo, setLedgerDateTo] = useState(getTodayStr());
+  const [ledgerPreset, setLedgerPreset] = useState("this_year");
   const [ledgerPage, setLedgerPage] = useState(1);
   const [ledgerLimit, setLedgerLimit] = useState(25);
   const [ledgerData, setLedgerData] = useState<any>(null);
@@ -68,8 +72,8 @@ export default function SiapSajiFinancePage() {
   const [plPeriodMode, setPlPeriodMode] = useState<"month" | "date">("date"); // "month" (Bulan/Tahun) or "date" (Harian / Rentang Tanggal)
   const [plMonth, setPlMonth] = useState<string>(String(new Date().getMonth() + 1));
   const [plYear, setPlYear] = useState<string>(String(new Date().getFullYear()));
-  const [plDateFrom, setPlDateFrom] = useState<string>(new Date().toISOString().split("T")[0]);
-  const [plDateTo, setPlDateTo] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [plDateFrom, setPlDateFrom] = useState<string>(getYtdStartStr());
+  const [plDateTo, setPlDateTo] = useState<string>(getTodayStr());
 
   // Tab 7: Neraca Date & Cutoff Filters
   const [neracaPreset, setNeracaPreset] = useState<string>("today"); // "today" | "yesterday" | "this_month" | "last_month" | "this_year" | "all" | "custom"
@@ -116,8 +120,8 @@ export default function SiapSajiFinancePage() {
   const [purchaseCoaId, setPurchaseCoaId] = useState<number | "">("");
   const [purchaseKasBankId, setPurchaseKasBankId] = useState<number | "hutang" | "">("");
   const [purSearch, setPurSearch] = useState("");
-  const [purDateFrom, setPurDateFrom] = useState("");
-  const [purDateTo, setPurDateTo] = useState("");
+  const [purDateFrom, setPurDateFrom] = useState(getYtdStartStr());
+  const [purDateTo, setPurDateTo] = useState(getTodayStr());
 
   // Edit Purchase State
   const [isEditPurchaseModalOpen, setIsEditPurchaseModalOpen] = useState(false);
@@ -140,8 +144,8 @@ export default function SiapSajiFinancePage() {
   const [expenseCoaId, setExpenseCoaId] = useState<number | "">("");
   const [expenseKasBankId, setExpenseKasBankId] = useState<number | "hutang" | "">("");
   const [expSearch, setExpSearch] = useState("");
-  const [expDateFrom, setExpDateFrom] = useState("");
-  const [expDateTo, setExpDateTo] = useState("");
+  const [expDateFrom, setExpDateFrom] = useState(getYtdStartStr());
+  const [expDateTo, setExpDateTo] = useState(getTodayStr());
 
   // Edit Expense State
   const [isEditExpenseModalOpen, setIsEditExpenseModalOpen] = useState(false);
@@ -183,15 +187,15 @@ export default function SiapSajiFinancePage() {
   const [coaList, setCoaList] = useState<any[]>([]);
   const [mutSearch, setMutSearch] = useState("");
   const [mutJenisFilter, setMutJenisFilter] = useState("");
-  const [mutDateFrom, setMutDateFrom] = useState("");
-  const [mutDateTo, setMutDateTo] = useState("");
+  const [mutDateFrom, setMutDateFrom] = useState(getYtdStartStr());
+  const [mutDateTo, setMutDateTo] = useState(getTodayStr());
 
   // Tab 5: Journals Data & Filters
   const [journals, setJournals] = useState<any[]>([]);
   const [jouSearch, setJouSearch] = useState("");
   const [jouTypeFilter, setJouTypeFilter] = useState("");
-  const [jouDateFrom, setJouDateFrom] = useState("");
-  const [jouDateTo, setJouDateTo] = useState("");
+  const [jouDateFrom, setJouDateFrom] = useState(getYtdStartStr());
+  const [jouDateTo, setJouDateTo] = useState(getTodayStr());
 
   // Tab 6: COA Data & Filters
   const [coaListAll, setCoaListAll] = useState<any[]>([]); // Master COA list for all modals & system
@@ -2500,10 +2504,11 @@ export default function SiapSajiFinancePage() {
                     style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13 }}
                   />
                 </div>
-                {(purSearch || purDateFrom || purDateTo) && (
+                {(purSearch || purDateFrom !== getYtdStartStr() || purDateTo !== getTodayStr()) && (
                   <button
-                    onClick={() => { setPurSearch(""); setPurDateFrom(""); setPurDateTo(""); setPurPage(1); }}
+                    onClick={() => { setPurSearch(""); setPurDateFrom(getYtdStartStr()); setPurDateTo(getTodayStr()); setPurPage(1); }}
                     style={{ padding: "7px 12px", background: "#f3f4f6", color: "#4b5563", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer", fontWeight: 600, flexShrink: 0 }}
+                    title="Reset Filter ke YTD"
                   >
                     Reset
                   </button>
@@ -2838,10 +2843,11 @@ export default function SiapSajiFinancePage() {
                 style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13 }}
               />
             </div>
-            {(expSearch || expDateFrom || expDateTo) && (
+            {(expSearch || expDateFrom !== getYtdStartStr() || expDateTo !== getTodayStr()) && (
               <button
-                onClick={() => { setExpSearch(""); setExpDateFrom(""); setExpDateTo(""); setExpPage(1); }}
+                onClick={() => { setExpSearch(""); setExpDateFrom(getYtdStartStr()); setExpDateTo(getTodayStr()); setExpPage(1); }}
                 style={{ padding: "7px 12px", background: "#f3f4f6", color: "#4b5563", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer", fontWeight: 600, flexShrink: 0 }}
+                title="Reset Filter ke YTD"
               >
                 Reset
               </button>
@@ -3228,10 +3234,11 @@ export default function SiapSajiFinancePage() {
                 />
               </div>
 
-              {(mutSearch || mutJenisFilter || mutDateFrom || mutDateTo) && (
+              {(mutSearch || mutJenisFilter || mutDateFrom !== getYtdStartStr() || mutDateTo !== getTodayStr()) && (
                 <button
-                  onClick={() => { setMutSearch(""); setMutJenisFilter(""); setMutDateFrom(""); setMutDateTo(""); setMutPage(1); }}
+                  onClick={() => { setMutSearch(""); setMutJenisFilter(""); setMutDateFrom(getYtdStartStr()); setMutDateTo(getTodayStr()); setMutPage(1); }}
                   style={{ padding: "7px 12px", background: "#e5e7eb", color: "#4b5563", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer", fontWeight: 600, flexShrink: 0 }}
+                  title="Reset Filter ke YTD"
                 >
                   Reset
                 </button>
@@ -3337,10 +3344,11 @@ export default function SiapSajiFinancePage() {
               />
             </div>
 
-            {(jouSearch || jouTypeFilter || jouDateFrom || jouDateTo) && (
+            {(jouSearch || jouTypeFilter || jouDateFrom !== getYtdStartStr() || jouDateTo !== getTodayStr()) && (
               <button
-                onClick={() => { setJouSearch(""); setJouTypeFilter(""); setJouDateFrom(""); setJouDateTo(""); setJouPage(1); }}
+                onClick={() => { setJouSearch(""); setJouTypeFilter(""); setJouDateFrom(getYtdStartStr()); setJouDateTo(getTodayStr()); setJouPage(1); }}
                 style={{ padding: "7px 12px", background: "#f3f4f6", color: "#4b5563", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer", fontWeight: 600, flexShrink: 0 }}
+                title="Reset Filter ke YTD"
               >
                 Reset
               </button>
