@@ -3466,25 +3466,34 @@ export default function SiapSajiOrdersPage() {
             <style>{`
               @media print {
                 @page {
-                  size: 80mm auto; /* POS Thermal Receipt Paper Size (80mm) */
+                  size: 80mm auto; /* POS Thermal Receipt Paper Size (80mm continuous) */
                   margin: 0;
                 }
+                html, body {
+                  margin: 0 !important;
+                  padding: 0 !important;
+                  background: white !important;
+                  height: auto !important;
+                  overflow: visible !important;
+                }
                 body * {
-                  visibility: hidden;
+                  visibility: hidden !important;
                 }
                 #struk-print-area, #struk-print-area * {
-                  visibility: visible;
+                  visibility: visible !important;
                 }
                 #struk-print-area {
-                  position: fixed;
-                  left: 0;
-                  top: 0;
-                  width: 80mm !important;
-                  max-width: 80mm !important;
-                  padding: 8px !important;
+                  position: absolute !important;
+                  left: 0 !important;
+                  top: 0 !important;
+                  width: 76mm !important;
+                  max-width: 76mm !important;
+                  margin: 0 auto !important;
+                  padding: 10px 4px 20px 4px !important;
                   border: none !important;
                   box-shadow: none !important;
                   background: white !important;
+                  box-sizing: border-box !important;
                 }
               }
             `}</style>
@@ -3930,6 +3939,13 @@ export default function SiapSajiOrdersPage() {
                   size: ${bulkPaperSize === "80mm" ? "80mm auto" : "A4 portrait"};
                   margin: ${bulkPaperSize === "80mm" ? "0" : "10mm"};
                 }
+                html, body {
+                  margin: 0 !important;
+                  padding: 0 !important;
+                  background: white !important;
+                  height: auto !important;
+                  overflow: visible !important;
+                }
                 body * {
                   visibility: hidden !important;
                 }
@@ -3940,20 +3956,25 @@ export default function SiapSajiOrdersPage() {
                   position: absolute !important;
                   left: 0 !important;
                   top: 0 !important;
-                  width: ${bulkPaperSize === "80mm" ? "80mm !important" : "100% !important"};
-                  max-width: ${bulkPaperSize === "80mm" ? "80mm !important" : "100% !important"};
-                  margin: 0 !important;
+                  width: ${bulkPaperSize === "80mm" ? "76mm !important" : "100% !important"};
+                  max-width: ${bulkPaperSize === "80mm" ? "76mm !important" : "100% !important"};
+                  margin: 0 auto !important;
                   padding: 0 !important;
                   background: white !important;
+                  display: block !important;
+                  box-sizing: border-box !important;
                 }
                 .bulk-struk-page {
                   page-break-after: always !important;
                   break-after: page !important;
-                  margin: 0 !important;
-                  padding: ${bulkPaperSize === "80mm" ? "8px" : "16px"} !important;
+                  page-break-inside: avoid !important;
+                  break-inside: avoid !important;
+                  margin: 0 0 16px 0 !important;
+                  padding: ${bulkPaperSize === "80mm" ? "10px 4px 20px 4px" : "16px"} !important;
                   border: none !important;
                   box-shadow: none !important;
                   background: white !important;
+                  box-sizing: border-box !important;
                 }
                 .screen-page-header {
                   display: none !important;

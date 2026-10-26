@@ -786,8 +786,12 @@ export default function SiapSajiFinancePage() {
     const dib = Number(item.dibayar !== undefined && item.dibayar !== null ? item.dibayar : tot);
     setEditExpNominal(tot);
     setEditExpPaidAmount(dib);
-    setEditExpCoaId(item.akun_debit || "");
-    setEditExpKasBankId(item.kas_bank_id || (item.kredit_nama?.toLowerCase().includes("utang") ? "hutang" : (accounts.length > 0 ? accounts[0].id : "")));
+    const isHutangLainnya = item.kredit_nama?.toLowerCase().includes("hutang lainnya") || item.keterangan?.includes("Hutang Lainnya");
+    const isHutangUsaha = item.kredit_nama?.toLowerCase().includes("utang") || item.keterangan?.includes("Hutang Usaha");
+    setEditExpKasBankId(
+      item.kas_bank_id ||
+      (isHutangLainnya ? "hutang_lainnya" : (isHutangUsaha ? "hutang" : (accounts.length > 0 ? accounts[0].id : "")))
+    );
     setIsEditExpenseModalOpen(true);
   };
 
@@ -4026,6 +4030,7 @@ export default function SiapSajiFinancePage() {
                 <SearchableSelect
                   options={[
                     { value: "hutang", label: "💳 Hutang Usaha / Tempo (Belum Dibayar)", category: "Tempo" },
+                    { value: "hutang_lainnya", label: "💳 (2-1002) Hutang Lainnya (Ziswaf / Non-Usaha)", category: "Tempo" },
                     ...accounts.map((a) => ({
                       value: a.id,
                       label: `${a.nama_rekening} (Saldo: Rp${Number(a.saldo_kini).toLocaleString("id-ID")})`,
@@ -4033,7 +4038,7 @@ export default function SiapSajiFinancePage() {
                     })),
                   ]}
                   value={expenseKasBankId}
-                  onChange={(val) => setExpenseKasBankId(val === "hutang" ? "hutang" : (val ? Number(val) : ""))}
+                  onChange={(val) => setExpenseKasBankId(val === "hutang" || val === "hutang_lainnya" ? val : (val ? Number(val) : ""))}
                   placeholder="-- Pilih Rekening Kas / Hutang --"
                 />
               </div>
@@ -4195,6 +4200,7 @@ export default function SiapSajiFinancePage() {
                 <SearchableSelect
                   options={[
                     { value: "hutang", label: "💳 Hutang Usaha / Tempo (Belum Dibayar)", category: "Tempo" },
+                    { value: "hutang_lainnya", label: "💳 (2-1002) Hutang Lainnya (Ziswaf / Non-Usaha)", category: "Tempo" },
                     ...accounts.map((a) => ({
                       value: a.id,
                       label: `${a.nama_rekening} (Saldo: Rp${Number(a.saldo_kini).toLocaleString("id-ID")})`,
@@ -4202,7 +4208,7 @@ export default function SiapSajiFinancePage() {
                     })),
                   ]}
                   value={editExpKasBankId}
-                  onChange={(val) => setEditExpKasBankId(val === "hutang" ? "hutang" : (val ? Number(val) : ""))}
+                  onChange={(val) => setEditExpKasBankId(val === "hutang" || val === "hutang_lainnya" ? val : (val ? Number(val) : ""))}
                   placeholder="-- Pilih Rekening Kas / Hutang --"
                 />
               </div>

@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const isHutang = kas_bank_id === "hutang" || kas_bank_id === "0" || !kas_bank_id;
+  const isHutang = kas_bank_id === "hutang" || kas_bank_id === "hutang_lainnya" || String(kas_bank_id).startsWith("hutang_") || kas_bank_id === "0" || !kas_bank_id;
 
   const client = await pool.connect();
   try {
@@ -128,12 +128,23 @@ export async function POST(req: NextRequest) {
     if (paidAmount === 0) statusPembayaran = "Belum Lunas";
     else if (sisa > 0) statusPembayaran = "Sebagian";
 
-    // Resolve Kredit Account (Kas/Bank or Utang Usaha)
+    // Resolve Kredit Account (Kas/Bank or Utang Usaha / Hutang Lainnya)
     let coaKasId: number | null = null;
     let coaUtangId: number | null = null;
+    let utangLabel = "Hutang Usaha / Tempo";
 
-    const coaUtangRes = await client.query("SELECT id FROM coa WHERE kode_akun = '2-1001' AND lini = 'siap_saji' LIMIT 1");
-    if (coaUtangRes.rows.length > 0) coaUtangId = coaUtangRes.rows[0].id;
+    if (kas_bank_id === "hutang_lainnya") {
+      const coaHLRes = await client.query("SELECT id FROM coa WHERE kode_akun = '2-1002' AND lini = 'siap_saji' LIMIT 1");
+      if (coaHLRes.rows.length > 0) {
+        coaUtangId = coaHLRes.rows[0].id;
+        utangLabel = "Hutang Lainnya";
+      }
+    }
+
+    if (!coaUtangId) {
+      const coaUtangRes = await client.query("SELECT id FROM coa WHERE kode_akun = '2-1001' AND lini = 'siap_saji' LIMIT 1");
+      if (coaUtangRes.rows.length > 0) coaUtangId = coaUtangRes.rows[0].id;
+    }
 
     if (paidAmount > 0 && !isHutang) {
       const kbRes = await client.query("SELECT * FROM kas_bank WHERE id = $1", [kas_bank_id]);
@@ -171,7 +182,7 @@ export async function POST(req: NextRequest) {
         Number(coa_id),
         primaryKreditId,
         total,
-        isHutang ? `Biaya Operasional (Hutang Usaha / Tempo): ${keterangan.trim()}` : keterangan.trim(),
+        isHutang ? `Biaya Operasional (${utangLabel}): ${keterangan.trim()}` : keterangan.trim(),
         paidAmount,
         sisa,
         statusPembayaran,
@@ -241,7 +252,7 @@ export async function PUT(req: NextRequest) {
     );
   }
 
-  const isHutang = kas_bank_id === "hutang" || kas_bank_id === "0" || !kas_bank_id;
+  const isHutang = kas_bank_id === "hutang" || kas_bank_id === "hutang_lainnya" || String(kas_bank_id).startsWith("hutang_") || kas_bank_id === "0" || !kas_bank_id;
 
   const client = await pool.connect();
   try {
@@ -292,8 +303,20 @@ export async function PUT(req: NextRequest) {
     // 3. Resolve accounts
     let coaKasId: number | null = null;
     let coaUtangId: number | null = null;
-    const coaUtangRes = await client.query("SELECT id FROM coa WHERE kode_akun = '2-1001' AND lini = 'siap_saji' LIMIT 1");
-    if (coaUtangRes.rows.length > 0) coaUtangId = coaUtangRes.rows[0].id;
+    let utangLabel = "Hutang Usaha / Tempo";
+
+    if (kas_bank_id === "hutang_lainnya") {
+      const coaHLRes = await client.query("SELECT id FROM coa WHERE kode_akun = '2-1002' AND lini = 'siap_saji' LIMIT 1");
+      if (coaHLRes.rows.length > 0) {
+        coaUtangId = coaHLRes.rows[0].id;
+        utangLabel = "Hutang Lainnya";
+      }
+    }
+
+    if (!coaUtangId) {
+      const coaUtangRes = await client.query("SELECT id FROM coa WHERE kode_akun = '2-1001' AND lini = 'siap_saji' LIMIT 1");
+      if (coaUtangRes.rows.length > 0) coaUtangId = coaUtangRes.rows[0].id;
+    }
 
     if (paidAmount > 0 && !isHutang) {
       const kbRes = await client.query("SELECT * FROM kas_bank WHERE id = $1", [kas_bank_id]);
@@ -321,8 +344,8 @@ export async function PUT(req: NextRequest) {
     }
 
     // 4. Update Main Journal
-    const finalKeterangan = isHutang && !keterangan.includes("Hutang Usaha")
-      ? `Biaya Operasional (Hutang Usaha / Tempo): ${keterangan.trim()}`
+    const finalKeterangan = isHutang && !keterangan.includes("Hutang")
+      ? `Biaya Operasional (${utangLabel}): ${keterangan.trim()}`
       : (paidAmount > 0 && sisa > 0 ? `Biaya Operasional (Bayar DP/Sebagian Rp ${paidAmount.toLocaleString("id-ID")}): ${keterangan.trim()}` : keterangan.trim());
 
     const updNominal = (paidAmount > 0 && sisa > 0) ? paidAmount : total;
@@ -460,9 +483,13 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
-    // Resolve Utang Usaha CoA (2-1001) -> DEBET Utang Usaha, KREDIT Kas/Bank
-    const coaUtangRes = await client.query("SELECT id FROM coa WHERE kode_akun = '2-1001' AND lini = 'siap_saji' LIMIT 1");
-    if (coaUtangRes.rows.length > 0 && coaKasId) {
+    // Resolve Debit account: use original journal's akun_kredit (e.g., Utang Usaha 2-1001 or Hutang Lainnya 2-1002)
+    let debtDebitCoaId = j.akun_kredit;
+    if (!debtDebitCoaId) {
+      const coaUtangRes = await client.query("SELECT id FROM coa WHERE kode_akun = '2-1001' AND lini = 'siap_saji' LIMIT 1");
+      if (coaUtangRes.rows.length > 0) debtDebitCoaId = coaUtangRes.rows[0].id;
+    }
+    if (debtDebitCoaId && coaKasId) {
       await client.query(
         `INSERT INTO journals (lini, journal_date, ref_type, ref_id, ref_no, akun_debit, akun_kredit, nominal, keterangan, dibayar, sisa_hutang, status_pembayaran)
          VALUES ('siap_saji', $1, 'biaya', $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
@@ -470,7 +497,7 @@ export async function PATCH(req: NextRequest) {
           payDate,
           id,
           `EXP-${id}`,
-          coaUtangRes.rows[0].id,
+          debtDebitCoaId,
           coaKasId,
           actualPay,
           `Pembayaran Cicilan/Pelunasan Hutang Biaya: ${keterangan || j.keterangan}`,
