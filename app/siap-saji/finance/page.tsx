@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, Fragment } from "react";
-import { CreditCard, DollarSign, Plus, FileText, PieChart, BookOpen, ArrowUpRight, ArrowDownLeft, X, Check, CheckCircle, RefreshCw, Search, Edit3, Trash2, Calendar, Printer, Download, FileSpreadsheet, Eye, AlertTriangle, Receipt } from "lucide-react";
+import { CreditCard, DollarSign, Plus, FileText, PieChart, BookOpen, ArrowUpRight, ArrowDownLeft, ArrowRightLeft, X, Check, CheckCircle, RefreshCw, Search, Edit3, Trash2, Calendar, Printer, Download, FileSpreadsheet, Eye, AlertTriangle, Receipt } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/ui/Pagination";
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
@@ -226,10 +226,12 @@ export default function SiapSajiFinancePage() {
   const [accFormCoaId, setAccFormCoaId] = useState<number | "">("");
   const [accFormIsDefault, setAccFormIsDefault] = useState(false);
 
-  // Tab 4: Kas Masuk & Kas Keluar Modal State (Req 4 & Screenshot 4)
+  // Tab 4: Kas Masuk, Kas Keluar & Transfer Modal State
   const [isKasMutasiModalOpen, setIsKasMutasiModalOpen] = useState(false);
-  const [kasMutasiJenis, setKasMutasiJenis] = useState<"Masuk" | "Keluar">("Keluar");
+  const [kasMutasiJenis, setKasMutasiJenis] = useState<"Masuk" | "Keluar" | "Transfer">("Keluar");
   const [kasMutasiBankId, setKasMutasiBankId] = useState<number | "">("");
+  const [kasMutasiTargetBankId, setKasMutasiTargetBankId] = useState<number | "">("");
+  const [kasMutasiBiayaAdmin, setKasMutasiBiayaAdmin] = useState<number>(0);
   const [kasMutasiDate, setKasMutasiDate] = useState(new Date().toISOString().split("T")[0]);
   const [kasMutasiNominal, setKasMutasiNominal] = useState<number>(0);
   const [kasMutasiCoaId, setKasMutasiCoaId] = useState<number | "">("");
@@ -1281,10 +1283,19 @@ export default function SiapSajiFinancePage() {
     }
   };
 
-  // Handlers for Kas Masuk / Keluar & Jurnal Umum Manual
-  const handleOpenKasMutasiModal = (jenis: "Masuk" | "Keluar") => {
+  // Handlers for Kas Masuk / Keluar / Transfer & Jurnal Umum Manual
+  const handleOpenKasMutasiModal = (jenis: "Masuk" | "Keluar" | "Transfer") => {
     setKasMutasiJenis(jenis);
     setKasMutasiBankId(accounts.length > 0 ? accounts[0].id : "");
+    if (jenis === "Transfer") {
+      const secondAcc = accounts.length > 1 ? accounts[1].id : "";
+      setKasMutasiTargetBankId(secondAcc);
+      setKasMutasiBiayaAdmin(0);
+      setKasMutasiKeterangan("");
+    } else {
+      setKasMutasiTargetBankId("");
+      setKasMutasiBiayaAdmin(0);
+    }
     setKasMutasiDate(new Date().toISOString().split("T")[0]);
     setKasMutasiNominal(0);
 
@@ -1293,10 +1304,13 @@ export default function SiapSajiFinancePage() {
       const priveAcc = availableCoa.find((c: any) => c.kode_akun === "3-2001");
       setKasMutasiCoaId(priveAcc ? priveAcc.id : (availableCoa.length > 0 ? availableCoa[0].id : ""));
       setKasMutasiKeterangan("Pengambilan prive owner");
-    } else {
+    } else if (jenis === "Masuk") {
       const modalAcc = availableCoa.find((c: any) => c.kode_akun === "3-1001");
       setKasMutasiCoaId(modalAcc ? modalAcc.id : (availableCoa.length > 0 ? availableCoa[0].id : ""));
       setKasMutasiKeterangan("Setoran modal owner");
+    } else {
+      // Transfer: otomatis antar akun Kas/Bank
+      setKasMutasiCoaId("");
     }
     setIsKasMutasiModalOpen(true);
   };
@@ -1304,6 +1318,12 @@ export default function SiapSajiFinancePage() {
   const handleSubmitKasMutasi = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!kasMutasiBankId) return toast.error("Pilih rekening Kas/Bank");
+    if (kasMutasiJenis === "Transfer") {
+      if (!kasMutasiTargetBankId) return toast.error("Pilih rekening tujuan transfer");
+      if (Number(kasMutasiBankId) === Number(kasMutasiTargetBankId)) {
+        return toast.error("Rekening asal dan tujuan tidak boleh sama");
+      }
+    }
     if (!kasMutasiNominal || kasMutasiNominal <= 0) return toast.error("Masukkan nominal valid");
 
     setIsSubmitting(true);
@@ -1313,8 +1333,10 @@ export default function SiapSajiFinancePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           kas_bank_id: Number(kasMutasiBankId),
+          target_kas_bank_id: kasMutasiJenis === "Transfer" ? Number(kasMutasiTargetBankId) : null,
           jenis: kasMutasiJenis,
           nominal: kasMutasiNominal,
+          biaya_admin: kasMutasiJenis === "Transfer" ? Number(kasMutasiBiayaAdmin || 0) : 0,
           mutasi_date: kasMutasiDate,
           keterangan: kasMutasiKeterangan,
           target_account_id: kasMutasiCoaId ? Number(kasMutasiCoaId) : null,
@@ -1326,7 +1348,11 @@ export default function SiapSajiFinancePage() {
         throw new Error(json.error || "Gagal mencatat mutasi kas");
       }
 
-      toast.success(`Mutasi Kas ${kasMutasiJenis} berhasil dicatat!`);
+      toast.success(
+        kasMutasiJenis === "Transfer"
+          ? "Transfer saldo antar rekening berhasil dicatat!"
+          : `Mutasi Kas ${kasMutasiJenis} berhasil dicatat!`
+      );
       setIsKasMutasiModalOpen(false);
       fetchKasBankMaster();
       fetchTabData();
@@ -3152,7 +3178,28 @@ export default function SiapSajiFinancePage() {
               <h3 style={{ fontSize: 16, fontWeight: 800, color: "#111827", margin: 0 }}>
                 Riwayat Mutasi Kas & Bank Terbaru
               </h3>
-              <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <button
+                  onClick={() => handleOpenKasMutasiModal("Transfer")}
+                  style={{
+                    padding: "8px 14px",
+                    background: "#2563eb",
+                    color: "white",
+                    border: "none",
+                    borderRadius: 8,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    boxShadow: "0 2px 6px rgba(37, 99, 235, 0.2)",
+                  }}
+                  title="Pindahkan saldo antar rekening Kas / Bank tanpa input Jurnal Umum manual"
+                >
+                  <ArrowRightLeft size={15} /> Transfer Antar Rekening
+                </button>
+
                 <button
                   onClick={() => handleOpenKasMutasiModal("Masuk")}
                   style={{
@@ -5888,13 +5935,15 @@ export default function SiapSajiFinancePage() {
         </div>
       )}
 
-      {/* MODAL KAS MASUK / KAS KELUAR (REQ 4 & SCREENSHOT 4) */}
+      {/* MODAL KAS MASUK / KAS KELUAR / TRANSFER ANTAR REKENING */}
       {isKasMutasiModalOpen && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-          <div style={{ background: "white", borderRadius: 16, maxWidth: 500, width: "100%", padding: 24, boxShadow: "0 20px 25px -5px rgba(0,0,0,0.2)" }}>
+          <div style={{ background: "white", borderRadius: 16, maxWidth: 520, width: "100%", padding: 24, boxShadow: "0 20px 25px -5px rgba(0,0,0,0.2)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h3 style={{ fontSize: 18, fontWeight: 800, color: kasMutasiJenis === "Masuk" ? "#166534" : "#991b1b", margin: 0 }}>
-                {kasMutasiJenis === "Masuk" ? "📥 Transaksi Kas Masuk" : "📤 Transaksi Kas Keluar (Prive Owner / Lainnya)"}
+              <h3 style={{ fontSize: 18, fontWeight: 800, color: kasMutasiJenis === "Transfer" ? "#1d4ed8" : (kasMutasiJenis === "Masuk" ? "#166534" : "#991b1b"), margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                {kasMutasiJenis === "Transfer" && <><ArrowRightLeft size={20} color="#2563eb" /> Transfer Saldo Antar Rekening</>}
+                {kasMutasiJenis === "Masuk" && <>📥 Transaksi Kas Masuk</>}
+                {kasMutasiJenis === "Keluar" && <>📤 Transaksi Kas Keluar (Prive Owner / Lainnya)</>}
               </h3>
               <button onClick={() => setIsKasMutasiModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280" }}>
                 <X size={20} />
@@ -5902,59 +5951,124 @@ export default function SiapSajiFinancePage() {
             </div>
 
             <form onSubmit={handleSubmitKasMutasi}>
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
-                  Rekening Kas / Bank *
-                </label>
-                <SearchableSelect
-                  options={accounts.map((acc) => ({
-                    value: acc.id,
-                    label: `${acc.nama_bank || acc.nama_rekening} (Rp ${Number(acc.saldo_saat_ini || acc.saldo_kini || 0).toLocaleString("id-ID")})`,
-                    category: "Kas/Bank",
-                  }))}
-                  value={kasMutasiBankId}
-                  onChange={(val) => setKasMutasiBankId(val ? Number(val) : "")}
-                  placeholder="-- Ketik / Pilih Rekening Kas/Bank --"
-                />
-              </div>
+              {kasMutasiJenis === "Transfer" ? (
+                <>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+                    <div>
+                      <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#374151", marginBottom: 4 }}>
+                        Dari Rekening Asal (Sumber) *
+                      </label>
+                      <SearchableSelect
+                        options={accounts.map((acc) => ({
+                          value: acc.id,
+                          label: `${acc.nama_bank || acc.nama_rekening} (Rp ${Number(acc.saldo_saat_ini || acc.saldo_kini || 0).toLocaleString("id-ID")})`,
+                          category: "Kas/Bank",
+                        }))}
+                        value={kasMutasiBankId}
+                        onChange={(val) => setKasMutasiBankId(val ? Number(val) : "")}
+                        placeholder="-- Rekening Asal --"
+                      />
+                    </div>
 
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
-                  Tanggal Transaksi *
-                </label>
-                <input
-                  type="date"
-                  value={kasMutasiDate}
-                  onChange={(e) => setKasMutasiDate(e.target.value)}
-                  required
-                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
-                />
-              </div>
+                    <div>
+                      <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#1d4ed8", marginBottom: 4 }}>
+                        Ke Rekening Tujuan *
+                      </label>
+                      <SearchableSelect
+                        options={accounts
+                          .filter((acc) => Number(acc.id) !== Number(kasMutasiBankId))
+                          .map((acc) => ({
+                            value: acc.id,
+                            label: `${acc.nama_bank || acc.nama_rekening} (Rp ${Number(acc.saldo_saat_ini || acc.saldo_kini || 0).toLocaleString("id-ID")})`,
+                            category: "Kas/Bank",
+                          }))}
+                        value={kasMutasiTargetBankId}
+                        onChange={(val) => setKasMutasiTargetBankId(val ? Number(val) : "")}
+                        placeholder="-- Rekening Tujuan --"
+                      />
+                    </div>
+                  </div>
 
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
-                  Akun Lawan COA ({kasMutasiJenis === "Keluar" ? "Debet" : "Kredit"}) *
-                </label>
-                <SearchableSelect
-                  options={(coaListAll.length > 0 ? coaListAll : coaList).map((c) => ({
-                    value: c.id,
-                    label: `(${c.kode_akun}) ${c.nama_akun}`,
-                    category: c.sub_kelompok || c.kelompok,
-                  }))}
-                  value={kasMutasiCoaId}
-                  onChange={(val) => setKasMutasiCoaId(val ? Number(val) : "")}
-                  placeholder="-- Ketik / Pilih Akun Lawan COA --"
-                />
-                <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
-                  {kasMutasiJenis === "Keluar"
-                    ? "✓ Jurnal Otomatis: Debet [Akun Lawan], Kredit [Kas/Bank]"
-                    : "✓ Jurnal Otomatis: Debet [Kas/Bank], Kredit [Akun Lawan]"}
+                  <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "8px 12px", marginBottom: 14, fontSize: 11, color: "#1e40af" }}>
+                    ✓ <strong>Otomatis Tanpa JU:</strong> Sistem langsung mendebit Rekening Tujuan dan mengkredit Rekening Asal. Mutasi keluar & masuk tercatat lengkap di kedua buku rekening.
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ marginBottom: 14 }}>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                      Rekening Kas / Bank *
+                    </label>
+                    <SearchableSelect
+                      options={accounts.map((acc) => ({
+                        value: acc.id,
+                        label: `${acc.nama_bank || acc.nama_rekening} (Rp ${Number(acc.saldo_saat_ini || acc.saldo_kini || 0).toLocaleString("id-ID")})`,
+                        category: "Kas/Bank",
+                      }))}
+                      value={kasMutasiBankId}
+                      onChange={(val) => setKasMutasiBankId(val ? Number(val) : "")}
+                      placeholder="-- Ketik / Pilih Rekening Kas/Bank --"
+                    />
+                  </div>
+                </>
+              )}
+
+              <div style={{ display: "grid", gridTemplateColumns: kasMutasiJenis === "Transfer" ? "1fr 1fr" : "1fr", gap: 12, marginBottom: 14 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                    Tanggal Transaksi *
+                  </label>
+                  <input
+                    type="date"
+                    value={kasMutasiDate}
+                    onChange={(e) => setKasMutasiDate(e.target.value)}
+                    required
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                  />
                 </div>
+
+                {kasMutasiJenis === "Transfer" && (
+                  <div>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                      Biaya Admin Transfer (Rp)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="0 (jika gratis / sesama bank)"
+                      value={formatThousand(kasMutasiBiayaAdmin)}
+                      onChange={(e) => setKasMutasiBiayaAdmin(parseThousand(e.target.value))}
+                      style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                    />
+                  </div>
+                )}
               </div>
+
+              {kasMutasiJenis !== "Transfer" && (
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                    Akun Lawan COA ({kasMutasiJenis === "Keluar" ? "Debet" : "Kredit"}) *
+                  </label>
+                  <SearchableSelect
+                    options={(coaListAll.length > 0 ? coaListAll : coaList).map((c) => ({
+                      value: c.id,
+                      label: `(${c.kode_akun}) ${c.nama_akun}`,
+                      category: c.sub_kelompok || c.kelompok,
+                    }))}
+                    value={kasMutasiCoaId}
+                    onChange={(val) => setKasMutasiCoaId(val ? Number(val) : "")}
+                    placeholder="-- Ketik / Pilih Akun Lawan COA --"
+                  />
+                  <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
+                    {kasMutasiJenis === "Keluar"
+                      ? "✓ Jurnal Otomatis: Debet [Akun Lawan], Kredit [Kas/Bank]"
+                      : "✓ Jurnal Otomatis: Debet [Kas/Bank], Kredit [Akun Lawan]"}
+                  </div>
+                </div>
+              )}
 
               <div style={{ marginBottom: 14 }}>
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
-                  Nominal (Rp) *
+                  Nominal {kasMutasiJenis === "Transfer" ? "Transfer" : ""} (Rp) *
                 </label>
                 <input
                   type="text"
@@ -5968,20 +6082,24 @@ export default function SiapSajiFinancePage() {
 
               <div style={{ marginBottom: 20 }}>
                 <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
-                  Keterangan Transaksi *
+                  Keterangan Transaksi {kasMutasiJenis === "Transfer" ? "(Opsional)" : "*"}
                 </label>
                 <input
                   type="text"
-                  placeholder={kasMutasiJenis === "Keluar" ? "Pengambilan prive owner..." : "Setoran modal owner..."}
+                  placeholder={
+                    kasMutasiJenis === "Transfer"
+                      ? "Contoh: Pindah saldo operasional / pengisian kas..."
+                      : (kasMutasiJenis === "Keluar" ? "Pengambilan prive owner..." : "Setoran modal owner...")
+                  }
                   value={kasMutasiKeterangan}
                   onChange={(e) => setKasMutasiKeterangan(e.target.value)}
-                  required
+                  required={kasMutasiJenis !== "Transfer"}
                   style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
                 />
               </div>
 
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-                <button type="button" onClick={() => setIsKasMutasiModalOpen(false)} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "white" }}>
+                <button type="button" onClick={() => setIsKasMutasiModalOpen(false)} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "white", cursor: "pointer" }}>
                   Batal
                 </button>
                 <button
@@ -5991,12 +6109,15 @@ export default function SiapSajiFinancePage() {
                     padding: "8px 20px",
                     borderRadius: 8,
                     border: "none",
-                    background: kasMutasiJenis === "Masuk" ? "#639922" : "#E24B4A",
+                    background: kasMutasiJenis === "Transfer" ? "#2563eb" : (kasMutasiJenis === "Masuk" ? "#639922" : "#E24B4A"),
                     color: "white",
                     fontWeight: 700,
+                    cursor: "pointer",
                   }}
                 >
-                  {isSubmitting ? "Menyimpan..." : `Simpan Kas ${kasMutasiJenis}`}
+                  {isSubmitting
+                    ? "Menyimpan..."
+                    : (kasMutasiJenis === "Transfer" ? "Kirim Transfer Saldo" : `Simpan Kas ${kasMutasiJenis}`)}
                 </button>
               </div>
             </form>

@@ -3441,6 +3441,7 @@ export default function SiapSajiOrdersPage() {
       {/* ── MODAL: STRUK DIGITAL PENJUALAN ────────────────────────── */}
       {selectedStruk && (
         <div
+          id="single-struk-modal-overlay"
           style={{
             position: "fixed",
             inset: 0,
@@ -3450,9 +3451,11 @@ export default function SiapSajiOrdersPage() {
             alignItems: "center",
             justifyContent: "center",
             padding: 16,
+            overflowY: "auto",
           }}
         >
           <div
+            id="single-struk-modal-box"
             style={{
               background: "white",
               borderRadius: 16,
@@ -3460,6 +3463,7 @@ export default function SiapSajiOrdersPage() {
               width: "100%",
               padding: 24,
               boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)",
+              margin: "auto",
             }}
           >
             {/* POS 80mm Thermal Receipt Print CSS */}
@@ -3474,26 +3478,42 @@ export default function SiapSajiOrdersPage() {
                   padding: 0 !important;
                   background: white !important;
                   height: auto !important;
+                  min-height: 100% !important;
                   overflow: visible !important;
                 }
                 body * {
                   visibility: hidden !important;
                 }
+                #single-struk-modal-overlay, #single-struk-modal-box {
+                  position: static !important;
+                  background: white !important;
+                  padding: 0 !important;
+                  margin: 0 !important;
+                  overflow: visible !important;
+                  box-shadow: none !important;
+                  max-width: 100% !important;
+                  width: 100% !important;
+                  display: block !important;
+                }
                 #struk-print-area, #struk-print-area * {
                   visibility: visible !important;
                 }
                 #struk-print-area {
-                  position: absolute !important;
+                  position: relative !important;
                   left: 0 !important;
                   top: 0 !important;
                   width: 76mm !important;
                   max-width: 76mm !important;
                   margin: 0 auto !important;
-                  padding: 10px 4px 20px 4px !important;
+                  padding: 8px 4px 28px 4px !important;
                   border: none !important;
                   box-shadow: none !important;
                   background: white !important;
                   box-sizing: border-box !important;
+                  page-break-after: avoid !important;
+                  break-after: avoid !important;
+                  page-break-inside: auto !important;
+                  break-inside: auto !important;
                 }
               }
             `}</style>
@@ -3513,7 +3533,7 @@ export default function SiapSajiOrdersPage() {
               }}
             >
               <div style={{ textAlign: "center", marginBottom: 12 }}>
-                <p style={{ fontWeight: 800, fontSize: 16, margin: 0 }}>DYummy Catering</p>
+                <p style={{ fontWeight: 800, fontSize: 16, margin: 0 }}>D&#39;Yummy Siap Saji</p>
                 <p style={{ fontSize: 11, color: "#4b5563", margin: "2px 0 0" }}>
                   Jl Sindangsari 4 No 48 Kota Bandung Jawa Barat
                 </p>
@@ -3944,16 +3964,29 @@ export default function SiapSajiOrdersPage() {
                   padding: 0 !important;
                   background: white !important;
                   height: auto !important;
+                  min-height: 100% !important;
                   overflow: visible !important;
                 }
                 body * {
                   visibility: hidden !important;
                 }
+                div[style*="background: rgba(0, 0, 0, 0.65)"],
+                div[style*="height: 75vh"] {
+                  position: static !important;
+                  background: white !important;
+                  padding: 0 !important;
+                  margin: 0 !important;
+                  overflow: visible !important;
+                  height: auto !important;
+                  max-width: 100% !important;
+                  width: 100% !important;
+                  display: block !important;
+                }
                 #bulk-struk-print-area, #bulk-struk-print-area * {
                   visibility: visible !important;
                 }
                 #bulk-struk-print-area {
-                  position: absolute !important;
+                  position: relative !important;
                   left: 0 !important;
                   top: 0 !important;
                   width: ${bulkPaperSize === "80mm" ? "76mm !important" : "100% !important"};
@@ -4019,7 +4052,7 @@ export default function SiapSajiOrdersPage() {
                     }}
                   >
                     <div style={{ textAlign: "center", marginBottom: 12 }}>
-                      <p style={{ fontWeight: 800, fontSize: 16, margin: 0 }}>DYummy Catering</p>
+                      <p style={{ fontWeight: 800, fontSize: 16, margin: 0 }}>D&#39;Yummy Siap Saji</p>
                       <p style={{ fontSize: 11, color: "#4b5563", margin: "2px 0 0" }}>
                         Jl Sindangsari 4 No 48 Kota Bandung Jawa Barat
                       </p>

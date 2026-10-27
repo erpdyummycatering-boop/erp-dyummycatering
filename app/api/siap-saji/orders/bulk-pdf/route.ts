@@ -95,43 +95,43 @@ export async function GET(req: NextRequest) {
 
     // 72mm Printable Thermal Head Width (204 pt)
     const width = 204;
-    const margin = 1;
+    const margin = 2;
 
     // Helper for measuring single order height accurately matching exact y deductions 1:1
     const measureOrderHeight = (order: any, isLast: boolean = false) => {
       const items = order.items || [];
       let h = 0;
-      // Header: DYummy Catering (24), Jl Sindangsari (15), Kota Bandung (lines * 15), SI.Struk (18), garis (34)
+      // Header: DYummy Siap Saji (26), Jl Sindangsari (16), Kota Bandung (lines * 16), SI.Struk (18), solid line (36)
       const cityLines = wrapText("Kota Bandung Jawa Barat Indonesia", 30);
-      h += 24 + 15 + cityLines.length * 15 + 18 + 34;
+      h += 26 + 16 + cityLines.length * 16 + 18 + 36;
 
-      // Customer info: Name (18), Phone (16), Address lines (lines * 16), Patokan lines (lines * 15), Kec (16), line (15)
+      // Customer info: Name (18), Phone (16), Address lines (lines * 16), Patokan lines (lines * 16), Kec (16), solid line (36)
       h += 18;
       if (order.customer_phone) h += 16;
       const addrLines = wrapText(order.customer_address || "-", 29);
       h += addrLines.length * 16;
       if (order.customer_patokan) {
         const patLines = wrapText(`-Patokan: ${order.customer_patokan}`, 29);
-        h += patLines.length * 15;
+        h += patLines.length * 16;
       }
       const kecText = `Kec. ${order.area_kecamatan || "-"} (${order.area_kota || "-"})`;
       const kecLines = wrapText(kecText, 29);
-      h += kecLines.length * 16 + 34;
+      h += kecLines.length * 16 + 36;
 
-      // Table header bar: "Nama Barang .... Total Harga" (18), garis (34)
-      h += 18 + 34;
+      // Table header bar: "Nama Barang .... Total Harga" (18), solid line (36)
+      h += 18 + 36;
 
       // Items
       items.forEach((it: any) => {
         const displayName = formatProductName(it.product_name, it.is_half_portion);
         const pLines = wrapText(displayName || "-", 29);
         h += pLines.length * 16;
-        h += 17;
+        h += 18;
         if (it.notes || it.note) {
           const noteText = String(it.notes || it.note).trim();
           if (noteText) {
             const nLines = wrapText(`* ${noteText}`, 29);
-            h += nLines.length * 14;
+            h += nLines.length * 15;
           }
         }
       });
@@ -139,29 +139,30 @@ export async function GET(req: NextRequest) {
       // Shipping fee if > 0
       if (Number(order.shipping_fee) > 0) {
         h += 16;
-        h += 17;
+        h += 18;
       }
 
-      h += 34; // garis sebelum ringkasan
+      h += 36; // solid line sebelum ringkasan
 
-      // Summary: Sub Total (17), Diskon (17), garis (34), Total (20), garis (34)
-      h += 17 + 17 + 34 + 20 + 34;
+      // Summary: Sub Total (18), Diskon (18), solid line (36), Total (24), solid line (36)
+      h += 18 + 18 + 36 + 24 + 36;
 
-      // Garis potong putus-putus: 40pt di atas + 50pt di bawah
+      // Garis potong putus-putus untuk pemisah antar nota roll:
+      // Spasi atas 36pt + garis dashed + spasi bawah 48pt = 84pt
       if (!isLast) {
-        h += 90;
+        h += 84;
       }
 
       return h;
     };
 
     const drawSolidLineOnPage = (pageObj: any, yPos: number) => {
-      const lineY = yPos - 10;
+      const lineY = yPos - 12;
       pageObj.drawLine({
         start: { x: margin, y: lineY },
         end: { x: width - margin, y: lineY },
         thickness: 1.0,
-        color: rgb(0.05, 0.05, 0.05),
+        color: rgb(0.1, 0.1, 0.1),
       });
       return lineY - 24;
     };
@@ -174,26 +175,19 @@ export async function GET(req: NextRequest) {
 
     const renderSingleOrder = (pageObj: any, order: any, startY: number, isLastInRoll: boolean = true) => {
       const items = order.items || [];
-      const createdDate = order.created_at
-        ? new Date(order.created_at).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })
-        : new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
-      const createdTime = order.created_at
-        ? new Date(order.created_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
-        : "";
-
       let y = startY;
 
-      // Header: D'Yummy Siap Saji with proper top breathing room
+      // Header: D'Yummy Siap Saji
       drawCenterTextOnPage(pageObj, "D'Yummy Siap Saji", fontBold, 20, y);
-      y -= 24;
+      y -= 26;
       drawCenterTextOnPage(pageObj, "Jl Sindangsari 4 No 48", fontRegular, 12, y);
-      y -= 15;
+      y -= 16;
 
-      // Wrap City / Province lines if needed to prevent text cut-off
+      // Wrap City / Province lines
       const cityLines = wrapText("Kota Bandung Jawa Barat Indonesia", 30);
       cityLines.forEach((cLine) => {
         drawCenterTextOnPage(pageObj, cLine, fontRegular, 12, y);
-        y -= 15;
+        y -= 16;
       });
 
       const dateFormatted = order.delivery_date
@@ -223,7 +217,7 @@ export async function GET(req: NextRequest) {
         const patLines = wrapText(`-Patokan: ${order.customer_patokan}`, 29);
         patLines.forEach((line) => {
           pageObj.drawText(line, { x: margin, y, size: 12, font: fontRegular, color: rgb(0.2, 0.2, 0.2) });
-          y -= 15;
+          y -= 16;
         });
       }
 
@@ -264,7 +258,7 @@ export async function GET(req: NextRequest) {
         pageObj.drawText(qtyPriceText, { x: margin, y, size: 12.5, font: fontRegular, color: rgb(0.1, 0.1, 0.1) });
         const subWidth = fontBold.widthOfTextAtSize(subtotalText, 13.5);
         pageObj.drawText(subtotalText, { x: width - margin - subWidth, y, size: 13.5, font: fontBold });
-        y -= 17;
+        y -= 18;
 
         if (it.notes || it.note) {
           const noteText = String(it.notes || it.note).trim();
@@ -272,7 +266,7 @@ export async function GET(req: NextRequest) {
             const nLines = wrapText(`* ${noteText}`, 29);
             nLines.forEach((line) => {
               pageObj.drawText(line, { x: margin + 8, y, size: 11, font: fontRegular, color: rgb(0.1, 0.1, 0.1) });
-              y -= 14;
+              y -= 15;
             });
           }
         }
@@ -290,7 +284,7 @@ export async function GET(req: NextRequest) {
         pageObj.drawText(shipQtyText, { x: margin, y, size: 12.5, font: fontRegular, color: rgb(0.1, 0.1, 0.1) });
         const shipWidth = fontBold.widthOfTextAtSize(shipSubText, 13.5);
         pageObj.drawText(shipSubText, { x: width - margin - shipWidth, y, size: 13.5, font: fontBold });
-        y -= 17;
+        y -= 18;
       }
 
       y = drawSolidLineOnPage(pageObj, y);
@@ -304,14 +298,14 @@ export async function GET(req: NextRequest) {
       const subTotalTextStr = subTotalAll.toLocaleString("id-ID");
       const subTotalWidth = fontBold.widthOfTextAtSize(subTotalTextStr, 13.5);
       pageObj.drawText(subTotalTextStr, { x: width - margin - subTotalWidth, y, size: 13.5, font: fontBold });
-      y -= 17;
+      y -= 18;
 
       // Diskon Line
       pageObj.drawText("Diskon", { x: margin, y, size: 13.5, font: fontBold });
       const diskonTextStr = discountVal.toLocaleString("id-ID");
       const diskonWidth = fontBold.widthOfTextAtSize(diskonTextStr, 13.5);
       pageObj.drawText(diskonTextStr, { x: width - margin - diskonWidth, y, size: 13.5, font: fontBold });
-      y -= 17;
+      y -= 18;
 
       y = drawSolidLineOnPage(pageObj, y);
 
@@ -320,21 +314,22 @@ export async function GET(req: NextRequest) {
       const grandTotalTextStr = Number(order.grand_total || subTotalAll - discountVal).toLocaleString("id-ID");
       const grandTotalWidth = fontBold.widthOfTextAtSize(grandTotalTextStr, 16);
       pageObj.drawText(grandTotalTextStr, { x: width - margin - grandTotalWidth, y, size: 16, font: fontBold });
-      y -= 20;
+      y -= 24;
 
       y = drawSolidLineOnPage(pageObj, y);
 
-      // Garis potong putus-putus, menjauh dari garis Total dan dari judul nota berikutnya
+      // Garis potong putus-putus untuk roll kertas thermal:
+      // Beri jarak nyaman setelah solid line sebelum garis dashed, dan jarak nyaman sebelum judul nota berikutnya
       if (!isLastInRoll) {
-        y -= 40;
+        y -= 36;
         pageObj.drawLine({
           start: { x: 0, y },
           end: { x: width, y },
-          thickness: 1.0,
-          dashArray: [5, 4],
-          color: rgb(0.2, 0.2, 0.2),
+          thickness: 1.2,
+          dashArray: [6, 4],
+          color: rgb(0.1, 0.1, 0.1),
         });
-        y -= 50;
+        y -= 48; // Spasi sebelum D'Yummy Siap Saji di nota berikutnya
       }
 
       return y;
@@ -361,11 +356,10 @@ export async function GET(req: NextRequest) {
     } else {
       // ── DYNAMIC EXACT HEIGHT PER RECEIPT PAGE MODE (Zero Wasted Blank Paper) ──
       for (const order of orderRes.rows) {
-        // Budget height including the dashed cut divider line at bottom + generous margin
-        const height = Math.ceil(measureOrderHeight(order, false) + 120);
+        // Budget height including generous margin
+        const height = Math.ceil(measureOrderHeight(order, true) + 120);
         const page = pdfDoc.addPage([width, height]);
-        // startY offset by 45pt gives clear top breathing room so header is never cut off
-        renderSingleOrder(page, order, height - 45, false);
+        renderSingleOrder(page, order, height - 45, true);
       }
     }
 
