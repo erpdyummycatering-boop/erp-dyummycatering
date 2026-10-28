@@ -335,9 +335,10 @@ export async function GET(req: NextRequest) {
       return y;
     };
 
-    // Multi-order selalu dicetak sebagai satu halaman kontinu: ukuran halaman berbeda-beda
-    // per struk membuat driver printer thermal memotong bagian bawah (Total) & atas (nama) struk.
-    if (mode === "roll" || orderRes.rows.length > 1) {
+    // Mode roll = satu halaman panjang (opsional). Mode exact = satu halaman per struk, ukuran 1:1
+    // tanpa skala, sehingga lebar teks tidak mengecil (halaman gabungan yang terlalu tinggi di-skala
+    // turun oleh driver printer dan membuat margin kiri-kanan melebar).
+    if (mode === "roll") {
       // ── CONTINUOUS THERMAL ROLL MODE (Exact 1:1 Height, Zero Phantom Padding) ──
       let totalContentHeight = 0;
       orderRes.rows.forEach((order, idx) => {
@@ -359,9 +360,9 @@ export async function GET(req: NextRequest) {
       // ── DYNAMIC EXACT HEIGHT PER RECEIPT PAGE MODE (Zero Wasted Blank Paper) ──
       for (const order of orderRes.rows) {
         // Budget height including generous margin
-        const height = Math.ceil(measureOrderHeight(order, true) + 120);
+        const height = Math.ceil(measureOrderHeight(order, true) + 60 + 36);
         const page = pdfDoc.addPage([width, height]);
-        renderSingleOrder(page, order, height - 45, true);
+        renderSingleOrder(page, order, height - 60, true);
       }
     }
 

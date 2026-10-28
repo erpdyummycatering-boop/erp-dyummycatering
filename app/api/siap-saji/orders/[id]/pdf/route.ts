@@ -144,8 +144,8 @@ export async function GET(
       return h;
     };
 
-    // 120pt total vertical margin budget (ensures header top, bottom total, and dashed cut line never cut off)
-    const height = Math.ceil(measureOrderHeight() + 120);
+    // Padding atas 60pt dan bawah 60pt (setelah garis di bawah Total), konsisten dengan bulk-pdf
+    const height = Math.ceil(measureOrderHeight() + 60 + 36);
 
     const pdfDoc = await PDFDocument.create();
     const page = pdfDoc.addPage([width, height]);
@@ -154,7 +154,7 @@ export async function GET(
     const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
     // Initial baseline offset at (height - 45) so title header is never cut off at the top
-    let y = height - 45;
+    let y = height - 60;
 
     const drawCenterText = (text: string, font: any, size: number) => {
       const textWidth = font.widthOfTextAtSize(text, size);
