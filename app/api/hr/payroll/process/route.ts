@@ -105,7 +105,7 @@ export async function POST(req: Request) {
     let empQuery = `
       SELECT e.*, 
              d.nama as department_nama, p.nama as position_nama,
-             s.gaji_pokok_harian, s.lembur_per_jam, s.tunjangan_tetap,
+             s.gaji_pokok_harian, s.gaji_pokok_bulanan, s.lembur_per_jam, s.tunjangan_tetap,
              s.tunjangan_km_tier1, s.tunjangan_km_tier2, s.tunjangan_km_tier3
       FROM hr_employees e
       LEFT JOIN hr_departments d ON d.id = e.department_id
@@ -253,13 +253,14 @@ export async function POST(req: Request) {
 
       // Subtotal Gaji Pokok: jika tipe_gaji 'BULANAN', gunakan nilai gaji bulanan utuh (jika tipe_payroll BULANAN) atau proporsional bila pekanan
       let subtotalGajiPokok = 0;
+      const nominalGajiBulanan = Number(emp.gaji_pokok_bulanan || (emp.gaji_pokok_harian ? emp.gaji_pokok_harian * 26 : 0));
       if (emp.tipe_gaji === "BULANAN") {
         if (tipe_payroll === "BULANAN") {
           // Gaji bulanan utuh
-          subtotalGajiPokok = gajiPokokHarian;
+          subtotalGajiPokok = nominalGajiBulanan || gajiPokokHarian;
         } else {
           // Jika proses pekanan untuk staf bulanan, dibagi 4 pekan
-          subtotalGajiPokok = Math.round(gajiPokokHarian / 4);
+          subtotalGajiPokok = Math.round((nominalGajiBulanan || (gajiPokokHarian * 26)) / 4);
         }
       } else {
         // Harian (Produksi / Driver): gaji per hari * total hari kehadiran

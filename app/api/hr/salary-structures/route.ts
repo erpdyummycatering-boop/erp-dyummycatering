@@ -35,6 +35,7 @@ export async function POST(req: Request) {
       employee_id,
       effective_date,
       gaji_pokok_harian,
+      gaji_pokok_bulanan,
       lembur_per_jam,
       tunjangan_tetap,
       tunjangan_km_tier1,
@@ -43,9 +44,19 @@ export async function POST(req: Request) {
       catatan,
     } = body;
 
-    if (!employee_id || !effective_date || gaji_pokok_harian === undefined) {
-      return NextResponse.json({ error: "Karyawan, Tanggal Berlaku, dan Gaji Pokok Harian wajib diisi" }, { status: 400 });
+    if (!employee_id || !effective_date || (gaji_pokok_harian === undefined && gaji_pokok_bulanan === undefined)) {
+      return NextResponse.json({ error: "Karyawan, Tanggal Berlaku, dan Gaji Pokok wajib diisi" }, { status: 400 });
     }
+
+    // Hitung estimasi harian dan lembur jika bulanan diisi tapi harian kosong
+    const finalGajiBulanan = gaji_pokok_bulanan !== undefined && gaji_pokok_bulanan !== null ? Number(gaji_pokok_bulanan) : null;
+    let finalGajiHarian = Number(gaji_pokok_harian || 0);
+    if (!finalGajiHarian && finalGajiBulanan) {
+      finalGajiHarian = Math.round(finalGajiBulanan / 26);
+    }
+    const finalLembur = lembur_per_jam !== undefined && lembur_per_jam !== null && lembur_per_jam !== ""
+      ? Number(lembur_per_jam)
+      : Math.round(finalGajiHarian / 8);
 
     let rows;
     if (id) {
@@ -60,19 +71,21 @@ export async function POST(req: Request) {
           tunjangan_km_tier1 = $6,
           tunjangan_km_tier2 = $7,
           tunjangan_km_tier3 = $8,
-          catatan = $9
-         WHERE id = $10
+          catatan = $9,
+          gaji_pokok_bulanan = $10
+         WHERE id = $11
          RETURNING *`,
         [
           employee_id,
           effective_date,
-          gaji_pokok_harian,
-          lembur_per_jam || Math.round(gaji_pokok_harian / 8),
+          finalGajiHarian,
+          finalLembur,
           tunjangan_tetap || 0,
           tunjangan_km_tier1 !== undefined ? tunjangan_km_tier1 : null,
           tunjangan_km_tier2 !== undefined ? tunjangan_km_tier2 : null,
           tunjangan_km_tier3 !== undefined ? tunjangan_km_tier3 : null,
           catatan || null,
+          finalGajiBulanan,
           id,
         ]
       );
@@ -81,8 +94,8 @@ export async function POST(req: Request) {
       const res = await pool.query(
         `INSERT INTO hr_salary_structures (
           employee_id, effective_date, gaji_pokok_harian, lembur_per_jam,
-          tunjangan_tetap, tunjangan_km_tier1, tunjangan_km_tier2, tunjangan_km_tier3, catatan
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          tunjangan_tetap, tunjangan_km_tier1, tunjangan_km_tier2, tunjangan_km_tier3, catatan, gaji_pokok_bulanan
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         ON CONFLICT (employee_id, effective_date) DO UPDATE SET
           gaji_pokok_harian = EXCLUDED.gaji_pokok_harian,
           lembur_per_jam = EXCLUDED.lembur_per_jam,
@@ -90,18 +103,20 @@ export async function POST(req: Request) {
           tunjangan_km_tier1 = EXCLUDED.tunjangan_km_tier1,
           tunjangan_km_tier2 = EXCLUDED.tunjangan_km_tier2,
           tunjangan_km_tier3 = EXCLUDED.tunjangan_km_tier3,
-          catatan = EXCLUDED.catatan
+          catatan = EXCLUDED.catatan,
+          gaji_pokok_bulanan = EXCLUDED.gaji_pokok_bulanan
         RETURNING *`,
         [
           employee_id,
           effective_date,
-          gaji_pokok_harian,
-          lembur_per_jam || Math.round(gaji_pokok_harian / 8),
+          finalGajiHarian,
+          finalLembur,
           tunjangan_tetap || 0,
           tunjangan_km_tier1 !== undefined ? tunjangan_km_tier1 : null,
           tunjangan_km_tier2 !== undefined ? tunjangan_km_tier2 : null,
           tunjangan_km_tier3 !== undefined ? tunjangan_km_tier3 : null,
           catatan || null,
+          finalGajiBulanan,
         ]
       );
       rows = res.rows;

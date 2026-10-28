@@ -14,7 +14,7 @@ export async function GET(req: Request) {
       SELECT e.*, 
              d.nama as department_nama, d.kode as department_kode,
              p.nama as position_nama, p.kode as position_kode,
-             s.gaji_pokok_harian, s.lembur_per_jam, s.tunjangan_km_tier1, s.tunjangan_km_tier2, s.tunjangan_km_tier3, s.effective_date as salary_effective_date
+             s.gaji_pokok_harian, s.gaji_pokok_bulanan, s.lembur_per_jam, s.tunjangan_km_tier1, s.tunjangan_km_tier2, s.tunjangan_km_tier3, s.effective_date as salary_effective_date
       FROM hr_employees e
       LEFT JOIN hr_departments d ON d.id = e.department_id
       LEFT JOIN hr_positions p ON p.id = e.position_id
