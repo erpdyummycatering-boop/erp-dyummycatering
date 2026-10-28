@@ -150,7 +150,7 @@ export async function GET(req: NextRequest) {
       // Garis potong putus-putus untuk pemisah antar nota roll:
       // Spasi atas 36pt + garis dashed + spasi bawah 48pt = 84pt
       if (!isLast) {
-        h += 84;
+        h += 72; // 24 + 12(dashed) simetris -> lihat renderSingleOrder
       }
 
       return h;
@@ -321,7 +321,7 @@ export async function GET(req: NextRequest) {
       // Garis potong putus-putus untuk roll kertas thermal:
       // Beri jarak nyaman setelah solid line sebelum garis dashed, dan jarak nyaman sebelum judul nota berikutnya
       if (!isLastInRoll) {
-        y -= 36;
+        y -= 24;
         pageObj.drawLine({
           start: { x: 0, y },
           end: { x: width, y },
@@ -335,7 +335,9 @@ export async function GET(req: NextRequest) {
       return y;
     };
 
-    if (mode === "roll") {
+    // Multi-order selalu dicetak sebagai satu halaman kontinu: ukuran halaman berbeda-beda
+    // per struk membuat driver printer thermal memotong bagian bawah (Total) & atas (nama) struk.
+    if (mode === "roll" || orderRes.rows.length > 1) {
       // ── CONTINUOUS THERMAL ROLL MODE (Exact 1:1 Height, Zero Phantom Padding) ──
       let totalContentHeight = 0;
       orderRes.rows.forEach((order, idx) => {
@@ -343,11 +345,11 @@ export async function GET(req: NextRequest) {
         totalContentHeight += measureOrderHeight(order, isLast);
       });
 
-      // 120pt total vertical margin budget (generous space between cuts and bottom safety)
-      const totalRollHeight = Math.ceil(totalContentHeight + 120);
+      // Padding atas 60pt (sebelum header) & padding bawah 60pt (setelah garis di bawah Total)
+      const totalRollHeight = Math.ceil(totalContentHeight + 60 + 36);
 
       const page = pdfDoc.addPage([width, totalRollHeight]);
-      let y = totalRollHeight - 45; // Initial baseline offset so title font is never cut off at top
+      let y = totalRollHeight - 60; // Initial baseline offset so title font is never cut off at top
 
       orderRes.rows.forEach((order, idx) => {
         const isLast = idx === orderRes.rows.length - 1;
