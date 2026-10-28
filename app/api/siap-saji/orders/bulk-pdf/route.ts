@@ -325,8 +325,8 @@ export async function GET(req: NextRequest) {
         pageObj.drawLine({
           start: { x: 0, y },
           end: { x: width, y },
-          thickness: 1.2,
-          dashArray: [6, 4],
+          thickness: 2,
+          dashArray: [8, 5],
           color: rgb(0.1, 0.1, 0.1),
         });
         y -= 48; // Spasi sebelum D'Yummy Siap Saji di nota berikutnya
@@ -347,10 +347,10 @@ export async function GET(req: NextRequest) {
       });
 
       // Padding atas 60pt (sebelum header) & padding bawah 60pt (setelah garis di bawah Total)
-      const totalRollHeight = Math.ceil(totalContentHeight + 60 + 36);
+      const totalRollHeight = Math.ceil(totalContentHeight + 90 + 36);
 
       const page = pdfDoc.addPage([width, totalRollHeight]);
-      let y = totalRollHeight - 60; // Initial baseline offset so title font is never cut off at top
+      let y = totalRollHeight - 90; // padding atas 90pt agar header tidak menempel // Initial baseline offset so title font is never cut off at top
 
       orderRes.rows.forEach((order, idx) => {
         const isLast = idx === orderRes.rows.length - 1;
