@@ -176,6 +176,14 @@ export default function SiapSajiFinancePage() {
   const [bulkPayKeterangan, setBulkPayKeterangan] = useState("");
   const [isSubmittingBulkPay, setIsSubmittingBulkPay] = useState(false);
 
+  // Bulk Pay State for Expenses (Hutang Biaya Operasional)
+  const [selectedExpIds, setSelectedExpIds] = useState<number[]>([]);
+  const [isBulkPayExpModalOpen, setIsBulkPayExpModalOpen] = useState(false);
+  const [bulkPayExpKasBankId, setBulkPayExpKasBankId] = useState<number | "">("");
+  const [bulkPayExpDate, setBulkPayExpDate] = useState(new Date().toISOString().split("T")[0]);
+  const [bulkPayExpKeterangan, setBulkPayExpKeterangan] = useState("");
+  const [isSubmittingBulkPayExp, setIsSubmittingBulkPayExp] = useState(false);
+
   // Shared Cancel Modal State with Mandatory Reason
   const [cancelModalItem, setCancelModalItem] = useState<{ type: "purchase" | "expense"; data: any } | null>(null);
   const [cancelReasonInput, setCancelReasonInput] = useState("");
@@ -920,6 +928,59 @@ export default function SiapSajiFinancePage() {
       toast.error(err.message || "Gagal melakukan bulk bayar");
     } finally {
       setIsSubmittingBulkPay(false);
+    }
+  };
+
+  // Open Bulk Pay Modal for selected expenses (Biaya Operasional)
+  const handleOpenBulkPayExpModal = () => {
+    if (selectedExpIds.length === 0) {
+      return toast.error("Pilih minimal satu biaya hutang untuk dibayar.");
+    }
+    const unpaidSelected = expenses.filter(
+      (e) =>
+        selectedExpIds.includes(e.id) &&
+        Number(e.sisa_hutang || 0) > 0 &&
+        e.status !== "dibatalkan" &&
+        e.status_pembayaran !== "Dibatalkan"
+    );
+    if (unpaidSelected.length === 0) {
+      return toast.error("Semua biaya yang dipilih sudah lunas atau dibatalkan.");
+    }
+    setBulkPayExpDate(new Date().toISOString().split("T")[0]);
+    setBulkPayExpKeterangan(`Bulk Pelunasan ${unpaidSelected.length} Biaya Operasional`);
+    setBulkPayExpKasBankId(accounts.length > 0 ? accounts[0].id : "");
+    setIsBulkPayExpModalOpen(true);
+  };
+
+  // Submit Bulk Payment Expenses
+  const handleSubmitBulkPayExp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedExpIds.length === 0 || !bulkPayExpKasBankId) {
+      return toast.error("Rekening Kas/Bank wajib dipilih.");
+    }
+    setIsSubmittingBulkPayExp(true);
+    try {
+      const res = await fetch("/api/siap-saji/finance/expenses", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ids: selectedExpIds,
+          kas_bank_id: bulkPayExpKasBankId,
+          tanggal_bayar: bulkPayExpDate,
+          keterangan: bulkPayExpKeterangan,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Gagal melakukan pembayaran massal biaya");
+      toast.success(data.message || "Bulk pembayaran hutang biaya berhasil dicatat!");
+      setIsBulkPayExpModalOpen(false);
+      setSelectedExpIds([]);
+      fetchTabData();
+      fetchKasBankMaster();
+    } catch (err: any) {
+      toast.error(err.message || "Gagal melakukan bulk bayar biaya");
+    } finally {
+      setIsSubmittingBulkPayExp(false);
     }
   };
 
@@ -2844,43 +2905,93 @@ export default function SiapSajiFinancePage() {
       {activeTab === "expenses" && (
         <div>
           {/* Filter Toolbar */}
-          <div style={{ background: "white", borderRadius: 12, padding: "12px 16px", border: "1px solid #e5e7eb", marginBottom: 20, display: "flex", alignItems: "center", gap: 10, overflowX: "auto", whiteSpace: "nowrap" }}>
-            <div style={{ flex: "1 1 240px", minWidth: 180, position: "relative" }}>
-              <Search size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
-              <input
-                type="text"
-                placeholder="Cari Keterangan Biaya, Beban, Sumber..."
-                value={expSearch}
-                onChange={(e) => { setExpSearch(e.target.value); setExpPage(1); }}
-                style={{ width: "100%", padding: "7px 12px 7px 34px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, outline: "none" }}
-              />
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 20 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flex: "1 1 300px", overflowX: "auto", whiteSpace: "nowrap" }}>
+              <div style={{ flex: "1 1 240px", minWidth: 180, position: "relative" }}>
+                <Search size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
+                <input
+                  type="text"
+                  placeholder="Cari Keterangan Biaya, Beban, Sumber..."
+                  value={expSearch}
+                  onChange={(e) => { setExpSearch(e.target.value); setExpPage(1); }}
+                  style={{ width: "100%", padding: "7px 12px 7px 34px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, outline: "none" }}
+                />
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                <span style={{ fontSize: 12, color: "#6b7280", fontWeight: 600 }}>Dari:</span>
+                <input
+                  type="date"
+                  value={expDateFrom}
+                  onChange={(e) => { setExpDateFrom(e.target.value); setExpPage(1); }}
+                  style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13 }}
+                />
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                <span style={{ fontSize: 12, color: "#6b7280", fontWeight: 600 }}>s/d:</span>
+                <input
+                  type="date"
+                  value={expDateTo}
+                  onChange={(e) => { setExpDateTo(e.target.value); setExpPage(1); }}
+                  style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13 }}
+                />
+              </div>
+              {(expSearch || expDateFrom !== getYtdStartStr() || expDateTo !== getTodayStr()) && (
+                <button
+                  onClick={() => { setExpSearch(""); setExpDateFrom(getYtdStartStr()); setExpDateTo(getTodayStr()); setExpPage(1); }}
+                  style={{ padding: "7px 12px", background: "#f3f4f6", color: "#4b5563", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer", fontWeight: 600, flexShrink: 0 }}
+                  title="Reset Filter ke YTD"
+                >
+                  Reset
+                </button>
+              )}
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-              <span style={{ fontSize: 12, color: "#6b7280", fontWeight: 600 }}>Dari:</span>
-              <input
-                type="date"
-                value={expDateFrom}
-                onChange={(e) => { setExpDateFrom(e.target.value); setExpPage(1); }}
-                style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13 }}
-              />
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-              <span style={{ fontSize: 12, color: "#6b7280", fontWeight: 600 }}>s/d:</span>
-              <input
-                type="date"
-                value={expDateTo}
-                onChange={(e) => { setExpDateTo(e.target.value); setExpPage(1); }}
-                style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13 }}
-              />
-            </div>
-            {(expSearch || expDateFrom !== getYtdStartStr() || expDateTo !== getTodayStr()) && (
-              <button
-                onClick={() => { setExpSearch(""); setExpDateFrom(getYtdStartStr()); setExpDateTo(getTodayStr()); setExpPage(1); }}
-                style={{ padding: "7px 12px", background: "#f3f4f6", color: "#4b5563", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer", fontWeight: 600, flexShrink: 0 }}
-                title="Reset Filter ke YTD"
-              >
-                Reset
-              </button>
+
+            {/* Bulk Pay Action Button for Expenses */}
+            {selectedExpIds.length > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#f0fdf4", border: "1px solid #bbf7d0", padding: "6px 14px", borderRadius: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#166534" }}>
+                  {selectedExpIds.length} Biaya Dipilih (Total Hutang: Rp {
+                    expenses
+                      .filter((e) => selectedExpIds.includes(e.id))
+                      .reduce((acc, e) => acc + Number(e.sisa_hutang || 0), 0)
+                      .toLocaleString("id-ID")
+                  })
+                </span>
+                <button
+                  type="button"
+                  onClick={handleOpenBulkPayExpModal}
+                  style={{
+                    padding: "6px 14px",
+                    background: "#639922",
+                    color: "white",
+                    border: "none",
+                    borderRadius: 6,
+                    fontSize: 12.5,
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    boxShadow: "0 2px 4px rgba(99, 153, 34, 0.3)",
+                  }}
+                >
+                  <DollarSign size={14} /> Bulk Bayar Hutang
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedExpIds([])}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#6b7280",
+                    fontSize: 12,
+                    cursor: "pointer",
+                    textDecoration: "underline",
+                  }}
+                >
+                  Batal Pilih
+                </button>
+              </div>
             )}
           </div>
 
@@ -2888,6 +2999,31 @@ export default function SiapSajiFinancePage() {
           <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 14, whiteSpace: "nowrap" }}>
             <thead>
               <tr style={{ background: "#fafafa", borderBottom: "1px solid #e5e7eb", color: "#6b7280", fontWeight: 700, fontSize: 12, textTransform: "uppercase" }}>
+                <th style={{ padding: "12px 14px", width: 40, textAlign: "center" }}>
+                  {(() => {
+                    const curPageItems = expenses.slice((expPage - 1) * expLimit, expPage * expLimit);
+                    const payableItems = curPageItems.filter((e) => Number(e.sisa_hutang || 0) > 0 && e.status !== "dibatalkan" && e.status_pembayaran !== "Dibatalkan");
+                    const allSelected = payableItems.length > 0 && payableItems.every((e) => selectedExpIds.includes(e.id));
+                    return (
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        disabled={payableItems.length === 0}
+                        onChange={(ev) => {
+                          if (ev.target.checked) {
+                            const newIds = Array.from(new Set([...selectedExpIds, ...payableItems.map((e) => e.id)]));
+                            setSelectedExpIds(newIds);
+                          } else {
+                            const removeIds = new Set(payableItems.map((e) => e.id));
+                            setSelectedExpIds(selectedExpIds.filter((id) => !removeIds.has(id)));
+                          }
+                        }}
+                        style={{ cursor: payableItems.length === 0 ? "not-allowed" : "pointer", width: 16, height: 16, accentColor: "#639922" }}
+                        title={payableItems.length === 0 ? "Tidak ada biaya dengan hutang di halaman ini" : "Pilih Semua Biaya Berhutang di Halaman Ini"}
+                      />
+                    );
+                  })()}
+                </th>
                 <th style={{ padding: "12px 16px", width: 50 }}>No.</th>
                 <th style={{ padding: "12px 16px" }}>Tanggal</th>
                 <th style={{ padding: "12px 16px" }}>Keterangan Biaya</th>
@@ -2903,13 +3039,13 @@ export default function SiapSajiFinancePage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={10} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                  <td colSpan={11} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
                     Memuat biaya operasional...
                   </td>
                 </tr>
               ) : expenses.length === 0 ? (
                 <tr>
-                  <td colSpan={10} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                  <td colSpan={11} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
                     Belum ada riwayat biaya operasional.
                   </td>
                 </tr>
@@ -2921,9 +3057,26 @@ export default function SiapSajiFinancePage() {
                   const total = (dibayar + sisa) > 0 ? (dibayar + sisa) : Number(e.nominal || 0);
                   const statusBayar = isCancelled ? "Dibatalkan" : (e.status_pembayaran || (sisa > 0 ? (dibayar > 0 ? "Sebagian" : "Belum Lunas") : "Lunas"));
                   const cleanKeterangan = (e.keterangan || "").replace(/^Biaya Operasional \([^)]+\):\s*/i, "");
+                  const isPayable = sisa > 0 && !isCancelled;
+                  const isChecked = selectedExpIds.includes(e.id);
 
                   return (
-                    <tr key={e.id} style={{ borderBottom: "1px solid #f3f4f6", opacity: isCancelled ? 0.6 : 1 }}>
+                    <tr key={e.id} style={{ borderBottom: "1px solid #f3f4f6", opacity: isCancelled ? 0.6 : 1, background: isChecked ? "#f0fdf4" : "transparent" }}>
+                      <td style={{ padding: "14px 14px", textAlign: "center" }}>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          disabled={!isPayable}
+                          onChange={(ev) => {
+                            if (ev.target.checked) {
+                              setSelectedExpIds([...selectedExpIds, e.id]);
+                            } else {
+                              setSelectedExpIds(selectedExpIds.filter((id) => id !== e.id));
+                            }
+                          }}
+                          style={{ cursor: !isPayable ? "not-allowed" : "pointer", width: 16, height: 16, accentColor: "#639922" }}
+                        />
+                      </td>
                       <td style={{ padding: "14px 16px", color: "#6b7280" }}>{(expPage - 1) * expLimit + idx + 1}</td>
                       <td style={{ padding: "14px 16px", fontWeight: 600 }}>{formatDate(e.journal_date)}</td>
                       <td style={{ padding: "14px 16px", color: "#111827", fontWeight: 600, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -6759,6 +6912,130 @@ export default function SiapSajiFinancePage() {
                       }}
                     >
                       <DollarSign size={16} /> {isSubmittingBulkPay ? "Memproses..." : `Bayar Lunas ${selectedItems.length} Nota (Rp ${totalHutangSelected.toLocaleString("id-ID")})`}
+                    </button>
+                  </div>
+                </form>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: BULK BAYAR HUTANG BIAYA OPERASIONAL (MASSAL) ──────── */}
+      {isBulkPayExpModalOpen && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 120, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: "white", borderRadius: 16, maxWidth: 520, width: "100%", padding: 24, boxShadow: "0 20px 25px -5px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 800, color: "#111827", margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                <DollarSign size={20} color="#639922" /> Bulk Bayar / Pelunasan Hutang Biaya Operasional
+              </h3>
+              <button onClick={() => setIsBulkPayExpModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280" }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            {(() => {
+              const selectedItems = expenses.filter((e) => selectedExpIds.includes(e.id) && Number(e.sisa_hutang || 0) > 0);
+              const totalHutangSelected = selectedItems.reduce((acc, e) => acc + Number(e.sisa_hutang || 0), 0);
+
+              return (
+                <form onSubmit={handleSubmitBulkPayExp}>
+                  <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10, padding: "12px 16px", marginBottom: 16 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: 13, color: "#166534", fontWeight: 600 }}>Jumlah Biaya Dipilih:</span>
+                      <strong style={{ fontSize: 14, color: "#166534" }}>{selectedItems.length} Transaksi</strong>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4, paddingTop: 6, borderTop: "1px dashed #bbf7d0" }}>
+                      <span style={{ fontSize: 13, color: "#166534", fontWeight: 700 }}>Total Pembayaran Pelunasan:</span>
+                      <strong style={{ fontSize: 18, color: "#15803d", fontFamily: "monospace", fontWeight: 900 }}>
+                        Rp {totalHutangSelected.toLocaleString("id-ID")}
+                      </strong>
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#374151", marginBottom: 4 }}>
+                      Tanggal Pembayaran *
+                    </label>
+                    <input
+                      type="date"
+                      value={bulkPayExpDate}
+                      onChange={(e) => setBulkPayExpDate(e.target.value)}
+                      required
+                      style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#374151", marginBottom: 4 }}>
+                      Rekening Kas/Bank Pembayaran *
+                    </label>
+                    <SearchableSelect
+                      options={accounts.map((a) => ({
+                        value: a.id,
+                        label: `${a.nama_rekening || a.nama_bank} (Saldo: Rp${Number(a.saldo_kini || a.saldo_saat_ini || 0).toLocaleString("id-ID")})`,
+                        category: "Kas/Bank",
+                      }))}
+                      value={bulkPayExpKasBankId}
+                      onChange={(val) => setBulkPayExpKasBankId(val ? Number(val) : "")}
+                      placeholder="-- Pilih Rekening Kas/Bank --"
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#374151", marginBottom: 4 }}>
+                      Catatan / Keterangan Bulk Bayar
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Contoh: Pelunasan biaya operasional & ziswaf mingguan..."
+                      value={bulkPayExpKeterangan}
+                      onChange={(e) => setBulkPayExpKeterangan(e.target.value)}
+                      style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14 }}
+                    />
+                  </div>
+
+                  <div style={{ maxHeight: 150, overflowY: "auto", border: "1px solid #e5e7eb", borderRadius: 8, padding: 8, marginBottom: 16, background: "#fafafa" }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", marginBottom: 6, textTransform: "uppercase" }}>
+                      Rincian Biaya Yang Akan Dilunasi:
+                    </div>
+                    {selectedItems.map((item, i) => (
+                      <div key={item.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "4px 0", borderBottom: i < selectedItems.length - 1 ? "1px dashed #e5e7eb" : "none" }}>
+                        <span style={{ color: "#374151", maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          <strong>EXP-{item.id}</strong> - {(item.keterangan || "").replace(/^Biaya Operasional \([^)]+\):\s*/i, "")}
+                        </span>
+                        <span style={{ fontWeight: 700, color: "#b91c1c", fontFamily: "monospace", marginLeft: 8, flexShrink: 0 }}>
+                          Rp {Number(item.sisa_hutang || 0).toLocaleString("id-ID")}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => setIsBulkPayExpModalOpen(false)}
+                      style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "white", cursor: "pointer" }}
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSubmittingBulkPayExp || totalHutangSelected <= 0}
+                      style={{
+                        padding: "8px 20px",
+                        borderRadius: 8,
+                        border: "none",
+                        background: "#639922",
+                        color: "white",
+                        fontWeight: 700,
+                        cursor: isSubmittingBulkPayExp || totalHutangSelected <= 0 ? "not-allowed" : "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                      }}
+                    >
+                      <DollarSign size={16} /> {isSubmittingBulkPayExp ? "Memproses..." : `Bayar Lunas ${selectedItems.length} Biaya (Rp ${totalHutangSelected.toLocaleString("id-ID")})`}
                     </button>
                   </div>
                 </form>

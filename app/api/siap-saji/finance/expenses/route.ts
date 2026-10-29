@@ -404,26 +404,140 @@ export async function PUT(req: NextRequest) {
   }
 }
 
-// PATCH: Pembayaran Cicilan / Pelunasan Hutang Biaya Operasional
+// PATCH: Pembayaran Cicilan / Pelunasan Hutang Biaya Operasional (Mendukung Single maupun Bulk Pay)
 export async function PATCH(req: NextRequest) {
   const body = await req.json();
-  const { id, nominal_bayar, kas_bank_id, tanggal_bayar, keterangan } = body;
-
-  if (!id || !nominal_bayar || !kas_bank_id) {
-    return NextResponse.json(
-      { error: "ID Biaya Operasional, Nominal Bayar, dan Rekening Kas/Bank wajib diisi." },
-      { status: 400 }
-    );
-  }
-
-  const payAmount = Number(nominal_bayar);
-  if (isNaN(payAmount) || payAmount <= 0) {
-    return NextResponse.json({ error: "Nominal bayar harus lebih dari 0." }, { status: 400 });
-  }
+  const { id, ids, nominal_bayar, kas_bank_id, tanggal_bayar, keterangan } = body;
 
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+
+    // Skenario Bulk Payment jika `ids` dikirimkan (array of ID)
+    if (Array.isArray(ids) && ids.length > 0) {
+      if (!kas_bank_id) {
+        await client.query("ROLLBACK");
+        return NextResponse.json({ error: "Rekening Kas/Bank wajib dipilih." }, { status: 400 });
+      }
+
+      const payDate = tanggal_bayar || new Date().toISOString().split("T")[0];
+
+      // Resolve kas_bank CoA
+      const kbRes = await client.query("SELECT * FROM kas_bank WHERE id = $1", [kas_bank_id]);
+      let coaKasId: number | null = null;
+      if (kbRes.rows.length > 0) {
+        if (kbRes.rows[0].coa_id) {
+          coaKasId = Number(kbRes.rows[0].coa_id);
+        } else {
+          const bankName = (kbRes.rows[0].nama_bank || kbRes.rows[0].nama_rekening || "").toUpperCase();
+          const fallbackRes = await client.query(
+            `SELECT id FROM coa 
+             WHERE lini = 'siap_saji' 
+               AND (nama_akun ILIKE $1 OR (kode_akun LIKE '1-%' AND (nama_akun ILIKE '%kas%' OR nama_akun ILIKE '%bank%')))
+             ORDER BY id ASC LIMIT 1`,
+            [`%${bankName}%`]
+          );
+          if (fallbackRes.rows.length > 0) coaKasId = fallbackRes.rows[0].id;
+        }
+      }
+
+      const coaUtangDefaultRes = await client.query("SELECT id FROM coa WHERE kode_akun = '2-1001' AND lini = 'siap_saji' LIMIT 1");
+      const defaultUtangId = coaUtangDefaultRes.rows.length > 0 ? coaUtangDefaultRes.rows[0].id : null;
+
+      let totalBulkPaid = 0;
+      const processedExpenses: any[] = [];
+
+      for (const rawId of ids) {
+        const expId = Number(rawId);
+        if (!expId) continue;
+
+        const jCheck = await client.query(
+          "SELECT * FROM journals WHERE id = $1 AND lini = 'siap_saji' AND ref_type = 'biaya' FOR UPDATE",
+          [expId]
+        );
+        if (jCheck.rows.length === 0) continue;
+        const j = jCheck.rows[0];
+        if (j.status === "dibatalkan") continue;
+
+        const sisaSekarang = Number(j.sisa_hutang || 0);
+        if (sisaSekarang <= 0) continue; // Lewati yang sudah lunas
+
+        const newPaid = Number(j.dibayar || 0) + sisaSekarang;
+        const newSisa = 0;
+        const newStatus = "Lunas";
+
+        await client.query(
+          `UPDATE journals
+           SET dibayar = $1,
+               sisa_hutang = $2,
+               status_pembayaran = $3,
+               updated_at = NOW()
+           WHERE id = $4`,
+          [newPaid, newSisa, newStatus, expId]
+        );
+
+        let debtDebitCoaId = j.akun_kredit || defaultUtangId;
+
+        if (debtDebitCoaId && coaKasId) {
+          // Jurnal pelunasan hutang biaya
+          await client.query(
+            `INSERT INTO journals (lini, journal_date, ref_type, ref_id, ref_no, akun_debit, akun_kredit, nominal, keterangan, dibayar, sisa_hutang, status_pembayaran)
+             VALUES ('siap_saji', $1, 'biaya', $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+            [
+              payDate,
+              expId,
+              `EXP-${expId}`,
+              debtDebitCoaId,
+              coaKasId,
+              sisaSekarang,
+              `Pembayaran Lunas (Bulk) Hutang Biaya EXP-${expId}: ${keterangan || j.keterangan}`,
+              newPaid,
+              newSisa,
+              newStatus,
+            ]
+          );
+
+          // Kas mutasi keluar
+          await client.query(
+            `INSERT INTO kas_mutasi (kas_bank_id, lini, mutasi_date, jenis, nominal, ref_type, ref_id, keterangan)
+             VALUES ($1, 'siap_saji', $2, 'Keluar', $3, 'biaya', $4, $5)`,
+            [kas_bank_id, payDate, sisaSekarang, expId, `Bulk Bayar Hutang Biaya EXP-${expId}: ${keterangan || j.keterangan}`]
+          );
+        }
+
+        totalBulkPaid += sisaSekarang;
+        processedExpenses.push(expId);
+      }
+
+      if (totalBulkPaid > 0) {
+        await client.query(
+          "UPDATE kas_bank SET saldo_kini = saldo_kini - $1, updated_at = NOW() WHERE id = $2",
+          [totalBulkPaid, kas_bank_id]
+        );
+      }
+
+      await client.query("COMMIT");
+      return NextResponse.json({
+        message: `Berhasil melunasi ${processedExpenses.length} hutang biaya operasional sekaligus (Total: Rp ${totalBulkPaid.toLocaleString("id-ID")})!`,
+        total_paid: totalBulkPaid,
+        processed_ids: processedExpenses,
+      });
+    }
+
+    // Skenario Single Pay
+    if (!id || !nominal_bayar || !kas_bank_id) {
+      await client.query("ROLLBACK");
+      return NextResponse.json(
+        { error: "ID Biaya Operasional, Nominal Bayar, dan Rekening Kas/Bank wajib diisi." },
+        { status: 400 }
+      );
+    }
+
+    const payAmount = Number(nominal_bayar);
+    if (isNaN(payAmount) || payAmount <= 0) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "Nominal bayar harus lebih dari 0." }, { status: 400 });
+    }
 
     const jCheck = await client.query(
       "SELECT * FROM journals WHERE id = $1 AND lini = 'siap_saji' AND ref_type = 'biaya' FOR UPDATE",
