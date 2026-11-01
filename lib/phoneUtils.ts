@@ -26,6 +26,12 @@ export function isSamePhoneNumber(phone1: string | null | undefined, phone2: str
   return norm1 === norm2;
 }
 
+/** Nomor siap disinkronkan ke Kledo: 10–14 digit, bentuk 08… */
+export function isValidPhone(phone: string | null | undefined): boolean {
+  const norm = normalizePhoneNumber(phone);
+  return norm.length >= 10 && norm.length <= 14 && /^0\d+$/.test(norm);
+}
+
 export function formatPhoneForDisplay(phone: string | null | undefined): string {
   const norm = normalizePhoneNumber(phone);
   if (!norm) return "";

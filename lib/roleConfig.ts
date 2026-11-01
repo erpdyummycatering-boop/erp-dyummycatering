@@ -132,6 +132,7 @@ export const ROLES: RoleConfig[] = [
       "/finance",
       "/pl-dashboard",
       "/targets",
+      "/settings/integrations",
       "/siap-saji/dashboard",
       "/siap-saji/orders",
       "/siap-saji/shipping-monitoring",

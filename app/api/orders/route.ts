@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import pool from "@/lib/db";
+import { normalizePhoneNumber } from "@/lib/phoneUtils";
+import { enqueueCateringCreate, phoneMatchSql } from "@/lib/integration/orderHooks";
+import { publishJobsAfterResponse } from "@/lib/qstash";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -21,7 +24,7 @@ export async function GET(req: NextRequest) {
   const sort_by = p.get("sort_by") || "delivery_date";
   const sort_dir = (p.get("sort_dir") || "desc").toLowerCase() === "asc" ? "ASC" : "DESC";
 
-  const wheres: string[] = [];
+  const wheres: string[] = ["o.lini = 'catering'"];
   const vals: any[] = [];
   let idx = 1;
 
@@ -92,18 +95,21 @@ export async function POST(req: NextRequest) {
     }
 
     let final_customer_id = customer_id;
+    const phoneNorm = normalizePhoneNumber(customer_phone);
     if (final_customer_id === "new") {
       if (!customer_name) {
         await client.query("ROLLBACK");
         return NextResponse.json({ error: "Nama customer baru wajib diisi" }, { status: 400 });
       }
-      const exist = await client.query("SELECT id FROM customers WHERE phone = $1", [customer_phone]);
+      const exist = phoneNorm
+        ? await client.query(`SELECT id FROM customers WHERE ${phoneMatchSql("phone")} = $1 LIMIT 1`, [phoneNorm])
+        : { rows: [] as { id: number }[] };
       if (exist.rows.length > 0) {
         final_customer_id = exist.rows[0].id;
       } else {
         const ins = await client.query(
           "INSERT INTO customers (name, phone, type, notes, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING id",
-          [customer_name, customer_phone || null, "Perorangan", order_notes || null, createdBy]
+          [customer_name, phoneNorm || null, "Perorangan", order_notes || null, createdBy]
         );
         final_customer_id = ins.rows[0].id;
 
@@ -135,11 +141,11 @@ export async function POST(req: NextRequest) {
     } else {
       // Also check by phone if phone exists
       const customerRes = await client.query("SELECT phone FROM customers WHERE id = $1", [final_customer_id]);
-      const phone = customerRes.rows[0]?.phone;
-      if (phone && phone.trim()) {
+      const phone = normalizePhoneNumber(customerRes.rows[0]?.phone);
+      if (phone) {
         const phoneOrdersRes = await client.query(
-          `SELECT COUNT(*) FROM orders o JOIN customers c ON o.customer_id = c.id WHERE c.phone = $1`,
-          [phone.trim()]
+          `SELECT COUNT(*) FROM orders o JOIN customers c ON o.customer_id = c.id WHERE ${phoneMatchSql("c.phone")} = $1`,
+          [phone]
         );
         if (Number(phoneOrdersRes.rows[0].count) > 0) {
           jenis_order = "Repeat Order";
@@ -194,7 +200,16 @@ export async function POST(req: NextRequest) {
       [final_customer_id]
     );
 
+    const kledoJobIds = await enqueueCateringCreate(client, {
+      orderId: Number(orderId),
+      userId: userId ? Number(userId) : null,
+      deliveryDate: String(delivery_date).slice(0, 10),
+      lini: "catering",
+      inputSource: "manual",
+    });
+
     await client.query("COMMIT");
+    publishJobsAfterResponse(kledoJobIds);
     return NextResponse.json(orderRes.rows[0], { status: 201 });
   } catch (e: any) {
     await client.query("ROLLBACK");

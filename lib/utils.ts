@@ -80,6 +80,14 @@ export const formatDate = (d: string | Date | null | undefined): string => {
   }
 };
 
+/** Sama dengan kolom generated orders.order_no: lpad hanya untuk id < 1000. */
+export function formatOrderNo(id: number | string, orderNo?: string | null): string {
+  if (orderNo && String(orderNo).trim()) return String(orderNo);
+  const n = Number(id);
+  if (!Number.isFinite(n)) return `ORD-${id}`;
+  return n < 1000 ? `ORD-${String(Math.trunc(n)).padStart(3, "0")}` : `ORD-${Math.trunc(n)}`;
+}
+
 export const getWhatsAppUrl = (phone?: string): string => {
   if (!phone) return "#";
   const clean = String(phone).trim().replace(/[^0-9]/g, "");

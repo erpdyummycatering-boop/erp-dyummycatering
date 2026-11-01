@@ -73,8 +73,8 @@ export async function POST(req: NextRequest) {
 
       // 2. Insert order
       const orderRes = await client.query(
-        `INSERT INTO orders (customer_id, recipient_name, recipient_phone, pic_id, order_date, delivery_date, departure_time, arrival_time, venue, order_notes, status_order, status_payment, grand_total, jenis_order)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id`,
+        `INSERT INTO orders (customer_id, recipient_name, recipient_phone, pic_id, order_date, delivery_date, departure_time, arrival_time, venue, order_notes, status_order, status_payment, grand_total, jenis_order, input_source)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'import') RETURNING id`,
         [
           customerId,
           order.recipient_name || null,

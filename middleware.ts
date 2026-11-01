@@ -12,6 +12,6 @@ export default process.env.NODE_ENV === "development"
 export const config = {
   matcher: [
     // Protect all routes except api/auth, login, print, static, images, favicon
-    "/((?!api/auth|login|print|_next/static|_next/image|favicon.ico).*)",
+    "/((?!api/auth|api/qstash|login|print|_next/static|_next/image|favicon.ico).*)",
   ],
 };
