@@ -146,13 +146,23 @@ CREATE INDEX IF NOT EXISTS idx_orders_kledo_pending
   ON orders (delivery_date)
   WHERE lini = 'catering' AND kledo_invoice_id IS NULL AND kledo_so_id IS NOT NULL;
 
+-- VARCHAR(32): ada nomor mentah sampai 24 digit. VARCHAR(20) gagal saat kolom generated diisi.
 DO $$
 BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'customers' AND column_name = 'phone_normalized'
+      AND character_maximum_length < 32
+  ) THEN
+    DROP INDEX IF EXISTS idx_customers_phone_norm;
+    ALTER TABLE customers DROP COLUMN phone_normalized;
+  END IF;
+
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'customers' AND column_name = 'phone_normalized'
   ) THEN
-    ALTER TABLE customers ADD COLUMN phone_normalized VARCHAR(20) GENERATED ALWAYS AS (
+    ALTER TABLE customers ADD COLUMN phone_normalized VARCHAR(32) GENERATED ALWAYS AS (
       CASE
         WHEN phone IS NULL OR regexp_replace(phone, '\D', '', 'g') = '' THEN NULL
         WHEN regexp_replace(phone, '\D', '', 'g') LIKE '62%'
