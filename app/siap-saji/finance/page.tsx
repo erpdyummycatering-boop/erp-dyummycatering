@@ -30,8 +30,14 @@ export default function SiapSajiFinancePage() {
   const [drillTotalNominal, setDrillTotalNominal] = useState(0);
   const [drillLoading, setDrillLoading] = useState(false);
 
-  // Helper functions for Year-to-Date (YTD)
+  // Helper functions for Year-to-Date (YTD) and Month-to-Date (MTD)
   const getYtdStartStr = () => `${new Date().getFullYear()}-01-01`;
+  const getMtdStartStr = () => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    return `${y}-${m}-01`;
+  };
   const getTodayStr = () => new Date().toISOString().split("T")[0];
 
   // ── State Tab Buku Besar (General Ledger) ──
@@ -233,6 +239,21 @@ export default function SiapSajiFinancePage() {
   const [accFormSaldoAwal, setAccFormSaldoAwal] = useState<number>(0);
   const [accFormCoaId, setAccFormCoaId] = useState<number | "">("");
   const [accFormIsDefault, setAccFormIsDefault] = useState(false);
+
+  // Modal Riwayat / History Mutasi Per Rekening Kas & Bank
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [historyAccount, setHistoryAccount] = useState<any | null>(null);
+  const [historyDateFrom, setHistoryDateFrom] = useState(getMtdStartStr());
+  const [historyDateTo, setHistoryDateTo] = useState(getTodayStr());
+  const [historySearch, setHistorySearch] = useState("");
+  const [historyJenis, setHistoryJenis] = useState("");
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyLimit, setHistoryLimit] = useState(10);
+  const [historyMutasi, setHistoryMutasi] = useState<any[]>([]);
+  const [historyTotal, setHistoryTotal] = useState(0);
+  const [historyTotalMasuk, setHistoryTotalMasuk] = useState(0);
+  const [historyTotalKeluar, setHistoryTotalKeluar] = useState(0);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   // Tab 4: Kas Masuk, Kas Keluar & Transfer Modal State
   const [isKasMutasiModalOpen, setIsKasMutasiModalOpen] = useState(false);
@@ -1341,6 +1362,97 @@ export default function SiapSajiFinancePage() {
       toast.error(err.message || "Gagal menyimpan rekening");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Handlers for History Mutasi Per Rekening Modal
+  const fetchAccountHistory = async (accId: number, dFrom: string, dTo: string, searchVal: string, jenisVal: string, pageNum: number, limitNum: number) => {
+    setHistoryLoading(true);
+    try {
+      const q = new URLSearchParams({
+        kas_bank_id: String(accId),
+        search: searchVal,
+        jenis: jenisVal,
+        date_from: dFrom,
+        date_to: dTo,
+        page: String(pageNum),
+        limit: String(limitNum),
+      }).toString();
+      const res = await fetch(`/api/siap-saji/finance/kas-bank?${q}`);
+      if (res.ok) {
+        const json = await res.json();
+        setHistoryMutasi(json.mutasi || []);
+        setHistoryTotal(json.total || 0);
+        setHistoryTotalMasuk(Number(json.total_masuk || 0));
+        setHistoryTotalKeluar(Number(json.total_keluar || 0));
+      } else {
+        const err = await res.json();
+        toast.error(err.error || "Gagal memuat riwayat mutasi rekening");
+      }
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message || "Gagal memuat riwayat mutasi rekening");
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const handleOpenAccountHistory = (acc: any) => {
+    setHistoryAccount(acc);
+    const mtdStart = getMtdStartStr();
+    const today = getTodayStr();
+    setHistoryDateFrom(mtdStart);
+    setHistoryDateTo(today);
+    setHistorySearch("");
+    setHistoryJenis("");
+    setHistoryPage(1);
+    setHistoryModalOpen(true);
+    fetchAccountHistory(acc.id, mtdStart, today, "", "", 1, historyLimit);
+  };
+
+  const handleExportAccountHistoryXLSX = async () => {
+    if (!historyAccount) return;
+    try {
+      // Fetch all records for current filters (unpaginated / high limit)
+      const q = new URLSearchParams({
+        kas_bank_id: String(historyAccount.id),
+        search: historySearch,
+        jenis: historyJenis,
+        date_from: historyDateFrom,
+        date_to: historyDateTo,
+        page: "1",
+        limit: "5000",
+      }).toString();
+      const res = await fetch(`/api/siap-saji/finance/kas-bank?${q}`);
+      if (!res.ok) throw new Error("Gagal mengambil data untuk export");
+      const json = await res.json();
+      const rowsData = json.mutasi || [];
+      if (rowsData.length === 0) {
+        toast.error("Tidak ada data mutasi untuk diexport");
+        return;
+      }
+
+      const exportRows = rowsData.map((m: any, idx: number) => ({
+        No: idx + 1,
+        Tanggal: m.mutasi_date ? new Date(m.mutasi_date).toLocaleDateString("id-ID") : "-",
+        Rekening: m.kas_bank_nama || historyAccount.nama_rekening || "-",
+        Bank: m.nama_bank || historyAccount.nama_bank || "-",
+        "No. Rekening": m.no_rekening || historyAccount.no_rekening || "-",
+        Jenis: m.jenis || "-",
+        Tipe_Ref: m.ref_type || "-",
+        Keterangan: m.keterangan || "-",
+        Nominal: Number(m.nominal || 0),
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(exportRows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Mutasi_Rekening");
+      const cleanAccName = (historyAccount.nama_rekening || "Rekening").replace(/[^a-zA-Z0-9_-]/g, "_");
+      XLSX.writeFile(wb, `Mutasi_${cleanAccName}_${historyDateFrom || "awal"}_sd_${historyDateTo || "kini"}.xlsx`);
+      toast.success("File Excel mutasi rekening berhasil didownload!");
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message || "Gagal mengexport file Excel");
     }
   };
 
@@ -3270,6 +3382,15 @@ export default function SiapSajiFinancePage() {
             {accounts.map((acc) => (
               <div
                 key={acc.id}
+                onClick={() => handleOpenAccountHistory(acc)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    handleOpenAccountHistory(acc);
+                  }
+                }}
                 style={{
                   background: "white",
                   borderRadius: 12,
@@ -3277,6 +3398,16 @@ export default function SiapSajiFinancePage() {
                   border: "1px solid #e5e7eb",
                   boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
                   position: "relative",
+                  cursor: "pointer",
+                  transition: "all 0.15s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = "#c4b5fd";
+                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(80, 5, 166, 0.08)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = "#e5e7eb";
+                  e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.05)";
                 }}
               >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -3293,7 +3424,10 @@ export default function SiapSajiFinancePage() {
                       </span>
                     )}
                     <button
-                      onClick={() => handleOpenEditAccount(acc)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenEditAccount(acc);
+                      }}
                       style={{
                         padding: "4px 8px",
                         background: "#f3f4f6",
@@ -3311,9 +3445,14 @@ export default function SiapSajiFinancePage() {
                   </div>
                 </div>
 
-                <p style={{ fontSize: 22, fontWeight: 800, color: "#5005A6", marginTop: 12, marginBottom: 6 }}>
-                  Rp {Number(acc.saldo_kini).toLocaleString("id-ID")}
-                </p>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 12, marginBottom: 6 }}>
+                  <p style={{ fontSize: 22, fontWeight: 800, color: "#5005A6", margin: 0 }}>
+                    Rp {Number(acc.saldo_kini).toLocaleString("id-ID")}
+                  </p>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "#7c3aed", background: "#f5f3ff", padding: "2px 6px", borderRadius: 4, display: "flex", alignItems: "center", gap: 4 }}>
+                    <Eye size={12} /> Detail Riwayat
+                  </span>
+                </div>
 
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 6, borderTop: "1px dashed #e5e7eb", paddingTop: 8 }}>
                   <span style={{ fontSize: 11, color: "#6b7280" }}>Akun CoA Buku Besar:</span>
@@ -6084,6 +6223,293 @@ export default function SiapSajiFinancePage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL RIWAYAT MUTASI PER REKENING KAS & BANK */}
+      {historyModalOpen && historyAccount && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 110, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div
+            style={{
+              background: "white",
+              borderRadius: 16,
+              width: "100%",
+              maxWidth: 1000,
+              maxHeight: "92vh",
+              display: "flex",
+              flexDirection: "column",
+              boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)",
+              overflow: "hidden",
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{ padding: "18px 24px", borderBottom: "1.5px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f8fafc" }}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 13, background: "#ede9fe", color: "#5005A6", fontWeight: 800, padding: "3px 10px", borderRadius: 6 }}>
+                    {historyAccount.nama_bank || (historyAccount.jenis === "Kas" ? "KAS TUNAI" : "BANK")}
+                  </span>
+                  <h3 style={{ fontSize: 18, fontWeight: 900, color: "#111827", margin: 0 }}>
+                    {historyAccount.nama_rekening}
+                  </h3>
+                  {historyAccount.no_rekening && (
+                    <span style={{ fontSize: 12, color: "#6b7280", fontFamily: "monospace", background: "#e2e8f0", padding: "2px 8px", borderRadius: 4 }}>
+                      {historyAccount.no_rekening}
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 6, fontSize: 12.5, color: "#4b5563", flexWrap: "wrap" }}>
+                  <span>Saldo Saat Ini: <strong style={{ color: "#5005A6" }}>Rp {Number(historyAccount.saldo_kini || 0).toLocaleString("id-ID")}</strong></span>
+                  <span>&bull;</span>
+                  <span>Total Masuk: <strong style={{ color: "#16a34a" }}>+Rp {historyTotalMasuk.toLocaleString("id-ID")}</strong></span>
+                  <span>&bull;</span>
+                  <span>Total Keluar: <strong style={{ color: "#dc2626" }}>-Rp {historyTotalKeluar.toLocaleString("id-ID")}</strong></span>
+                  <span>&bull;</span>
+                  <span>Total Transaksi: <strong>{historyTotal}</strong></span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setHistoryModalOpen(false)}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280", padding: 6, borderRadius: 6 }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Filter Toolbar */}
+            <div style={{ padding: "12px 24px", borderBottom: "1px solid #f1f5f9", background: "white", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", flex: "1 1 360px" }}>
+                {/* Search Input */}
+                <div style={{ position: "relative", flex: "1 1 200px" }}>
+                  <Search size={15} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
+                  <input
+                    type="text"
+                    placeholder="Cari keterangan, ref, nominal..."
+                    value={historySearch}
+                    onChange={(e) => setHistorySearch(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        setHistoryPage(1);
+                        fetchAccountHistory(historyAccount.id, historyDateFrom, historyDateTo, historySearch, historyJenis, 1, historyLimit);
+                      }
+                    }}
+                    style={{ width: "100%", padding: "6px 10px 6px 32px", borderRadius: 7, border: "1px solid #d1d5db", fontSize: 12.5, outline: "none" }}
+                  />
+                </div>
+
+                {/* Filter Jenis Mutasi */}
+                <select
+                  value={historyJenis}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setHistoryJenis(val);
+                    setHistoryPage(1);
+                    fetchAccountHistory(historyAccount.id, historyDateFrom, historyDateTo, historySearch, val, 1, historyLimit);
+                  }}
+                  style={{ padding: "6px 10px", borderRadius: 7, border: "1px solid #d1d5db", fontSize: 12.5, background: "white", outline: "none" }}
+                >
+                  <option value="">Semua Mutasi</option>
+                  <option value="Masuk">Masuk</option>
+                  <option value="Keluar">Keluar</option>
+                </select>
+
+                {/* Filter Date Range (Default MTD) */}
+                <div style={{ display: "flex", alignItems: "center", gap: 5, background: "#f9fafb", padding: "3px 8px", borderRadius: 7, border: "1px solid #d1d5db" }}>
+                  <span style={{ fontSize: 11.5, color: "#6b7280", fontWeight: 600 }}>Periode:</span>
+                  <input
+                    type="date"
+                    value={historyDateFrom}
+                    onChange={(e) => setHistoryDateFrom(e.target.value)}
+                    style={{ padding: "3px 6px", borderRadius: 5, border: "1px solid #d1d5db", fontSize: 11.5, outline: "none" }}
+                  />
+                  <span style={{ fontSize: 11.5, color: "#6b7280" }}>s/d</span>
+                  <input
+                    type="date"
+                    value={historyDateTo}
+                    onChange={(e) => setHistoryDateTo(e.target.value)}
+                    style={{ padding: "3px 6px", borderRadius: 5, border: "1px solid #d1d5db", fontSize: 11.5, outline: "none" }}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHistoryPage(1);
+                    fetchAccountHistory(historyAccount.id, historyDateFrom, historyDateTo, historySearch, historyJenis, 1, historyLimit);
+                  }}
+                  style={{ padding: "6px 12px", background: "#5005A6", color: "white", border: "none", borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                >
+                  Terapkan
+                </button>
+
+                {(historySearch || historyJenis || historyDateFrom !== getMtdStartStr() || historyDateTo !== getTodayStr()) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const mtd = getMtdStartStr();
+                      const today = getTodayStr();
+                      setHistorySearch("");
+                      setHistoryJenis("");
+                      setHistoryDateFrom(mtd);
+                      setHistoryDateTo(today);
+                      setHistoryPage(1);
+                      fetchAccountHistory(historyAccount.id, mtd, today, "", "", 1, historyLimit);
+                    }}
+                    style={{ padding: "6px 10px", background: "#f3f4f6", color: "#4b5563", border: "none", borderRadius: 7, fontSize: 12, cursor: "pointer" }}
+                  >
+                    Reset (MTD)
+                  </button>
+                )}
+              </div>
+
+              {/* Export Excel Button */}
+              <button
+                type="button"
+                onClick={handleExportAccountHistoryXLSX}
+                style={{
+                  padding: "6px 12px",
+                  background: "#f0fdf4",
+                  color: "#15803d",
+                  border: "1px solid #bbf7d0",
+                  borderRadius: 7,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                }}
+              >
+                <FileSpreadsheet size={14} /> Export Excel
+              </button>
+            </div>
+
+            {/* Modal Body / Table DataGrid */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "16px 24px" }}>
+              {historyLoading ? (
+                <div style={{ padding: "60px 0", textAlign: "center" }}>
+                  <RefreshCw size={32} className="animate-spin" style={{ color: "#5005A6", margin: "0 auto 12px" }} />
+                  <p style={{ fontSize: 14, fontWeight: 700, color: "#111827", margin: 0 }}>Memuat riwayat transaksi...</p>
+                </div>
+              ) : historyMutasi.length === 0 ? (
+                <div style={{ padding: "50px 0", textAlign: "center", color: "#9ca3af" }}>
+                  <FileText size={40} style={{ margin: "0 auto 10px", color: "#cbd5e1" }} />
+                  <div style={{ fontSize: 15, fontWeight: 700, color: "#374151" }}>Belum Ada Riwayat Mutasi</div>
+                  <p style={{ fontSize: 12.5, marginTop: 4 }}>Tidak ditemukan riwayat mutasi kas/bank untuk filter yang dipilih.</p>
+                </div>
+              ) : (
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                  <thead>
+                    <tr style={{ background: "#f8fafc", borderBottom: "1.5px solid #e2e8f0", color: "#475569", fontWeight: 700 }}>
+                      <th style={{ padding: "9px 12px", textAlign: "left", width: 50 }}>NO.</th>
+                      <th style={{ padding: "9px 12px", textAlign: "left", width: 110 }}>TANGGAL</th>
+                      <th style={{ padding: "9px 12px", textAlign: "left", width: 100 }}>JENIS</th>
+                      <th style={{ padding: "9px 12px", textAlign: "left", width: 120 }}>REFERENSI</th>
+                      <th style={{ padding: "9px 12px", textAlign: "left" }}>KETERANGAN</th>
+                      <th style={{ padding: "9px 12px", textAlign: "right", width: 140 }}>NOMINAL (RP)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {historyMutasi.map((row: any, i: number) => {
+                      const isMasuk = row.jenis === "Masuk";
+                      return (
+                        <tr
+                          key={row.id || i}
+                          style={{ borderBottom: "1px solid #f1f5f9" }}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = "#fafafa")}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                        >
+                          <td style={{ padding: "9px 12px", color: "#6b7280" }}>
+                            {(historyPage - 1) * historyLimit + i + 1}
+                          </td>
+                          <td style={{ padding: "9px 12px", whiteSpace: "nowrap", fontWeight: 600, color: "#374151" }}>
+                            {row.mutasi_date ? formatDate(row.mutasi_date) : "-"}
+                          </td>
+                          <td style={{ padding: "9px 12px" }}>
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 4,
+                                padding: "2px 8px",
+                                borderRadius: 4,
+                                fontSize: 11,
+                                fontWeight: 800,
+                                background: isMasuk ? "#f0fdf4" : "#fef2f2",
+                                color: isMasuk ? "#16a34a" : "#dc2626",
+                              }}
+                            >
+                              {isMasuk ? <ArrowDownLeft size={13} /> : <ArrowUpRight size={13} />}
+                              {row.jenis}
+                            </span>
+                          </td>
+                          <td style={{ padding: "9px 12px" }}>
+                            <span style={{ fontSize: 11.5, fontWeight: 700, color: "#475569", textTransform: "uppercase", background: "#f1f5f9", padding: "2px 6px", borderRadius: 4 }}>
+                              {row.ref_type || "mutasi"}
+                            </span>
+                            {row.ref_id && (
+                              <span style={{ fontSize: 11, color: "#64748b", marginLeft: 4, fontFamily: "monospace" }}>
+                                #{row.ref_id}
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ padding: "9px 12px", color: "#111827", lineHeight: 1.4 }}>
+                            {row.keterangan || "-"}
+                          </td>
+                          <td
+                            style={{
+                              padding: "9px 12px",
+                              textAlign: "right",
+                              fontFamily: "monospace",
+                              fontWeight: 800,
+                              fontSize: 13,
+                              color: isMasuk ? "#16a34a" : "#dc2626",
+                            }}
+                          >
+                            {isMasuk ? "+" : "-"}Rp {Number(row.nominal || 0).toLocaleString("id-ID")}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Modal Footer / Pagination */}
+            <div style={{ padding: "12px 24px", borderTop: "1.5px solid #e5e7eb", background: "#f8fafc", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+              <div style={{ fontSize: 12.5, color: "#4b5563" }}>
+                Total <strong>{historyTotal}</strong> data &bull; Halaman <strong>{historyPage}</strong> dari <strong>{Math.ceil(historyTotal / historyLimit) || 1}</strong>
+              </div>
+
+              {historyTotal > 0 && (
+                <Pagination
+                  page={historyPage}
+                  totalPages={Math.ceil(historyTotal / historyLimit) || 1}
+                  total={historyTotal}
+                  limit={historyLimit}
+                  onChange={(p: number) => {
+                    setHistoryPage(p);
+                    fetchAccountHistory(historyAccount.id, historyDateFrom, historyDateTo, historySearch, historyJenis, p, historyLimit);
+                  }}
+                  onLimitChange={(l: number) => {
+                    setHistoryLimit(l);
+                    setHistoryPage(1);
+                    fetchAccountHistory(historyAccount.id, historyDateFrom, historyDateTo, historySearch, historyJenis, 1, l);
+                  }}
+                />
+              )}
+
+              <button
+                type="button"
+                onClick={() => setHistoryModalOpen(false)}
+                style={{ padding: "6px 16px", borderRadius: 7, border: "1px solid #d1d5db", background: "white", fontSize: 13, cursor: "pointer", fontWeight: 600 }}
+              >
+                Tutup
+              </button>
+            </div>
           </div>
         </div>
       )}
