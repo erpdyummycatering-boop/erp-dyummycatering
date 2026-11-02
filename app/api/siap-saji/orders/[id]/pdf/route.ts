@@ -84,29 +84,29 @@ export async function GET(
 
     const order = orderRes.rows[0];
     const items = order.items || [];
-    // 80mm standard roll printable width = ~72-76mm (216 pt).
-    // Kurangi margin agar muat teks lebih lebar dan tidak terlalu lebar margin kiri-kanan kertas:
-    const width = 216;
-    const margin = 2;
+    // 80mm standard roll printable width = ~72-76mm (204 pt).
+    // Margin 8 pt agar seimbang dan tidak terpotong ataupun terlalu lebar ke tengah:
+    const width = 204;
+    const margin = 8;
 
     // Helper for measuring single order height accurately
     const measureOrderHeight = () => {
       let h = 0;
-      // Header: DYummy Siap Saji (26), Jl Sindangsari (16), Kota Bandung (lines * 16), SI.Struk (18), solid line (36)
-      const cityLines = wrapText("Kota Bandung Jawa Barat Indonesia", 34);
-      h += 26 + 16 + cityLines.length * 16 + 18 + 36;
+      // Header: DYummy Siap Saji (26), Jl Sindangsari (16), Kota Bandung (lines * 16), SI.Struk (18), space (6), solid line (36)
+      const cityLines = wrapText("Kota Bandung Jawa Barat Indonesia", 32);
+      h += 26 + 16 + cityLines.length * 16 + 18 + 6 + 36;
 
       // Customer info: Name (18), Phone (16), Address lines (lines * 17), Patokan lines (lines * 17), Kec (17), solid line (36)
       h += 18;
       if (order.customer_phone) h += 16;
-      const addrLines = wrapText(order.customer_address || "-", 26);
+      const addrLines = wrapText(order.customer_address || "-", 24);
       h += addrLines.length * 17;
       if (order.customer_patokan) {
-        const patLines = wrapText(`-Patokan: ${order.customer_patokan}`, 26);
+        const patLines = wrapText(`-Patokan: ${order.customer_patokan}`, 24);
         h += patLines.length * 17;
       }
       const kecText = `Kec. ${order.area_kecamatan || "-"} (${order.area_kota || "-"})`;
-      const kecLines = wrapText(kecText, 26);
+      const kecLines = wrapText(kecText, 24);
       h += kecLines.length * 17 + 36;
 
       // Table header bar: "Nama Barang .... Total Harga" (18), solid line (36)
@@ -115,13 +115,13 @@ export async function GET(
       // Items
       items.forEach((it: any) => {
         const displayName = formatProductName(it.product_name, it.is_half_portion);
-        const pLines = wrapText(displayName || "-", 28);
+        const pLines = wrapText(displayName || "-", 24);
         h += pLines.length * 16;
         h += 18;
         if (it.notes || it.note) {
           const noteText = String(it.notes || it.note).trim();
           if (noteText) {
-            const nLines = wrapText(`* ${noteText}`, 28);
+            const nLines = wrapText(`* ${noteText}`, 24);
             h += nLines.length * 15;
           }
         }
@@ -150,7 +150,7 @@ export async function GET(
     const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-    // Initial baseline offset at (height - 45) so title header is never cut off at the top
+    // Initial baseline offset at (height - 60) so title header is never cut off at the top
     let y = height - 60;
 
     const drawCenterText = (text: string, font: any, size: number) => {
@@ -175,7 +175,7 @@ export async function GET(
     y -= 26;
     drawCenterText("Jl Sindangsari 4 No 48", fontRegular, 12);
     y -= 16;
-    const cityLines = wrapText("Kota Bandung Jawa Barat Indonesia", 34);
+    const cityLines = wrapText("Kota Bandung Jawa Barat Indonesia", 32);
     cityLines.forEach((cLine) => {
       drawCenterText(cLine, fontRegular, 12);
       y -= 16;
@@ -186,6 +186,8 @@ export async function GET(
     drawCenterText(`${order.no_struk || `SI-${orderId}`} - ${dateFormatted}`, fontBold, 12.5);
     y -= 18;
 
+    // Beri jarak ekstra sebelum garis agar teks header SI.Struk tidak nempel ke garis
+    y -= 6;
     y = drawSolidLine();
 
     // Customer Info - Teks Alamat lebih besar & jelas (size 14.5 & 13.5)
@@ -197,14 +199,14 @@ export async function GET(
       y -= 16;
     }
 
-    const addrLines = wrapText(order.customer_address || "-", 26);
+    const addrLines = wrapText(order.customer_address || "-", 24);
     addrLines.forEach((line) => {
       page.drawText(line, { x: margin, y, size: 13.5, font: fontRegular });
       y -= 17;
     });
 
     if (order.customer_patokan) {
-      const patLines = wrapText(`-Patokan: ${order.customer_patokan}`, 26);
+      const patLines = wrapText(`-Patokan: ${order.customer_patokan}`, 24);
       patLines.forEach((line) => {
         page.drawText(line, { x: margin, y, size: 13, font: fontRegular, color: rgb(0.15, 0.15, 0.15) });
         y -= 17;
@@ -212,7 +214,7 @@ export async function GET(
     }
 
     const kecText = `Kec. ${order.area_kecamatan || "-"} (${order.area_kota || "-"})`;
-    const kecLines = wrapText(kecText, 26);
+    const kecLines = wrapText(kecText, 24);
     kecLines.forEach((line) => {
       page.drawText(line, { x: margin, y, size: 13.5, font: fontRegular });
       y -= 17;
@@ -236,7 +238,7 @@ export async function GET(
       subtotalItems += subVal;
 
       const displayName = formatProductName(it.product_name, it.is_half_portion);
-      const pLines = wrapText(displayName || "-", 28);
+      const pLines = wrapText(displayName || "-", 24);
       pLines.forEach((line) => {
         page.drawText(line, { x: margin, y, size: 13.5, font: fontBold });
         y -= 16;
