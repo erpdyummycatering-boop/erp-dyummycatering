@@ -119,17 +119,17 @@ const RUMPUN_MENU: ModuleGroup[] = [
     icon: ShoppingBag,
     sections: [
       {
-        section: "CRM",
-        items: [
-          { href: "/crm/data-kledo", label: "Data Kledo", icon: FileSpreadsheet },
-          { href: "/crm/pengaturan-kledo", label: "Pengaturan Kledo", icon: Plug },
-        ],
-      },
-      {
         section: "CRM Catering",
         items: [
           { href: "/customers", label: "Data Kontak", icon: Users },
           { href: "/orders", label: "Order Catering", icon: ShoppingBag },
+        ],
+      },
+      {
+        section: "CRM Kledo",
+        items: [
+          { href: "/crm/data-kledo", label: "Data Kledo", icon: FileSpreadsheet },
+          { href: "/crm/pengaturan-kledo", label: "Pengaturan Kledo", icon: Plug },
         ],
       },
     ],

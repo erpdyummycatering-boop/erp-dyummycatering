@@ -29,12 +29,24 @@ type Row = {
   kledoUrl: string;
 };
 
+function getMonthToDateRange() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return {
+    from: `${year}-${month}-01`,
+    to: `${year}-${month}-${day}`,
+  };
+}
+
 export default function DataKledoPage() {
+  const initialMtd = getMonthToDateRange();
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("invoice");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [dateFrom, setDateFrom] = useState(initialMtd.from);
+  const [dateTo, setDateTo] = useState(initialMtd.to);
   const [status, setStatus] = useState("all");
   const [page, setPage] = useState(1);
   const [data, setData] = useState<any>(null);
@@ -85,39 +97,145 @@ export default function DataKledoPage() {
       </div>
 
       <div className="erp-card" style={{ marginBottom: 12 }}>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <div
+          style={{
+            display: "flex",
+            gap: 10,
+            flexWrap: "wrap",
+            alignItems: "center",
+          }}
+        >
           {(tab === "invoice" || tab === "sales_order") && (
             <>
-              <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-              <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-              <select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
-                <option value="all">Semua status</option>
-                {tab === "invoice" ? (
-                  <>
-                    <option value="unpaid">Belum lunas</option>
-                    <option value="paid">Lunas</option>
-                    <option value="overdue">Jatuh tempo</option>
-                  </>
-                ) : (
-                  <>
-                    <option value="open">Terbuka</option>
-                    <option value="invoiced">Ditagih</option>
-                  </>
-                )}
-              </select>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flex: "0 1 auto" }}>
+                <span style={{ fontSize: 13, color: "#6b7280", whiteSpace: "nowrap" }}>Dari:</span>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  style={{ width: 145 }}
+                />
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flex: "0 1 auto" }}>
+                <span style={{ fontSize: 13, color: "#6b7280", whiteSpace: "nowrap" }}>Sampai:</span>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  style={{ width: 145 }}
+                />
+              </div>
+              <div style={{ flex: "0 1 auto" }}>
+                <select
+                  value={status}
+                  onChange={(e) => {
+                    setStatus(e.target.value);
+                    setPage(1);
+                  }}
+                  style={{ width: 155 }}
+                >
+                  <option value="all">Semua status</option>
+                  {tab === "invoice" ? (
+                    <>
+                      <option value="unpaid">Belum lunas</option>
+                      <option value="paid">Lunas</option>
+                      <option value="overdue">Jatuh tempo</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="open">Terbuka</option>
+                      <option value="invoiced">Ditagih</option>
+                    </>
+                  )}
+                </select>
+              </div>
             </>
           )}
-          <input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder="Cari nomor, nama, atau memo" style={{ minWidth: 220 }} />
-          <button className="btn btn-secondary btn-sm" onClick={() => { setSearch(searchInput); setPage(1); }}>Terapkan</button>
+          <div style={{ flex: "1 1 220px", minWidth: 200 }}>
+            <input
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  setSearch(searchInput);
+                  setPage(1);
+                }
+              }}
+              placeholder="Cari nomor, nama, atau memo"
+            />
+          </div>
+          <button
+            className="btn btn-secondary btn-sm"
+            style={{ padding: "8px 16px", whiteSpace: "nowrap" }}
+            onClick={() => {
+              setSearch(searchInput);
+              setPage(1);
+            }}
+          >
+            Terapkan
+          </button>
         </div>
       </div>
 
-      <div className="erp-card-flush">
-        {loading ? <p style={{ padding: 16 }}>Memuat data Kledo...</p> : (
+      <div className="erp-card-flush" style={{ position: "relative" }}>
+        {/* Loading Progress Bar */}
+        {loading && (
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 3,
+              background: "#e5e7eb",
+              overflow: "hidden",
+              zIndex: 10,
+            }}
+          >
+            <div
+              style={{
+                width: "40%",
+                height: "100%",
+                background: "linear-gradient(90deg, #5005A6, #b10fbd)",
+                animation: "kledoProgress 1.2s infinite ease-in-out",
+              }}
+            />
+            <style>{`
+              @keyframes kledoProgress {
+                0% { transform: translateX(-100%); }
+                50% { transform: translateX(120%); }
+                100% { transform: translateX(250%); }
+              }
+            `}</style>
+          </div>
+        )}
+
+        {loading ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "24px 20px", color: "#6b7280" }}>
+            <span
+              style={{
+                width: 18,
+                height: 18,
+                border: "2px solid #5005A6",
+                borderTopColor: "transparent",
+                borderRadius: "50%",
+                display: "inline-block",
+                animation: "spin 0.8s linear infinite",
+              }}
+            />
+            <style>{`
+              @keyframes spin {
+                to { transform: rotate(360deg); }
+              }
+            `}</style>
+            <span>Mengambil data dari Kledo...</span>
+          </div>
+        ) : (
           <div style={{ overflowX: "auto" }}>
             <table>
               <thead>
                 <tr>
+                  <th style={{ width: 48, textAlign: "center" }}>No</th>
                   <th>Nomor / Nama</th>
                   <th>Tanggal</th>
                   {tab === "invoice" && <th>Jatuh tempo</th>}
@@ -128,9 +246,18 @@ export default function DataKledoPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.length === 0 && <tr><td colSpan={7} style={{ padding: 16, color: "#6b7280" }}>{data?.ok === false ? "Tidak ada data" : "Tidak ada baris pada filter ini"}</td></tr>}
-                {rows.map((row) => (
+                {rows.length === 0 && (
+                  <tr>
+                    <td colSpan={tab === "invoice" ? 8 : 6} style={{ padding: 20, textAlign: "center", color: "#6b7280" }}>
+                      {data?.ok === false ? "Tidak ada data" : "Tidak ada baris pada filter ini"}
+                    </td>
+                  </tr>
+                )}
+                {rows.map((row, idx) => (
                   <tr key={row.id}>
+                    <td style={{ textAlign: "center", color: "#9ca3af", fontSize: 13 }}>
+                      {(page - 1) * 20 + idx + 1}
+                    </td>
                     <td>
                       <div style={{ fontWeight: 600 }}>{row.refNumber || row.name || row.code || row.id}</div>
                       {row.name && row.refNumber && <div style={{ fontSize: 13, color: "#6b7280" }}>{row.name}</div>}
@@ -141,9 +268,19 @@ export default function DataKledoPage() {
                     {tab === "invoice" && <td>{row.due == null ? "—" : fmt(row.due)}</td>}
                     <td>{row.status || "—"}</td>
                     <td>
-                      {row.erpOrderId ? <Link href={`/orders/${row.erpOrderId}`} style={{ color: "#5005A6" }}>{row.erpOrderNo || `ORD-${row.erpOrderId}`}</Link> : "—"}
+                      {row.erpOrderId ? (
+                        <Link href={`/orders/${row.erpOrderId}`} style={{ color: "#5005A6", fontWeight: 600 }}>
+                          {row.erpOrderNo || `ORD-${row.erpOrderId}`}
+                        </Link>
+                      ) : (
+                        "—"
+                      )}
                     </td>
-                    <td><a href={row.kledoUrl} target="_blank" rel="noreferrer" style={{ color: "#378ADD" }}>Buka di Kledo</a></td>
+                    <td>
+                      <a href={row.kledoUrl} target="_blank" rel="noreferrer" style={{ color: "#378ADD" }}>
+                        Buka di Kledo
+                      </a>
+                    </td>
                   </tr>
                 ))}
               </tbody>
