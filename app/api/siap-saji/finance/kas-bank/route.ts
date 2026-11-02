@@ -8,6 +8,10 @@ export async function GET(req: NextRequest) {
   const date_from = p.get("date_from") || "";
   const date_to = p.get("date_to") || "";
   const jenis = p.get("jenis") || "";
+  const page = Math.max(1, parseInt(p.get("page") || "1", 10));
+  const limitParam = p.get("limit");
+  const limit = limitParam ? Math.max(1, parseInt(limitParam, 10)) : 0; // 0 means default unpaginated/100 limit
+  const isPaginated = limitParam !== null;
 
   const wheres: string[] = ["km.lini = 'siap_saji'"];
   const vals: any[] = [];
@@ -19,7 +23,7 @@ export async function GET(req: NextRequest) {
     idx++;
   }
   if (search.trim()) {
-    wheres.push(`(km.keterangan ILIKE $${idx} OR kb.nama_rekening ILIKE $${idx})`);
+    wheres.push(`(km.keterangan ILIKE $${idx} OR kb.nama_rekening ILIKE $${idx} OR COALESCE(km.ref_type, '') ILIKE $${idx})`);
     vals.push(`%${search.trim()}%`);
     idx++;
   }
@@ -43,6 +47,57 @@ export async function GET(req: NextRequest) {
 
   const client = await pool.connect();
   try {
+    let mutasiQuery: string;
+    let mutasiVals = [...vals];
+    let totalCount = 0;
+    let totalMasuk = 0;
+    let totalKeluar = 0;
+
+    if (isPaginated) {
+      // Get counts & totals
+      const countRes = await client.query(
+        `SELECT 
+          COUNT(*)::int AS total,
+          COALESCE(SUM(CASE WHEN km.jenis = 'Masuk' THEN km.nominal ELSE 0 END), 0)::numeric AS total_masuk,
+          COALESCE(SUM(CASE WHEN km.jenis = 'Keluar' THEN km.nominal ELSE 0 END), 0)::numeric AS total_keluar
+        FROM kas_mutasi km
+        JOIN kas_bank kb ON km.kas_bank_id = kb.id
+        WHERE ${whereSql}`,
+        vals
+      );
+      totalCount = countRes.rows[0]?.total || 0;
+      totalMasuk = Number(countRes.rows[0]?.total_masuk || 0);
+      totalKeluar = Number(countRes.rows[0]?.total_keluar || 0);
+
+      const offset = (page - 1) * limit;
+      mutasiVals.push(limit, offset);
+      mutasiQuery = `
+        SELECT 
+          km.*,
+          kb.nama_rekening AS kas_bank_nama,
+          kb.nama_bank,
+          kb.no_rekening
+        FROM kas_mutasi km
+        JOIN kas_bank kb ON km.kas_bank_id = kb.id
+        WHERE ${whereSql}
+        ORDER BY km.mutasi_date DESC, km.id DESC
+        LIMIT $${idx} OFFSET $${idx + 1}
+      `;
+    } else {
+      mutasiQuery = `
+        SELECT 
+          km.*,
+          kb.nama_rekening AS kas_bank_nama,
+          kb.nama_bank,
+          kb.no_rekening
+        FROM kas_mutasi km
+        JOIN kas_bank kb ON km.kas_bank_id = kb.id
+        WHERE ${whereSql}
+        ORDER BY km.mutasi_date DESC, km.id DESC
+        LIMIT 100
+      `;
+    }
+
     const [accountsRes, mutasiRes, coaRes] = await Promise.all([
       client.query(`
         SELECT 
@@ -54,17 +109,7 @@ export async function GET(req: NextRequest) {
         WHERE kb.lini = 'siap_saji' 
         ORDER BY kb.is_payment_default DESC, kb.id ASC
       `),
-      client.query(
-        `SELECT 
-          km.*,
-          kb.nama_rekening AS kas_bank_nama
-        FROM kas_mutasi km
-        JOIN kas_bank kb ON km.kas_bank_id = kb.id
-        WHERE ${whereSql}
-        ORDER BY km.mutasi_date DESC, km.id DESC
-        LIMIT 100`,
-        vals
-      ),
+      client.query(mutasiQuery, mutasiVals),
       client.query("SELECT * FROM coa WHERE lini = 'siap_saji' AND is_active = true ORDER BY kode_akun"),
     ]);
 
@@ -72,6 +117,11 @@ export async function GET(req: NextRequest) {
       accounts: accountsRes.rows,
       mutasi: mutasiRes.rows,
       coa: coaRes.rows,
+      total: isPaginated ? totalCount : mutasiRes.rows.length,
+      total_masuk: totalMasuk,
+      total_keluar: totalKeluar,
+      page: isPaginated ? page : 1,
+      limit: isPaginated ? limit : mutasiRes.rows.length,
     });
   } catch (error: any) {
     console.error("Gagal mengambil data kas/bank:", error);

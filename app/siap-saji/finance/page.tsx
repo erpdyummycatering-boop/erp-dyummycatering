@@ -30,8 +30,14 @@ export default function SiapSajiFinancePage() {
   const [drillTotalNominal, setDrillTotalNominal] = useState(0);
   const [drillLoading, setDrillLoading] = useState(false);
 
-  // Helper functions for Year-to-Date (YTD)
+  // Helper functions for Year-to-Date (YTD) and Month-to-Date (MTD)
   const getYtdStartStr = () => `${new Date().getFullYear()}-01-01`;
+  const getMtdStartStr = () => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    return `${y}-${m}-01`;
+  };
   const getTodayStr = () => new Date().toISOString().split("T")[0];
 
   // ── State Tab Buku Besar (General Ledger) ──
@@ -233,6 +239,21 @@ export default function SiapSajiFinancePage() {
   const [accFormSaldoAwal, setAccFormSaldoAwal] = useState<number>(0);
   const [accFormCoaId, setAccFormCoaId] = useState<number | "">("");
   const [accFormIsDefault, setAccFormIsDefault] = useState(false);
+
+  // Modal Riwayat / History Mutasi Per Rekening Kas & Bank
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [historyAccount, setHistoryAccount] = useState<any | null>(null);
+  const [historyDateFrom, setHistoryDateFrom] = useState(getMtdStartStr());
+  const [historyDateTo, setHistoryDateTo] = useState(getTodayStr());
+  const [historySearch, setHistorySearch] = useState("");
+  const [historyJenis, setHistoryJenis] = useState("");
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyLimit, setHistoryLimit] = useState(10);
+  const [historyMutasi, setHistoryMutasi] = useState<any[]>([]);
+  const [historyTotal, setHistoryTotal] = useState(0);
+  const [historyTotalMasuk, setHistoryTotalMasuk] = useState(0);
+  const [historyTotalKeluar, setHistoryTotalKeluar] = useState(0);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   // Tab 4: Kas Masuk, Kas Keluar & Transfer Modal State
   const [isKasMutasiModalOpen, setIsKasMutasiModalOpen] = useState(false);
@@ -1341,6 +1362,97 @@ export default function SiapSajiFinancePage() {
       toast.error(err.message || "Gagal menyimpan rekening");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Handlers for History Mutasi Per Rekening Modal
+  const fetchAccountHistory = async (accId: number, dFrom: string, dTo: string, searchVal: string, jenisVal: string, pageNum: number, limitNum: number) => {
+    setHistoryLoading(true);
+    try {
+      const q = new URLSearchParams({
+        kas_bank_id: String(accId),
+        search: searchVal,
+        jenis: jenisVal,
+        date_from: dFrom,
+        date_to: dTo,
+        page: String(pageNum),
+        limit: String(limitNum),
+      }).toString();
+      const res = await fetch(`/api/siap-saji/finance/kas-bank?${q}`);
+      if (res.ok) {
+        const json = await res.json();
+        setHistoryMutasi(json.mutasi || []);
+        setHistoryTotal(json.total || 0);
+        setHistoryTotalMasuk(Number(json.total_masuk || 0));
+        setHistoryTotalKeluar(Number(json.total_keluar || 0));
+      } else {
+        const err = await res.json();
+        toast.error(err.error || "Gagal memuat riwayat mutasi rekening");
+      }
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message || "Gagal memuat riwayat mutasi rekening");
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const handleOpenAccountHistory = (acc: any) => {
+    setHistoryAccount(acc);
+    const mtdStart = getMtdStartStr();
+    const today = getTodayStr();
+    setHistoryDateFrom(mtdStart);
+    setHistoryDateTo(today);
+    setHistorySearch("");
+    setHistoryJenis("");
+    setHistoryPage(1);
+    setHistoryModalOpen(true);
+    fetchAccountHistory(acc.id, mtdStart, today, "", "", 1, historyLimit);
+  };
+
+  const handleExportAccountHistoryXLSX = async () => {
+    if (!historyAccount) return;
+    try {
+      // Fetch all records for current filters (unpaginated / high limit)
+      const q = new URLSearchParams({
+        kas_bank_id: String(historyAccount.id),
+        search: historySearch,
+        jenis: historyJenis,
+        date_from: historyDateFrom,
+        date_to: historyDateTo,
+        page: "1",
+        limit: "5000",
+      }).toString();
+      const res = await fetch(`/api/siap-saji/finance/kas-bank?${q}`);
+      if (!res.ok) throw new Error("Gagal mengambil data untuk export");
+      const json = await res.json();
+      const rowsData = json.mutasi || [];
+      if (rowsData.length === 0) {
+        toast.error("Tidak ada data mutasi untuk diexport");
+        return;
+      }
+
+      const exportRows = rowsData.map((m: any, idx: number) => ({
+        No: idx + 1,
+        Tanggal: m.mutasi_date ? new Date(m.mutasi_date).toLocaleDateString("id-ID") : "-",
+        Rekening: m.kas_bank_nama || historyAccount.nama_rekening || "-",
+        Bank: m.nama_bank || historyAccount.nama_bank || "-",
+        "No. Rekening": m.no_rekening || historyAccount.no_rekening || "-",
+        Jenis: m.jenis || "-",
+        Tipe_Ref: m.ref_type || "-",
+        Keterangan: m.keterangan || "-",
+        Nominal: Number(m.nominal || 0),
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(exportRows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Mutasi_Rekening");
+      const cleanAccName = (historyAccount.nama_rekening || "Rekening").replace(/[^a-zA-Z0-9_-]/g, "_");
+      XLSX.writeFile(wb, `Mutasi_${cleanAccName}_${historyDateFrom || "awal"}_sd_${historyDateTo || "kini"}.xlsx`);
+      toast.success("File Excel mutasi rekening berhasil didownload!");
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message || "Gagal mengexport file Excel");
     }
   };
 
@@ -2564,96 +2676,96 @@ export default function SiapSajiFinancePage() {
       {/* ── TAB 2: PEMBELIAN HPP (NOTA BELANJA) ────────────────────── */}
       {activeTab === "purchases" && (
         <div>
-            {/* Filter Toolbar */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, flex: "1 1 300px", overflowX: "auto", whiteSpace: "nowrap" }}>
-                <div style={{ flex: "1 1 240px", minWidth: 180, position: "relative" }}>
-                  <Search size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
-                  <input
-                    type="text"
-                    placeholder="Cari Ref Nota, Keterangan, Akun, Rekening..."
-                    value={purSearch}
-                    onChange={(e) => { setPurSearch(e.target.value); setPurPage(1); }}
-                    style={{ width: "100%", padding: "7px 12px 7px 34px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, outline: "none" }}
-                  />
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                  <span style={{ fontSize: 12, color: "#6b7280", fontWeight: 600 }}>Dari:</span>
-                  <input
-                    type="date"
-                    value={purDateFrom}
-                    onChange={(e) => { setPurDateFrom(e.target.value); setPurPage(1); }}
-                    style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13 }}
-                  />
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                  <span style={{ fontSize: 12, color: "#6b7280", fontWeight: 600 }}>s/d:</span>
-                  <input
-                    type="date"
-                    value={purDateTo}
-                    onChange={(e) => { setPurDateTo(e.target.value); setPurPage(1); }}
-                    style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13 }}
-                  />
-                </div>
-                {(purSearch || purDateFrom !== getYtdStartStr() || purDateTo !== getTodayStr()) && (
-                  <button
-                    onClick={() => { setPurSearch(""); setPurDateFrom(getYtdStartStr()); setPurDateTo(getTodayStr()); setPurPage(1); }}
-                    style={{ padding: "7px 12px", background: "#f3f4f6", color: "#4b5563", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer", fontWeight: 600, flexShrink: 0 }}
-                    title="Reset Filter ke YTD"
-                  >
-                    Reset
-                  </button>
-                )}
+          {/* Filter Toolbar */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flex: "1 1 300px", overflowX: "auto", whiteSpace: "nowrap" }}>
+              <div style={{ flex: "1 1 240px", minWidth: 180, position: "relative" }}>
+                <Search size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
+                <input
+                  type="text"
+                  placeholder="Cari Ref Nota, Keterangan, Akun, Rekening..."
+                  value={purSearch}
+                  onChange={(e) => { setPurSearch(e.target.value); setPurPage(1); }}
+                  style={{ width: "100%", padding: "7px 12px 7px 34px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, outline: "none" }}
+                />
               </div>
-
-              {/* Bulk Pay Action Button */}
-              {selectedPurIds.length > 0 && (
-                <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#f0fdf4", border: "1px solid #bbf7d0", padding: "6px 14px", borderRadius: 8 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: "#166534" }}>
-                    {selectedPurIds.length} Nota Dipilih (Total Hutang: Rp {
-                      purchases
-                        .filter((p) => selectedPurIds.includes(p.id))
-                        .reduce((acc, p) => acc + Number(p.sisa_hutang || 0), 0)
-                        .toLocaleString("id-ID")
-                    })
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleOpenBulkPayModal}
-                    style={{
-                      padding: "6px 14px",
-                      background: "#639922",
-                      color: "white",
-                      border: "none",
-                      borderRadius: 6,
-                      fontSize: 12.5,
-                      fontWeight: 800,
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                      boxShadow: "0 2px 4px rgba(99, 153, 34, 0.3)",
-                    }}
-                  >
-                    <DollarSign size={14} /> Bulk Bayar Hutang
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedPurIds([])}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "#6b7280",
-                      fontSize: 12,
-                      cursor: "pointer",
-                      textDecoration: "underline",
-                    }}
-                  >
-                    Batal Pilih
-                  </button>
-                </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                <span style={{ fontSize: 12, color: "#6b7280", fontWeight: 600 }}>Dari:</span>
+                <input
+                  type="date"
+                  value={purDateFrom}
+                  onChange={(e) => { setPurDateFrom(e.target.value); setPurPage(1); }}
+                  style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13 }}
+                />
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                <span style={{ fontSize: 12, color: "#6b7280", fontWeight: 600 }}>s/d:</span>
+                <input
+                  type="date"
+                  value={purDateTo}
+                  onChange={(e) => { setPurDateTo(e.target.value); setPurPage(1); }}
+                  style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13 }}
+                />
+              </div>
+              {(purSearch || purDateFrom !== getYtdStartStr() || purDateTo !== getTodayStr()) && (
+                <button
+                  onClick={() => { setPurSearch(""); setPurDateFrom(getYtdStartStr()); setPurDateTo(getTodayStr()); setPurPage(1); }}
+                  style={{ padding: "7px 12px", background: "#f3f4f6", color: "#4b5563", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer", fontWeight: 600, flexShrink: 0 }}
+                  title="Reset Filter ke YTD"
+                >
+                  Reset
+                </button>
               )}
             </div>
+
+            {/* Bulk Pay Action Button */}
+            {selectedPurIds.length > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#f0fdf4", border: "1px solid #bbf7d0", padding: "6px 14px", borderRadius: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#166534" }}>
+                  {selectedPurIds.length} Nota Dipilih (Total Hutang: Rp {
+                    purchases
+                      .filter((p) => selectedPurIds.includes(p.id))
+                      .reduce((acc, p) => acc + Number(p.sisa_hutang || 0), 0)
+                      .toLocaleString("id-ID")
+                  })
+                </span>
+                <button
+                  type="button"
+                  onClick={handleOpenBulkPayModal}
+                  style={{
+                    padding: "6px 14px",
+                    background: "#639922",
+                    color: "white",
+                    border: "none",
+                    borderRadius: 6,
+                    fontSize: 12.5,
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    boxShadow: "0 2px 4px rgba(99, 153, 34, 0.3)",
+                  }}
+                >
+                  <DollarSign size={14} /> Bulk Bayar Hutang
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedPurIds([])}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#6b7280",
+                    fontSize: 12,
+                    cursor: "pointer",
+                    textDecoration: "underline",
+                  }}
+                >
+                  Batal Pilih
+                </button>
+              </div>
+            )}
+          </div>
 
           <div className="datagrid-sticky-container" style={{ background: "white", borderRadius: 12, border: "1px solid #e5e7eb", maxHeight: "65vh" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 14, whiteSpace: "nowrap" }}>
@@ -2766,24 +2878,24 @@ export default function SiapSajiFinancePage() {
                               background: isCancelled
                                 ? "#fee2e2"
                                 : statusBayar === "Lunas"
-                                ? "#f0fdf4"
-                                : statusBayar === "Sebagian"
-                                ? "#fef3c7"
-                                : "#fee2e2",
+                                  ? "#f0fdf4"
+                                  : statusBayar === "Sebagian"
+                                    ? "#fef3c7"
+                                    : "#fee2e2",
                               color: isCancelled
                                 ? "#991b1b"
                                 : statusBayar === "Lunas"
-                                ? "#15803d"
-                                : statusBayar === "Sebagian"
-                                ? "#b45309"
-                                : "#b91c1c",
+                                  ? "#15803d"
+                                  : statusBayar === "Sebagian"
+                                    ? "#b45309"
+                                    : "#b91c1c",
                               border: isCancelled
                                 ? "1px solid #fecaca"
                                 : statusBayar === "Lunas"
-                                ? "1px solid #bbf7d0"
-                                : statusBayar === "Sebagian"
-                                ? "1px solid #fde68a"
-                                : "1px solid #fecaca",
+                                  ? "1px solid #bbf7d0"
+                                  : statusBayar === "Sebagian"
+                                    ? "1px solid #fde68a"
+                                    : "1px solid #fecaca",
                             }}
                           >
                             {statusBayar}
@@ -2996,244 +3108,244 @@ export default function SiapSajiFinancePage() {
           </div>
 
           <div className="datagrid-sticky-container" style={{ background: "white", borderRadius: 12, border: "1px solid #e5e7eb", maxHeight: "65vh" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 14, whiteSpace: "nowrap" }}>
-            <thead>
-              <tr style={{ background: "#fafafa", borderBottom: "1px solid #e5e7eb", color: "#6b7280", fontWeight: 700, fontSize: 12, textTransform: "uppercase" }}>
-                <th style={{ padding: "12px 14px", width: 40, textAlign: "center" }}>
-                  {(() => {
-                    const curPageItems = expenses.slice((expPage - 1) * expLimit, expPage * expLimit);
-                    const payableItems = curPageItems.filter((e) => Number(e.sisa_hutang || 0) > 0 && e.status !== "dibatalkan" && e.status_pembayaran !== "Dibatalkan");
-                    const allSelected = payableItems.length > 0 && payableItems.every((e) => selectedExpIds.includes(e.id));
-                    return (
-                      <input
-                        type="checkbox"
-                        checked={allSelected}
-                        disabled={payableItems.length === 0}
-                        onChange={(ev) => {
-                          if (ev.target.checked) {
-                            const newIds = Array.from(new Set([...selectedExpIds, ...payableItems.map((e) => e.id)]));
-                            setSelectedExpIds(newIds);
-                          } else {
-                            const removeIds = new Set(payableItems.map((e) => e.id));
-                            setSelectedExpIds(selectedExpIds.filter((id) => !removeIds.has(id)));
-                          }
-                        }}
-                        style={{ cursor: payableItems.length === 0 ? "not-allowed" : "pointer", width: 16, height: 16, accentColor: "#639922" }}
-                        title={payableItems.length === 0 ? "Tidak ada biaya dengan hutang di halaman ini" : "Pilih Semua Biaya Berhutang di Halaman Ini"}
-                      />
-                    );
-                  })()}
-                </th>
-                <th style={{ padding: "12px 16px", width: 50 }}>No.</th>
-                <th style={{ padding: "12px 16px" }}>Tanggal</th>
-                <th style={{ padding: "12px 16px" }}>Keterangan Biaya</th>
-                <th style={{ padding: "12px 16px" }}>Kategori Beban</th>
-                <th style={{ padding: "12px 16px" }}>Sumber / Rekening</th>
-                <th style={{ padding: "12px 16px", textAlign: "center" }}>Status Bayar</th>
-                <th style={{ padding: "12px 16px", textAlign: "right" }}>Total Biaya</th>
-                <th style={{ padding: "12px 16px", textAlign: "right" }}>Dibayar</th>
-                <th style={{ padding: "12px 16px", textAlign: "right" }}>Sisa Hutang</th>
-                <th style={{ padding: "12px 16px", textAlign: "center", width: 140 }}>Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={11} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
-                    Memuat biaya operasional...
-                  </td>
-                </tr>
-              ) : expenses.length === 0 ? (
-                <tr>
-                  <td colSpan={11} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
-                    Belum ada riwayat biaya operasional.
-                  </td>
-                </tr>
-              ) : (
-                expenses.slice((expPage - 1) * expLimit, expPage * expLimit).map((e, idx) => {
-                  const isCancelled = e.status === "dibatalkan" || e.status_pembayaran === "Dibatalkan";
-                  const sisa = Number(e.sisa_hutang || 0);
-                  const dibayar = Number(e.dibayar || 0);
-                  const total = (dibayar + sisa) > 0 ? (dibayar + sisa) : Number(e.nominal || 0);
-                  const statusBayar = isCancelled ? "Dibatalkan" : (e.status_pembayaran || (sisa > 0 ? (dibayar > 0 ? "Sebagian" : "Belum Lunas") : "Lunas"));
-                  const cleanKeterangan = (e.keterangan || "").replace(/^Biaya Operasional \([^)]+\):\s*/i, "");
-                  const isPayable = sisa > 0 && !isCancelled;
-                  const isChecked = selectedExpIds.includes(e.id);
-
-                  return (
-                    <tr key={e.id} style={{ borderBottom: "1px solid #f3f4f6", opacity: isCancelled ? 0.6 : 1, background: isChecked ? "#f0fdf4" : "transparent" }}>
-                      <td style={{ padding: "14px 14px", textAlign: "center" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 14, whiteSpace: "nowrap" }}>
+              <thead>
+                <tr style={{ background: "#fafafa", borderBottom: "1px solid #e5e7eb", color: "#6b7280", fontWeight: 700, fontSize: 12, textTransform: "uppercase" }}>
+                  <th style={{ padding: "12px 14px", width: 40, textAlign: "center" }}>
+                    {(() => {
+                      const curPageItems = expenses.slice((expPage - 1) * expLimit, expPage * expLimit);
+                      const payableItems = curPageItems.filter((e) => Number(e.sisa_hutang || 0) > 0 && e.status !== "dibatalkan" && e.status_pembayaran !== "Dibatalkan");
+                      const allSelected = payableItems.length > 0 && payableItems.every((e) => selectedExpIds.includes(e.id));
+                      return (
                         <input
                           type="checkbox"
-                          checked={isChecked}
-                          disabled={!isPayable}
+                          checked={allSelected}
+                          disabled={payableItems.length === 0}
                           onChange={(ev) => {
                             if (ev.target.checked) {
-                              setSelectedExpIds([...selectedExpIds, e.id]);
+                              const newIds = Array.from(new Set([...selectedExpIds, ...payableItems.map((e) => e.id)]));
+                              setSelectedExpIds(newIds);
                             } else {
-                              setSelectedExpIds(selectedExpIds.filter((id) => id !== e.id));
+                              const removeIds = new Set(payableItems.map((e) => e.id));
+                              setSelectedExpIds(selectedExpIds.filter((id) => !removeIds.has(id)));
                             }
                           }}
-                          style={{ cursor: !isPayable ? "not-allowed" : "pointer", width: 16, height: 16, accentColor: "#639922" }}
+                          style={{ cursor: payableItems.length === 0 ? "not-allowed" : "pointer", width: 16, height: 16, accentColor: "#639922" }}
+                          title={payableItems.length === 0 ? "Tidak ada biaya dengan hutang di halaman ini" : "Pilih Semua Biaya Berhutang di Halaman Ini"}
                         />
-                      </td>
-                      <td style={{ padding: "14px 16px", color: "#6b7280" }}>{(expPage - 1) * expLimit + idx + 1}</td>
-                      <td style={{ padding: "14px 16px", fontWeight: 600 }}>{formatDate(e.journal_date)}</td>
-                      <td style={{ padding: "14px 16px", color: "#111827", fontWeight: 600, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis" }}>
-                        <div>{cleanKeterangan || e.keterangan}</div>
-                        {isCancelled && e.cancel_reason && (
-                          <div style={{ fontSize: 11, color: "#dc2626", fontStyle: "italic", marginTop: 2 }}>
-                            Alasan Batal: &ldquo;{e.cancel_reason}&rdquo;
-                          </div>
-                        )}
-                      </td>
-                      <td style={{ padding: "14px 16px", color: "#4b5563" }}>
-                        ({e.beban_kode}) {e.beban_nama}
-                      </td>
-                      <td style={{ padding: "14px 16px", color: "#374151" }}>{e.kredit_nama || "Hutang Usaha"}</td>
-                      <td style={{ padding: "14px 16px", textAlign: "center" }}>
-                        <span
-                          style={{
-                            fontSize: 11,
-                            fontWeight: 800,
-                            padding: "3px 8px",
-                            borderRadius: 6,
-                            background: isCancelled
-                              ? "#fee2e2"
-                              : statusBayar === "Lunas"
-                              ? "#f0fdf4"
-                              : statusBayar === "Sebagian"
-                              ? "#fef3c7"
-                              : "#fee2e2",
-                            color: isCancelled
-                              ? "#991b1b"
-                              : statusBayar === "Lunas"
-                              ? "#15803d"
-                              : statusBayar === "Sebagian"
-                              ? "#b45309"
-                              : "#b91c1c",
-                            border: isCancelled
-                              ? "1px solid #fecaca"
-                              : statusBayar === "Lunas"
-                              ? "1px solid #bbf7d0"
-                              : statusBayar === "Sebagian"
-                              ? "1px solid #fde68a"
-                              : "1px solid #fecaca",
-                          }}
-                        >
-                          {statusBayar}
-                        </span>
-                      </td>
-                      <td style={{ padding: "14px 16px", textAlign: "right", fontWeight: 800, color: isCancelled ? "#9ca3af" : "#111827", textDecoration: isCancelled ? "line-through" : "none" }}>
-                        Rp {total.toLocaleString("id-ID")}
-                      </td>
-                      <td style={{ padding: "14px 16px", textAlign: "right", fontWeight: 700, color: isCancelled ? "#9ca3af" : "#15803d" }}>
-                        Rp {dibayar.toLocaleString("id-ID")}
-                      </td>
-                      <td style={{ padding: "14px 16px", textAlign: "right", fontWeight: 800, color: isCancelled ? "#9ca3af" : (sisa > 0 ? "#E24B4A" : "#6b7280") }}>
-                        Rp {sisa.toLocaleString("id-ID")}
-                      </td>
-                      <td style={{ padding: "14px 16px", textAlign: "center" }}>
-                        <div style={{ display: "flex", justifyContent: "center", gap: 5 }}>
-                          {/* Detail */}
-                          <button
-                            onClick={() => setDetailModalItem({ type: "expense", data: e })}
-                            style={{
-                              padding: "6px 8px",
-                              borderRadius: 6,
-                              border: "1px solid #d1d5db",
-                              background: "#f9fafb",
-                              color: "#374151",
-                              cursor: "pointer",
-                              display: "inline-flex",
-                              alignItems: "center",
+                      );
+                    })()}
+                  </th>
+                  <th style={{ padding: "12px 16px", width: 50 }}>No.</th>
+                  <th style={{ padding: "12px 16px" }}>Tanggal</th>
+                  <th style={{ padding: "12px 16px" }}>Keterangan Biaya</th>
+                  <th style={{ padding: "12px 16px" }}>Kategori Beban</th>
+                  <th style={{ padding: "12px 16px" }}>Sumber / Rekening</th>
+                  <th style={{ padding: "12px 16px", textAlign: "center" }}>Status Bayar</th>
+                  <th style={{ padding: "12px 16px", textAlign: "right" }}>Total Biaya</th>
+                  <th style={{ padding: "12px 16px", textAlign: "right" }}>Dibayar</th>
+                  <th style={{ padding: "12px 16px", textAlign: "right" }}>Sisa Hutang</th>
+                  <th style={{ padding: "12px 16px", textAlign: "center", width: 140 }}>Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={11} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                      Memuat biaya operasional...
+                    </td>
+                  </tr>
+                ) : expenses.length === 0 ? (
+                  <tr>
+                    <td colSpan={11} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                      Belum ada riwayat biaya operasional.
+                    </td>
+                  </tr>
+                ) : (
+                  expenses.slice((expPage - 1) * expLimit, expPage * expLimit).map((e, idx) => {
+                    const isCancelled = e.status === "dibatalkan" || e.status_pembayaran === "Dibatalkan";
+                    const sisa = Number(e.sisa_hutang || 0);
+                    const dibayar = Number(e.dibayar || 0);
+                    const total = (dibayar + sisa) > 0 ? (dibayar + sisa) : Number(e.nominal || 0);
+                    const statusBayar = isCancelled ? "Dibatalkan" : (e.status_pembayaran || (sisa > 0 ? (dibayar > 0 ? "Sebagian" : "Belum Lunas") : "Lunas"));
+                    const cleanKeterangan = (e.keterangan || "").replace(/^Biaya Operasional \([^)]+\):\s*/i, "");
+                    const isPayable = sisa > 0 && !isCancelled;
+                    const isChecked = selectedExpIds.includes(e.id);
+
+                    return (
+                      <tr key={e.id} style={{ borderBottom: "1px solid #f3f4f6", opacity: isCancelled ? 0.6 : 1, background: isChecked ? "#f0fdf4" : "transparent" }}>
+                        <td style={{ padding: "14px 14px", textAlign: "center" }}>
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            disabled={!isPayable}
+                            onChange={(ev) => {
+                              if (ev.target.checked) {
+                                setSelectedExpIds([...selectedExpIds, e.id]);
+                              } else {
+                                setSelectedExpIds(selectedExpIds.filter((id) => id !== e.id));
+                              }
                             }}
-                            title="Lihat Detail Biaya"
-                          >
-                            <FileText size={14} />
-                          </button>
-
-                          {/* Bayar Hutang / Cicilan (if not cancelled & sisa > 0) */}
-                          {!isCancelled && sisa > 0 && (
-                            <button
-                              onClick={() => handleOpenPayDebtModal("expense", e)}
-                              style={{
-                                padding: "6px 9px",
-                                borderRadius: 6,
-                                border: "none",
-                                background: "#639922",
-                                color: "white",
-                                fontSize: 11,
-                                fontWeight: 700,
-                                cursor: "pointer",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: 3,
-                              }}
-                              title="Bayar Cicilan / Pelunasan Hutang"
-                            >
-                              <DollarSign size={13} /> Bayar
-                            </button>
+                            style={{ cursor: !isPayable ? "not-allowed" : "pointer", width: 16, height: 16, accentColor: "#639922" }}
+                          />
+                        </td>
+                        <td style={{ padding: "14px 16px", color: "#6b7280" }}>{(expPage - 1) * expLimit + idx + 1}</td>
+                        <td style={{ padding: "14px 16px", fontWeight: 600 }}>{formatDate(e.journal_date)}</td>
+                        <td style={{ padding: "14px 16px", color: "#111827", fontWeight: 600, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis" }}>
+                          <div>{cleanKeterangan || e.keterangan}</div>
+                          {isCancelled && e.cancel_reason && (
+                            <div style={{ fontSize: 11, color: "#dc2626", fontStyle: "italic", marginTop: 2 }}>
+                              Alasan Batal: &ldquo;{e.cancel_reason}&rdquo;
+                            </div>
                           )}
-
-                          {/* Edit (if not cancelled) */}
-                          {!isCancelled && (
+                        </td>
+                        <td style={{ padding: "14px 16px", color: "#4b5563" }}>
+                          ({e.beban_kode}) {e.beban_nama}
+                        </td>
+                        <td style={{ padding: "14px 16px", color: "#374151" }}>{e.kredit_nama || "Hutang Usaha"}</td>
+                        <td style={{ padding: "14px 16px", textAlign: "center" }}>
+                          <span
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 800,
+                              padding: "3px 8px",
+                              borderRadius: 6,
+                              background: isCancelled
+                                ? "#fee2e2"
+                                : statusBayar === "Lunas"
+                                  ? "#f0fdf4"
+                                  : statusBayar === "Sebagian"
+                                    ? "#fef3c7"
+                                    : "#fee2e2",
+                              color: isCancelled
+                                ? "#991b1b"
+                                : statusBayar === "Lunas"
+                                  ? "#15803d"
+                                  : statusBayar === "Sebagian"
+                                    ? "#b45309"
+                                    : "#b91c1c",
+                              border: isCancelled
+                                ? "1px solid #fecaca"
+                                : statusBayar === "Lunas"
+                                  ? "1px solid #bbf7d0"
+                                  : statusBayar === "Sebagian"
+                                    ? "1px solid #fde68a"
+                                    : "1px solid #fecaca",
+                            }}
+                          >
+                            {statusBayar}
+                          </span>
+                        </td>
+                        <td style={{ padding: "14px 16px", textAlign: "right", fontWeight: 800, color: isCancelled ? "#9ca3af" : "#111827", textDecoration: isCancelled ? "line-through" : "none" }}>
+                          Rp {total.toLocaleString("id-ID")}
+                        </td>
+                        <td style={{ padding: "14px 16px", textAlign: "right", fontWeight: 700, color: isCancelled ? "#9ca3af" : "#15803d" }}>
+                          Rp {dibayar.toLocaleString("id-ID")}
+                        </td>
+                        <td style={{ padding: "14px 16px", textAlign: "right", fontWeight: 800, color: isCancelled ? "#9ca3af" : (sisa > 0 ? "#E24B4A" : "#6b7280") }}>
+                          Rp {sisa.toLocaleString("id-ID")}
+                        </td>
+                        <td style={{ padding: "14px 16px", textAlign: "center" }}>
+                          <div style={{ display: "flex", justifyContent: "center", gap: 5 }}>
+                            {/* Detail */}
                             <button
-                              onClick={() => handleOpenEditExpense(e)}
+                              onClick={() => setDetailModalItem({ type: "expense", data: e })}
                               style={{
                                 padding: "6px 8px",
                                 borderRadius: 6,
                                 border: "1px solid #d1d5db",
                                 background: "#f9fafb",
-                                color: "#4b5563",
+                                color: "#374151",
                                 cursor: "pointer",
                                 display: "inline-flex",
                                 alignItems: "center",
                               }}
-                              title="Edit Biaya Operasional"
+                              title="Lihat Detail Biaya"
                             >
-                              <Edit3 size={14} />
+                              <FileText size={14} />
                             </button>
-                          )}
 
-                          {/* Batal dengan Alasan */}
-                          {!isCancelled && (
-                            <button
-                              onClick={() => handleOpenCancelModal("expense", e)}
-                              style={{
-                                padding: "6px 8px",
-                                borderRadius: 6,
-                                border: "1px solid #fecaca",
-                                background: "#fef2f2",
-                                color: "#dc2626",
-                                cursor: "pointer",
-                                display: "inline-flex",
-                                alignItems: "center",
-                              }}
-                              title="Batalkan Biaya Operasional"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                            {/* Bayar Hutang / Cicilan (if not cancelled & sisa > 0) */}
+                            {!isCancelled && sisa > 0 && (
+                              <button
+                                onClick={() => handleOpenPayDebtModal("expense", e)}
+                                style={{
+                                  padding: "6px 9px",
+                                  borderRadius: 6,
+                                  border: "none",
+                                  background: "#639922",
+                                  color: "white",
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  cursor: "pointer",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: 3,
+                                }}
+                                title="Bayar Cicilan / Pelunasan Hutang"
+                              >
+                                <DollarSign size={13} /> Bayar
+                              </button>
+                            )}
 
-          <Pagination
-            page={expPage}
-            totalPages={Math.ceil(expenses.length / expLimit) || 1}
-            total={expenses.length}
-            limit={expLimit}
-            onChange={(p) => setExpPage(p)}
-            onLimitChange={(lim) => { setExpLimit(lim); setExpPage(1); }}
-          />
+                            {/* Edit (if not cancelled) */}
+                            {!isCancelled && (
+                              <button
+                                onClick={() => handleOpenEditExpense(e)}
+                                style={{
+                                  padding: "6px 8px",
+                                  borderRadius: 6,
+                                  border: "1px solid #d1d5db",
+                                  background: "#f9fafb",
+                                  color: "#4b5563",
+                                  cursor: "pointer",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                }}
+                                title="Edit Biaya Operasional"
+                              >
+                                <Edit3 size={14} />
+                              </button>
+                            )}
+
+                            {/* Batal dengan Alasan */}
+                            {!isCancelled && (
+                              <button
+                                onClick={() => handleOpenCancelModal("expense", e)}
+                                style={{
+                                  padding: "6px 8px",
+                                  borderRadius: 6,
+                                  border: "1px solid #fecaca",
+                                  background: "#fef2f2",
+                                  color: "#dc2626",
+                                  cursor: "pointer",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                }}
+                                title="Batalkan Biaya Operasional"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+
+            <Pagination
+              page={expPage}
+              totalPages={Math.ceil(expenses.length / expLimit) || 1}
+              total={expenses.length}
+              limit={expLimit}
+              onChange={(p) => setExpPage(p)}
+              onLimitChange={(lim) => { setExpLimit(lim); setExpPage(1); }}
+            />
+          </div>
         </div>
-      </div>
       )}
 
       {/* ── TAB 4: KAS & REKENING BANK ────────────────────────────── */}
@@ -3270,6 +3382,15 @@ export default function SiapSajiFinancePage() {
             {accounts.map((acc) => (
               <div
                 key={acc.id}
+                onClick={() => handleOpenAccountHistory(acc)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    handleOpenAccountHistory(acc);
+                  }
+                }}
                 style={{
                   background: "white",
                   borderRadius: 12,
@@ -3277,6 +3398,16 @@ export default function SiapSajiFinancePage() {
                   border: "1px solid #e5e7eb",
                   boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
                   position: "relative",
+                  cursor: "pointer",
+                  transition: "all 0.15s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = "#c4b5fd";
+                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(80, 5, 166, 0.08)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = "#e5e7eb";
+                  e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.05)";
                 }}
               >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -3293,7 +3424,10 @@ export default function SiapSajiFinancePage() {
                       </span>
                     )}
                     <button
-                      onClick={() => handleOpenEditAccount(acc)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenEditAccount(acc);
+                      }}
                       style={{
                         padding: "4px 8px",
                         background: "#f3f4f6",
@@ -3311,9 +3445,14 @@ export default function SiapSajiFinancePage() {
                   </div>
                 </div>
 
-                <p style={{ fontSize: 22, fontWeight: 800, color: "#5005A6", marginTop: 12, marginBottom: 6 }}>
-                  Rp {Number(acc.saldo_kini).toLocaleString("id-ID")}
-                </p>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 12, marginBottom: 6 }}>
+                  <p style={{ fontSize: 22, fontWeight: 800, color: "#5005A6", margin: 0 }}>
+                    Rp {Number(acc.saldo_kini).toLocaleString("id-ID")}
+                  </p>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "#7c3aed", background: "#f5f3ff", padding: "2px 6px", borderRadius: 4, display: "flex", alignItems: "center", gap: 4 }}>
+                    <Eye size={12} /> Detail Riwayat
+                  </span>
+                </div>
 
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 6, borderTop: "1px dashed #e5e7eb", paddingTop: 8 }}>
                   <span style={{ fontSize: 11, color: "#6b7280" }}>Akun CoA Buku Besar:</span>
@@ -3560,243 +3699,243 @@ export default function SiapSajiFinancePage() {
           </div>
 
           <div style={{ background: "white", borderRadius: 12, border: "1px solid #e5e7eb", overflowX: "auto" }}>
-          <div style={{ padding: "16px 20px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div>
-              <h3 style={{ fontSize: 16, fontWeight: 800, color: "#111827", margin: 0 }}>
-                Buku Jurnal Umum (Double-Entry Accounting)
-              </h3>
-              <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>
-                Jurnal pencatatan berpasangan Debit dan Kredit sesuai standar akuntansi baku.
-              </p>
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <h3 style={{ fontSize: 16, fontWeight: 800, color: "#111827", margin: 0 }}>
+                  Buku Jurnal Umum (Double-Entry Accounting)
+                </h3>
+                <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>
+                  Jurnal pencatatan berpasangan Debit dan Kredit sesuai standar akuntansi baku.
+                </p>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, background: "#f0fdf4", color: "#166534", padding: "4px 10px", borderRadius: 20, border: "1px solid #bbf7d0" }}>
+                  ✓ Debet & Kredit Seimbang (Balanced)
+                </span>
+                <button
+                  onClick={() => {
+                    const list = coaListAll.length > 0 ? coaListAll : coaList;
+                    setJouFormDate(new Date().toISOString().split("T")[0]);
+                    setJouFormRefNo(`JU-${Date.now().toString().slice(-6)}`);
+                    setJouFormDebitCoaId(list.length > 0 ? list[0].id : "");
+                    setJouFormCreditCoaId(list.length > 1 ? list[1].id : "");
+                    setJouFormNominal(0);
+                    setJouFormKeterangan("");
+                    setIsJournalModalOpen(true);
+                  }}
+                  style={{
+                    padding: "8px 16px",
+                    background: "#5005A6",
+                    color: "white",
+                    border: "none",
+                    borderRadius: 8,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    boxShadow: "0 2px 6px rgba(80, 5, 166, 0.2)",
+                  }}
+                >
+                  <BookOpen size={15} /> + Jurnal Umum
+                </button>
+              </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, background: "#f0fdf4", color: "#166534", padding: "4px 10px", borderRadius: 20, border: "1px solid #bbf7d0" }}>
-                ✓ Debet & Kredit Seimbang (Balanced)
-              </span>
-              <button
-                onClick={() => {
-                  const list = coaListAll.length > 0 ? coaListAll : coaList;
-                  setJouFormDate(new Date().toISOString().split("T")[0]);
-                  setJouFormRefNo(`JU-${Date.now().toString().slice(-6)}`);
-                  setJouFormDebitCoaId(list.length > 0 ? list[0].id : "");
-                  setJouFormCreditCoaId(list.length > 1 ? list[1].id : "");
-                  setJouFormNominal(0);
-                  setJouFormKeterangan("");
-                  setIsJournalModalOpen(true);
-                }}
-                style={{
-                  padding: "8px 16px",
-                  background: "#5005A6",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 8,
-                  fontSize: 13,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                  boxShadow: "0 2px 6px rgba(80, 5, 166, 0.2)",
-                }}
-              >
-                <BookOpen size={15} /> + Jurnal Umum
-              </button>
-            </div>
-          </div>
 
-          <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 13, whiteSpace: "nowrap" }}>
-            <thead>
-              <tr style={{ background: "#fafafa", borderBottom: "2px solid #e5e7eb", color: "#6b7280", fontWeight: 700, fontSize: 11, textTransform: "uppercase" }}>
-                <th style={{ padding: "12px 16px", width: 50 }}>No.</th>
-                <th style={{ padding: "12px 16px", width: 110 }}>Tanggal</th>
-                <th style={{ padding: "12px 16px", width: 140 }}>Ref No / Tipe</th>
-                <th style={{ padding: "12px 16px" }}>Posisi Akun & Keterangan Jurnal</th>
-                <th style={{ padding: "12px 16px", textAlign: "right", width: 140, color: "#15803d" }}>Debit (Rp)</th>
-                <th style={{ padding: "12px 16px", textAlign: "right", width: 140, color: "#b91c1c" }}>Kredit (Rp)</th>
-                <th style={{ padding: "12px 16px", textAlign: "center", width: 140 }}>Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
-                    Memuat entri buku jurnal...
-                  </td>
+            <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 13, whiteSpace: "nowrap" }}>
+              <thead>
+                <tr style={{ background: "#fafafa", borderBottom: "2px solid #e5e7eb", color: "#6b7280", fontWeight: 700, fontSize: 11, textTransform: "uppercase" }}>
+                  <th style={{ padding: "12px 16px", width: 50 }}>No.</th>
+                  <th style={{ padding: "12px 16px", width: 110 }}>Tanggal</th>
+                  <th style={{ padding: "12px 16px", width: 140 }}>Ref No / Tipe</th>
+                  <th style={{ padding: "12px 16px" }}>Posisi Akun & Keterangan Jurnal</th>
+                  <th style={{ padding: "12px 16px", textAlign: "right", width: 140, color: "#15803d" }}>Debit (Rp)</th>
+                  <th style={{ padding: "12px 16px", textAlign: "right", width: 140, color: "#b91c1c" }}>Kredit (Rp)</th>
+                  <th style={{ padding: "12px 16px", textAlign: "center", width: 140 }}>Aksi</th>
                 </tr>
-              ) : journals.length === 0 ? (
-                <tr>
-                  <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
-                    Belum ada entri jurnal tercatat.
-                  </td>
-                </tr>
-              ) : (
-                journals.slice((jouPage - 1) * jouLimit, jouPage * jouLimit).map((j, idx) => {
-                  const itemNo = (jouPage - 1) * jouLimit + idx + 1;
-                  const isCancelled = j.status === "dibatalkan";
-                  return (
-                    <Fragment key={j.id}>
-                      {/* BARIS 1: ENTRI DEBIT */}
-                      <tr style={{ borderTop: idx > 0 ? "2px solid #e5e7eb" : "none", background: isCancelled ? "#fffbfa" : "#ffffff", opacity: isCancelled ? 0.78 : 1 }}>
-                        <td rowSpan={2} style={{ padding: "12px 16px", verticalAlign: "top", color: "#6b7280", fontWeight: 600, borderRight: "1px solid #f3f4f6" }}>
-                          {itemNo}
-                        </td>
-                        <td rowSpan={2} style={{ padding: "12px 16px", verticalAlign: "top", fontWeight: 600, color: "#374151", borderRight: "1px solid #f3f4f6" }}>
-                          <div>{formatDate(j.journal_date)}</div>
-                          {isCancelled && (
-                            <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 6px", borderRadius: 4, background: "#fee2e2", color: "#b91c1c", display: "inline-block", marginTop: 4 }}>
-                              DIBATALKAN
-                            </span>
-                          )}
-                        </td>
-                        <td rowSpan={2} style={{ padding: "12px 16px", verticalAlign: "top", borderRight: "1px solid #f3f4f6" }}>
-                          <p style={{ fontFamily: "monospace", fontWeight: 700, color: isCancelled ? "#9ca3af" : "#5005A6", textDecoration: isCancelled ? "line-through" : "none", margin: 0 }}>
-                            {j.ref_no || `JRNL-${j.id}`}
-                          </p>
-                          <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>
-                            <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 4, background: "#f3f4f6", color: "#4b5563", textTransform: "uppercase" }}>
-                              {j.ref_type || "umum"}
-                            </span>
-                          </div>
-                        </td>
-                        {/* Status & Nama Akun Debit */}
-                        <td style={{ padding: "10px 16px 4px 16px" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <span style={{ fontWeight: 700, color: isCancelled ? "#6b7280" : "#15803d", fontSize: 13, textDecoration: isCancelled ? "line-through" : "none" }}>
-                              [{j.debit_kode}] {j.debit_nama}
-                            </span>
-                            <span style={{ background: isCancelled ? "#f3f4f6" : "#dcfce7", color: isCancelled ? "#6b7280" : "#15803d", fontSize: 10, fontWeight: 800, padding: "1px 6px", borderRadius: 4 }}>
-                              DEBIT
-                            </span>
-                          </div>
-                        </td>
-                        {/* Nominal Debit */}
-                        <td style={{ padding: "10px 16px 4px 16px", textAlign: "right", fontWeight: 800, color: isCancelled ? "#9ca3af" : "#15803d", textDecoration: isCancelled ? "line-through" : "none" }}>
-                          Rp {Number(j.nominal).toLocaleString("id-ID")}
-                        </td>
-                        {/* Column Kredit (-) */}
-                        <td style={{ padding: "10px 16px 4px 16px", textAlign: "right", color: "#9ca3af" }}>
-                          -
-                        </td>
-                        {/* Aksi Edit & Batal */}
-                        <td rowSpan={2} style={{ padding: "12px 16px", verticalAlign: "top", textAlign: "center", borderLeft: "1px solid #f3f4f6" }}>
-                          <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "center" }}>
-                            {!isCancelled ? (
-                              <>
-                                <button
-                                  onClick={() => handleOpenEditJournal(j)}
-                                  title="Edit Jurnal Umum"
-                                  style={{
-                                    padding: "5px 10px",
-                                    background: "#eff6ff",
-                                    color: "#2563eb",
-                                    border: "1px solid #bfdbfe",
-                                    borderRadius: 6,
-                                    fontSize: 12,
-                                    fontWeight: 700,
-                                    cursor: "pointer",
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    gap: 4,
-                                    width: "100%",
-                                    justifyContent: "center",
-                                  }}
-                                >
-                                  <Edit3 size={12} /> Edit
-                                </button>
-                                <button
-                                  onClick={() => handleOpenCancelJournal(j)}
-                                  title="Batalkan Jurnal Umum"
-                                  style={{
-                                    padding: "5px 10px",
-                                    background: "#fef2f2",
-                                    color: "#dc2626",
-                                    border: "1px solid #fecaca",
-                                    borderRadius: 6,
-                                    fontSize: 12,
-                                    fontWeight: 700,
-                                    cursor: "pointer",
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    gap: 4,
-                                    width: "100%",
-                                    justifyContent: "center",
-                                  }}
-                                >
-                                  <Trash2 size={12} /> Batal
-                                </button>
-                              </>
-                            ) : (
-                              <span style={{ fontSize: 11, color: "#9ca3af", fontStyle: "italic", fontWeight: 600 }}>
-                                Dibatalkan
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                      Memuat entri buku jurnal...
+                    </td>
+                  </tr>
+                ) : journals.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                      Belum ada entri jurnal tercatat.
+                    </td>
+                  </tr>
+                ) : (
+                  journals.slice((jouPage - 1) * jouLimit, jouPage * jouLimit).map((j, idx) => {
+                    const itemNo = (jouPage - 1) * jouLimit + idx + 1;
+                    const isCancelled = j.status === "dibatalkan";
+                    return (
+                      <Fragment key={j.id}>
+                        {/* BARIS 1: ENTRI DEBIT */}
+                        <tr style={{ borderTop: idx > 0 ? "2px solid #e5e7eb" : "none", background: isCancelled ? "#fffbfa" : "#ffffff", opacity: isCancelled ? 0.78 : 1 }}>
+                          <td rowSpan={2} style={{ padding: "12px 16px", verticalAlign: "top", color: "#6b7280", fontWeight: 600, borderRight: "1px solid #f3f4f6" }}>
+                            {itemNo}
+                          </td>
+                          <td rowSpan={2} style={{ padding: "12px 16px", verticalAlign: "top", fontWeight: 600, color: "#374151", borderRight: "1px solid #f3f4f6" }}>
+                            <div>{formatDate(j.journal_date)}</div>
+                            {isCancelled && (
+                              <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 6px", borderRadius: 4, background: "#fee2e2", color: "#b91c1c", display: "inline-block", marginTop: 4 }}>
+                                DIBATALKAN
                               </span>
                             )}
-                          </div>
-                        </td>
-                      </tr>
-
-                      {/* BARIS 2: ENTRI KREDIT (MENYOROK KE DALAM) */}
-                      <tr style={{ background: isCancelled ? "#fff8f7" : "#fafafa", opacity: isCancelled ? 0.78 : 1 }}>
-                        {/* Status & Nama Akun Kredit */}
-                        <td style={{ padding: "4px 16px 10px 36px" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <span style={{ fontWeight: 700, color: isCancelled ? "#6b7280" : "#b91c1c", fontSize: 13, textDecoration: isCancelled ? "line-through" : "none" }}>
-                              [{j.kredit_kode}] {j.kredit_nama}
-                            </span>
-                            <span style={{ background: isCancelled ? "#f3f4f6" : "#fee2e2", color: isCancelled ? "#6b7280" : "#b91c1c", fontSize: 10, fontWeight: 800, padding: "1px 6px", borderRadius: 4 }}>
-                              KREDIT
-                            </span>
-                          </div>
-                          <p style={{ margin: "4px 0 0", fontSize: 11, color: "#6b7280", fontStyle: "italic" }}>
-                            Keterangan: {j.keterangan || "-"}
-                          </p>
-                          {isCancelled && j.cancel_reason && (
-                            <div style={{ marginTop: 6, background: "#fef2f2", border: "1px solid #fee2e2", borderRadius: 6, padding: "4px 8px", fontSize: 11, color: "#b91c1c" }}>
-                              <strong>Alasan Batal:</strong> &ldquo;{j.cancel_reason}&rdquo;
+                          </td>
+                          <td rowSpan={2} style={{ padding: "12px 16px", verticalAlign: "top", borderRight: "1px solid #f3f4f6" }}>
+                            <p style={{ fontFamily: "monospace", fontWeight: 700, color: isCancelled ? "#9ca3af" : "#5005A6", textDecoration: isCancelled ? "line-through" : "none", margin: 0 }}>
+                              {j.ref_no || `JRNL-${j.id}`}
+                            </p>
+                            <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>
+                              <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 4, background: "#f3f4f6", color: "#4b5563", textTransform: "uppercase" }}>
+                                {j.ref_type || "umum"}
+                              </span>
                             </div>
-                          )}
-                        </td>
-                        {/* Column Debit (-) */}
-                        <td style={{ padding: "4px 16px 10px 16px", textAlign: "right", color: "#9ca3af" }}>
-                          -
-                        </td>
-                        {/* Nominal Kredit */}
-                        <td style={{ padding: "4px 16px 10px 16px", textAlign: "right", fontWeight: 800, color: isCancelled ? "#9ca3af" : "#b91c1c", textDecoration: isCancelled ? "line-through" : "none" }}>
-                          Rp {Number(j.nominal).toLocaleString("id-ID")}
-                        </td>
-                      </tr>
-                    </Fragment>
-                  );
-                })
-              )}
-            </tbody>
-            {journals.length > 0 && (
-              <tfoot>
-                <tr style={{ background: "#f8fafc", borderTop: "2px solid #e5e7eb", fontWeight: 800 }}>
-                  <td colSpan={4} style={{ padding: "12px 16px", textAlign: "right", color: "#374151" }}>
-                    TOTAL BUKU JURNAL AKTIF SEIMBANG (BALANCED):
-                  </td>
-                  <td style={{ padding: "12px 16px", textAlign: "right", color: "#15803d", fontSize: 14 }}>
-                    Rp {journals.filter(j => j.status !== "dibatalkan").reduce((sum, j) => sum + Number(j.nominal || 0), 0).toLocaleString("id-ID")}
-                  </td>
-                  <td style={{ padding: "12px 16px", textAlign: "right", color: "#b91c1c", fontSize: 14 }}>
-                    Rp {journals.filter(j => j.status !== "dibatalkan").reduce((sum, j) => sum + Number(j.nominal || 0), 0).toLocaleString("id-ID")}
-                  </td>
-                  <td></td>
-                </tr>
-              </tfoot>
-            )}
-          </table>
+                          </td>
+                          {/* Status & Nama Akun Debit */}
+                          <td style={{ padding: "10px 16px 4px 16px" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{ fontWeight: 700, color: isCancelled ? "#6b7280" : "#15803d", fontSize: 13, textDecoration: isCancelled ? "line-through" : "none" }}>
+                                [{j.debit_kode}] {j.debit_nama}
+                              </span>
+                              <span style={{ background: isCancelled ? "#f3f4f6" : "#dcfce7", color: isCancelled ? "#6b7280" : "#15803d", fontSize: 10, fontWeight: 800, padding: "1px 6px", borderRadius: 4 }}>
+                                DEBIT
+                              </span>
+                            </div>
+                          </td>
+                          {/* Nominal Debit */}
+                          <td style={{ padding: "10px 16px 4px 16px", textAlign: "right", fontWeight: 800, color: isCancelled ? "#9ca3af" : "#15803d", textDecoration: isCancelled ? "line-through" : "none" }}>
+                            Rp {Number(j.nominal).toLocaleString("id-ID")}
+                          </td>
+                          {/* Column Kredit (-) */}
+                          <td style={{ padding: "10px 16px 4px 16px", textAlign: "right", color: "#9ca3af" }}>
+                            -
+                          </td>
+                          {/* Aksi Edit & Batal */}
+                          <td rowSpan={2} style={{ padding: "12px 16px", verticalAlign: "top", textAlign: "center", borderLeft: "1px solid #f3f4f6" }}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "center" }}>
+                              {!isCancelled ? (
+                                <>
+                                  <button
+                                    onClick={() => handleOpenEditJournal(j)}
+                                    title="Edit Jurnal Umum"
+                                    style={{
+                                      padding: "5px 10px",
+                                      background: "#eff6ff",
+                                      color: "#2563eb",
+                                      border: "1px solid #bfdbfe",
+                                      borderRadius: 6,
+                                      fontSize: 12,
+                                      fontWeight: 700,
+                                      cursor: "pointer",
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: 4,
+                                      width: "100%",
+                                      justifyContent: "center",
+                                    }}
+                                  >
+                                    <Edit3 size={12} /> Edit
+                                  </button>
+                                  <button
+                                    onClick={() => handleOpenCancelJournal(j)}
+                                    title="Batalkan Jurnal Umum"
+                                    style={{
+                                      padding: "5px 10px",
+                                      background: "#fef2f2",
+                                      color: "#dc2626",
+                                      border: "1px solid #fecaca",
+                                      borderRadius: 6,
+                                      fontSize: 12,
+                                      fontWeight: 700,
+                                      cursor: "pointer",
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: 4,
+                                      width: "100%",
+                                      justifyContent: "center",
+                                    }}
+                                  >
+                                    <Trash2 size={12} /> Batal
+                                  </button>
+                                </>
+                              ) : (
+                                <span style={{ fontSize: 11, color: "#9ca3af", fontStyle: "italic", fontWeight: 600 }}>
+                                  Dibatalkan
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
 
-          <Pagination
-            page={jouPage}
-            totalPages={Math.ceil(journals.length / jouLimit) || 1}
-            total={journals.length}
-            limit={jouLimit}
-            onChange={(p) => setJouPage(p)}
-            onLimitChange={(lim) => { setJouLimit(lim); setJouPage(1); }}
-          />
+                        {/* BARIS 2: ENTRI KREDIT (MENYOROK KE DALAM) */}
+                        <tr style={{ background: isCancelled ? "#fff8f7" : "#fafafa", opacity: isCancelled ? 0.78 : 1 }}>
+                          {/* Status & Nama Akun Kredit */}
+                          <td style={{ padding: "4px 16px 10px 36px" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{ fontWeight: 700, color: isCancelled ? "#6b7280" : "#b91c1c", fontSize: 13, textDecoration: isCancelled ? "line-through" : "none" }}>
+                                [{j.kredit_kode}] {j.kredit_nama}
+                              </span>
+                              <span style={{ background: isCancelled ? "#f3f4f6" : "#fee2e2", color: isCancelled ? "#6b7280" : "#b91c1c", fontSize: 10, fontWeight: 800, padding: "1px 6px", borderRadius: 4 }}>
+                                KREDIT
+                              </span>
+                            </div>
+                            <p style={{ margin: "4px 0 0", fontSize: 11, color: "#6b7280", fontStyle: "italic" }}>
+                              Keterangan: {j.keterangan || "-"}
+                            </p>
+                            {isCancelled && j.cancel_reason && (
+                              <div style={{ marginTop: 6, background: "#fef2f2", border: "1px solid #fee2e2", borderRadius: 6, padding: "4px 8px", fontSize: 11, color: "#b91c1c" }}>
+                                <strong>Alasan Batal:</strong> &ldquo;{j.cancel_reason}&rdquo;
+                              </div>
+                            )}
+                          </td>
+                          {/* Column Debit (-) */}
+                          <td style={{ padding: "4px 16px 10px 16px", textAlign: "right", color: "#9ca3af" }}>
+                            -
+                          </td>
+                          {/* Nominal Kredit */}
+                          <td style={{ padding: "4px 16px 10px 16px", textAlign: "right", fontWeight: 800, color: isCancelled ? "#9ca3af" : "#b91c1c", textDecoration: isCancelled ? "line-through" : "none" }}>
+                            Rp {Number(j.nominal).toLocaleString("id-ID")}
+                          </td>
+                        </tr>
+                      </Fragment>
+                    );
+                  })
+                )}
+              </tbody>
+              {journals.length > 0 && (
+                <tfoot>
+                  <tr style={{ background: "#f8fafc", borderTop: "2px solid #e5e7eb", fontWeight: 800 }}>
+                    <td colSpan={4} style={{ padding: "12px 16px", textAlign: "right", color: "#374151" }}>
+                      TOTAL BUKU JURNAL AKTIF SEIMBANG (BALANCED):
+                    </td>
+                    <td style={{ padding: "12px 16px", textAlign: "right", color: "#15803d", fontSize: 14 }}>
+                      Rp {journals.filter(j => j.status !== "dibatalkan").reduce((sum, j) => sum + Number(j.nominal || 0), 0).toLocaleString("id-ID")}
+                    </td>
+                    <td style={{ padding: "12px 16px", textAlign: "right", color: "#b91c1c", fontSize: 14 }}>
+                      Rp {journals.filter(j => j.status !== "dibatalkan").reduce((sum, j) => sum + Number(j.nominal || 0), 0).toLocaleString("id-ID")}
+                    </td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+
+            <Pagination
+              page={jouPage}
+              totalPages={Math.ceil(journals.length / jouLimit) || 1}
+              total={journals.length}
+              limit={jouLimit}
+              onChange={(p) => setJouPage(p)}
+              onLimitChange={(lim) => { setJouLimit(lim); setJouPage(1); }}
+            />
+          </div>
         </div>
-      </div>
       )}
 
       {/* ── MODAL: INPUT NOTA HPP ────────────────────────────── */}
@@ -4645,22 +4784,22 @@ export default function SiapSajiFinancePage() {
                                   c.kelompok === "Aset"
                                     ? "#eff6ff"
                                     : c.kelompok === "Liabilitas"
-                                    ? "#fef2f2"
-                                    : c.kelompok === "Ekuitas"
-                                    ? "#f0fdf4"
-                                    : c.kelompok === "Pendapatan"
-                                    ? "#fdf4ff"
-                                    : "#fff7ed",
+                                      ? "#fef2f2"
+                                      : c.kelompok === "Ekuitas"
+                                        ? "#f0fdf4"
+                                        : c.kelompok === "Pendapatan"
+                                          ? "#fdf4ff"
+                                          : "#fff7ed",
                                 color:
                                   c.kelompok === "Aset"
                                     ? "#1d4ed8"
                                     : c.kelompok === "Liabilitas"
-                                    ? "#b91c1c"
-                                    : c.kelompok === "Ekuitas"
-                                    ? "#15803d"
-                                    : c.kelompok === "Pendapatan"
-                                    ? "#b10fbd"
-                                    : "#c2410c",
+                                      ? "#b91c1c"
+                                      : c.kelompok === "Ekuitas"
+                                        ? "#15803d"
+                                        : c.kelompok === "Pendapatan"
+                                          ? "#b10fbd"
+                                          : "#c2410c",
                               }}
                             >
                               {c.kelompok}
@@ -4934,229 +5073,118 @@ export default function SiapSajiFinancePage() {
           ) : (
             <>
               {/* Summary Scorecards */}
-          {(() => {
-            const asetRows = neracaData.filter((r) => r.kelompok === "Aset");
-            const liabRows = neracaData.filter((r) => r.kelompok === "Liabilitas");
-            const ekuitasRows = neracaData.filter((r) => r.kelompok === "Ekuitas");
-            const pendRows = neracaData.filter((r) => r.kelompok === "Pendapatan");
-            const bebanRows = neracaData.filter((r) => r.kelompok === "Beban");
+              {(() => {
+                const asetRows = neracaData.filter((r) => r.kelompok === "Aset");
+                const liabRows = neracaData.filter((r) => r.kelompok === "Liabilitas");
+                const ekuitasRows = neracaData.filter((r) => r.kelompok === "Ekuitas");
+                const pendRows = neracaData.filter((r) => r.kelompok === "Pendapatan");
+                const bebanRows = neracaData.filter((r) => r.kelompok === "Beban");
 
-            const totalAset = asetRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0);
-            const totalLiabilitas = Math.abs(liabRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0));
-            const totalEkuitasAwal = Math.abs(ekuitasRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0));
-            const totalPendapatan = Math.abs(pendRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0));
-            const totalBeban = bebanRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0);
-            const labaBerjalan = totalPendapatan - totalBeban;
-            const totalEkuitasTotal = totalEkuitasAwal + labaBerjalan;
-            const totalPassiva = totalLiabilitas + totalEkuitasTotal;
+                const totalAset = asetRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0);
+                const totalLiabilitas = Math.abs(liabRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0));
+                const totalEkuitasAwal = Math.abs(ekuitasRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0));
+                const totalPendapatan = Math.abs(pendRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0));
+                const totalBeban = bebanRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0);
+                const labaBerjalan = totalPendapatan - totalBeban;
+                const totalEkuitasTotal = totalEkuitasAwal + labaBerjalan;
+                const totalPassiva = totalLiabilitas + totalEkuitasTotal;
 
-            const isBalanced = Math.abs(totalAset - totalPassiva) < 1;
+                const isBalanced = Math.abs(totalAset - totalPassiva) < 1;
 
-            return (
-              <>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16, marginBottom: 20 }}>
-                  <div style={{ background: "white", borderRadius: 12, padding: "16px 20px", border: "1px solid #e5e7eb" }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: "#1d4ed8", textTransform: "uppercase" }}>🔷 Total Aktiva (Aset)</span>
-                    <div style={{ fontSize: 22, fontWeight: 900, color: "#1e3a8a", marginTop: 4 }}>
-                      Rp{totalAset.toLocaleString("id-ID")}
-                    </div>
-                  </div>
-
-                  <div style={{ background: "white", borderRadius: 12, padding: "16px 20px", border: "1px solid #e5e7eb" }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: "#b91c1c", textTransform: "uppercase" }}>🔴 Total Liabilitas (Utang)</span>
-                    <div style={{ fontSize: 22, fontWeight: 900, color: "#991b1b", marginTop: 4 }}>
-                      Rp{totalLiabilitas.toLocaleString("id-ID")}
-                    </div>
-                  </div>
-
-                  <div style={{ background: "white", borderRadius: 12, padding: "16px 20px", border: "1px solid #e5e7eb" }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: "#15803d", textTransform: "uppercase" }}>🟢 Total Ekuitas (Modal & Laba)</span>
-                    <div style={{ fontSize: 22, fontWeight: 900, color: "#166534", marginTop: 4 }}>
-                      Rp{totalEkuitasTotal.toLocaleString("id-ID")}
-                    </div>
-                  </div>
-
-                  <div style={{ background: "white", borderRadius: 12, padding: "16px 20px", border: "1px solid #e5e7eb" }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: "#6b7280", textTransform: "uppercase" }}>⚖️ Status Neraca</span>
-                    <div style={{ fontSize: 18, fontWeight: 800, color: isBalanced ? "#16a34a" : "#dc2626", marginTop: 4 }}>
-                      {isBalanced ? "BALANCED (Seimbang)" : "TIDAK SEIMBANG"}
-                    </div>
-                  </div>
-                </div>
-
-                {/* ── VERTICAL HIERARCHICAL BALANCE SHEET (FORMAT AKUNTANSI STANDAR ATAS-BAWAH) ── */}
-                {(() => {
-                  // Aset sub-categories
-                  const kasBankRows = asetRows.filter((r) => r.kode_akun.startsWith("1-1001") || r.kode_akun.startsWith("1-1002") || r.kode_akun.startsWith("1-1003") || r.nama_akun.toLowerCase().includes("kas") || r.nama_akun.toLowerCase().includes("bank"));
-                  const asetLancarLainRows = asetRows.filter((r) => (r.sub_kelompok === "Aset Lancar" || !r.sub_kelompok) && !kasBankRows.includes(r));
-                  const asetTetapRows = asetRows.filter((r) => r.sub_kelompok === "Aset Tetap");
-                  const asetLainnyaRows = asetRows.filter((r) => r.sub_kelompok === "Aset Lainnya");
-
-                  const totalKasBank = kasBankRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0);
-                  const totalAsetLancarLain = asetLancarLainRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0);
-                  const totalAsetLancar = totalKasBank + totalAsetLancarLain;
-                  const totalAsetTetap = asetTetapRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0);
-                  const totalAsetLainnya = asetLainnyaRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0);
-
-                  // Liabilitas sub-categories
-                  const liabLancarRows = liabRows.filter((r) => r.sub_kelompok === "Liabilitas Lancar" || !r.sub_kelompok);
-                  const liabJangkaPanjangRows = liabRows.filter((r) => r.sub_kelompok === "Liabilitas Jangka Panjang");
-                  const totalLiabLancar = Math.abs(liabLancarRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0));
-                  const totalLiabJangkaPanjang = Math.abs(liabJangkaPanjangRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0));
-
-                  const cutoffDisplay = neracaDateTo
-                    ? new Date(neracaDateTo).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })
-                    : "Semua Waktu (Kumulatif)";
-
-                  return (
-                    <div style={{ background: "white", borderRadius: 14, border: "1px solid #e5e7eb", padding: "24px 28px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
-                      <div style={{ textAlign: "center", borderBottom: "2px solid #e5e7eb", paddingBottom: 16, marginBottom: 20 }}>
-                        <h2 style={{ fontSize: 18, fontWeight: 900, color: "#111827", margin: 0, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                          NERACA KEUANGAN (BALANCE SHEET)
-                        </h2>
-                        <p style={{ fontSize: 13, color: "#4b5563", margin: "4px 0 0", fontWeight: 600 }}>
-                          SIAP SAJI — DYUMMY CATERING
-                        </p>
-                        <p style={{ fontSize: 12, color: "#9ca3af", margin: "2px 0 0" }}>
-                          Per Tanggal: {cutoffDisplay} | Mata Uang: Rupiah (IDR)
-                        </p>
+                return (
+                  <>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16, marginBottom: 20 }}>
+                      <div style={{ background: "white", borderRadius: 12, padding: "16px 20px", border: "1px solid #e5e7eb" }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: "#1d4ed8", textTransform: "uppercase" }}>🔷 Total Aktiva (Aset)</span>
+                        <div style={{ fontSize: 22, fontWeight: 900, color: "#1e3a8a", marginTop: 4 }}>
+                          Rp{totalAset.toLocaleString("id-ID")}
+                        </div>
                       </div>
 
-                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                        <thead>
-                          <tr style={{ borderBottom: "2px solid #111827", color: "#1e3a8a", fontWeight: 800 }}>
-                            <th style={{ textAlign: "left", padding: "8px 0", width: "70%" }}>DESKRIPSI AKUN</th>
-                            <th style={{ textAlign: "right", padding: "8px 0", width: "30%" }}>SALDO (RP)</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {/* ═════════════════════════════════════════════════════ */}
-                          {/* 1. BAGIAN ASET (AKTIVA)                              */}
-                          {/* ═════════════════════════════════════════════════════ */}
-                          <tr>
-                            <td colSpan={2} style={{ padding: "16px 0 6px", fontWeight: 900, fontSize: 15, color: "#1e40af", background: "#f8fafc" }}>
-                              ASET
-                            </td>
-                          </tr>
+                      <div style={{ background: "white", borderRadius: 12, padding: "16px 20px", border: "1px solid #e5e7eb" }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: "#b91c1c", textTransform: "uppercase" }}>🔴 Total Liabilitas (Utang)</span>
+                        <div style={{ fontSize: 22, fontWeight: 900, color: "#991b1b", marginTop: 4 }}>
+                          Rp{totalLiabilitas.toLocaleString("id-ID")}
+                        </div>
+                      </div>
 
-                          {/* 1A. Kas & Bank */}
-                          <tr>
-                            <td colSpan={2} style={{ padding: "6px 0 2px 14px", fontWeight: 800, color: "#1f2937" }}>
-                              Kas & Bank
-                            </td>
-                          </tr>
-                          {kasBankRows.map((r) => (
-                            <tr
-                              key={r.kode_akun}
-                              onClick={() => handleOpenDrillModal(r, "", neracaDateTo)}
-                              title={`Klik untuk melihat rincian transaksi (${r.kode_akun}) ${r.nama_akun}`}
-                              style={{ cursor: "pointer", transition: "background 0.15s ease" }}
-                              onMouseEnter={(e) => (e.currentTarget.style.background = "#eff6ff")}
-                              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                            >
-                              <td style={{ padding: "4px 0 4px 28px", color: "#1d4ed8" }}>
-                                <span style={{ fontFamily: "monospace", color: "#3b82f6", marginRight: 8, textDecoration: "underline", textDecorationStyle: "dotted" }}>({r.kode_akun})</span>
-                                <span style={{ textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}>{r.nama_akun}</span>
-                              </td>
-                              <td style={{ textAlign: "right", padding: "4px 0", fontFamily: "monospace", fontWeight: 600 }}>
-                                {Number(r.saldo || 0).toLocaleString("id-ID")}
-                              </td>
-                            </tr>
-                          ))}
-                          <tr>
-                            <td style={{ padding: "4px 0 8px 14px", fontWeight: 700, color: "#1f2937" }}>
-                              Total Kas & Bank
-                            </td>
-                            <td style={{ textAlign: "right", padding: "4px 0 8px 0", fontWeight: 700, borderTop: "1px dashed #cbd5e1", fontFamily: "monospace" }}>
-                              Rp{totalKasBank.toLocaleString("id-ID")}
-                            </td>
-                          </tr>
+                      <div style={{ background: "white", borderRadius: 12, padding: "16px 20px", border: "1px solid #e5e7eb" }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: "#15803d", textTransform: "uppercase" }}>🟢 Total Ekuitas (Modal & Laba)</span>
+                        <div style={{ fontSize: 22, fontWeight: 900, color: "#166534", marginTop: 4 }}>
+                          Rp{totalEkuitasTotal.toLocaleString("id-ID")}
+                        </div>
+                      </div>
 
-                          {/* 1B. Aset Lancar Lainnya (Piutang Usaha, dll) */}
-                          <tr>
-                            <td colSpan={2} style={{ padding: "8px 0 2px 14px", fontWeight: 800, color: "#1f2937" }}>
-                              Aset Lancar Lainnya
-                            </td>
-                          </tr>
-                          {asetLancarLainRows.map((r) => (
-                            <tr
-                              key={r.kode_akun}
-                              onClick={() => handleOpenDrillModal(r, "", neracaDateTo)}
-                              title={`Klik untuk melihat rincian transaksi (${r.kode_akun}) ${r.nama_akun}`}
-                              style={{ cursor: "pointer", transition: "background 0.15s ease" }}
-                              onMouseEnter={(e) => (e.currentTarget.style.background = "#eff6ff")}
-                              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                            >
-                              <td style={{ padding: "4px 0 4px 28px", color: "#1d4ed8" }}>
-                                <span style={{ fontFamily: "monospace", color: "#3b82f6", marginRight: 8, textDecoration: "underline", textDecorationStyle: "dotted" }}>({r.kode_akun})</span>
-                                <span style={{ textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}>{r.nama_akun}</span>
-                              </td>
-                              <td style={{ textAlign: "right", padding: "4px 0", fontFamily: "monospace", fontWeight: 600 }}>
-                                {Number(r.saldo || 0).toLocaleString("id-ID")}
-                              </td>
-                            </tr>
-                          ))}
-                          <tr>
-                            <td style={{ padding: "4px 0 8px 14px", fontWeight: 700, color: "#1f2937" }}>
-                              Total Aset Lancar Lainnya
-                            </td>
-                            <td style={{ textAlign: "right", padding: "4px 0 8px 0", fontWeight: 700, borderTop: "1px dashed #cbd5e1", fontFamily: "monospace" }}>
-                              Rp{totalAsetLancarLain.toLocaleString("id-ID")}
-                            </td>
-                          </tr>
+                      <div style={{ background: "white", borderRadius: 12, padding: "16px 20px", border: "1px solid #e5e7eb" }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: "#6b7280", textTransform: "uppercase" }}>⚖️ Status Neraca</span>
+                        <div style={{ fontSize: 18, fontWeight: 800, color: isBalanced ? "#16a34a" : "#dc2626", marginTop: 4 }}>
+                          {isBalanced ? "BALANCED (Seimbang)" : "TIDAK SEIMBANG"}
+                        </div>
+                      </div>
+                    </div>
 
-                          {/* Subtotal Total Aset Lancar */}
-                          <tr style={{ background: "#f1f5f9" }}>
-                            <td style={{ padding: "8px 0 8px 14px", fontWeight: 800, color: "#0f172a" }}>
-                              JUMLAH ASET LANCAR
-                            </td>
-                            <td style={{ textAlign: "right", padding: "8px 0", fontWeight: 800, color: "#0f172a", fontFamily: "monospace" }}>
-                              Rp{totalAsetLancar.toLocaleString("id-ID")}
-                            </td>
-                          </tr>
+                    {/* ── VERTICAL HIERARCHICAL BALANCE SHEET (FORMAT AKUNTANSI STANDAR ATAS-BAWAH) ── */}
+                    {(() => {
+                      // Aset sub-categories
+                      const kasBankRows = asetRows.filter((r) => r.kode_akun.startsWith("1-1001") || r.kode_akun.startsWith("1-1002") || r.kode_akun.startsWith("1-1003") || r.nama_akun.toLowerCase().includes("kas") || r.nama_akun.toLowerCase().includes("bank"));
+                      const asetLancarLainRows = asetRows.filter((r) => (r.sub_kelompok === "Aset Lancar" || !r.sub_kelompok) && !kasBankRows.includes(r));
+                      const asetTetapRows = asetRows.filter((r) => r.sub_kelompok === "Aset Tetap");
+                      const asetLainnyaRows = asetRows.filter((r) => r.sub_kelompok === "Aset Lainnya");
 
-                          {/* 1C. Aset Tetap */}
-                          <tr>
-                            <td colSpan={2} style={{ padding: "12px 0 2px 14px", fontWeight: 800, color: "#1f2937" }}>
-                              Aset Tetap
-                            </td>
-                          </tr>
-                          {asetTetapRows.map((r) => (
-                            <tr
-                              key={r.kode_akun}
-                              onClick={() => handleOpenDrillModal(r, "", neracaDateTo)}
-                              title={`Klik untuk melihat rincian transaksi (${r.kode_akun}) ${r.nama_akun}`}
-                              style={{ cursor: "pointer", transition: "background 0.15s ease" }}
-                              onMouseEnter={(e) => (e.currentTarget.style.background = "#eff6ff")}
-                              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                            >
-                              <td style={{ padding: "4px 0 4px 28px", color: "#1d4ed8" }}>
-                                <span style={{ fontFamily: "monospace", color: "#3b82f6", marginRight: 8, textDecoration: "underline", textDecorationStyle: "dotted" }}>({r.kode_akun})</span>
-                                <span style={{ textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}>{r.nama_akun}</span>
-                              </td>
-                              <td style={{ textAlign: "right", padding: "4px 0", fontFamily: "monospace", fontWeight: 600 }}>
-                                {Number(r.saldo || 0).toLocaleString("id-ID")}
-                              </td>
-                            </tr>
-                          ))}
-                          <tr>
-                            <td style={{ padding: "4px 0 8px 14px", fontWeight: 700, color: "#1f2937" }}>
-                              Total Aset Tetap
-                            </td>
-                            <td style={{ textAlign: "right", padding: "4px 0 8px 0", fontWeight: 700, borderTop: "1px dashed #cbd5e1", fontFamily: "monospace" }}>
-                              Rp{totalAsetTetap.toLocaleString("id-ID")}
-                            </td>
-                          </tr>
+                      const totalKasBank = kasBankRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0);
+                      const totalAsetLancarLain = asetLancarLainRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0);
+                      const totalAsetLancar = totalKasBank + totalAsetLancarLain;
+                      const totalAsetTetap = asetTetapRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0);
+                      const totalAsetLainnya = asetLainnyaRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0);
 
-                          {/* 1D. Aset Lainnya */}
-                          {asetLainnyaRows.length > 0 && (
-                            <>
+                      // Liabilitas sub-categories
+                      const liabLancarRows = liabRows.filter((r) => r.sub_kelompok === "Liabilitas Lancar" || !r.sub_kelompok);
+                      const liabJangkaPanjangRows = liabRows.filter((r) => r.sub_kelompok === "Liabilitas Jangka Panjang");
+                      const totalLiabLancar = Math.abs(liabLancarRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0));
+                      const totalLiabJangkaPanjang = Math.abs(liabJangkaPanjangRows.reduce((acc, r) => acc + Number(r.saldo || 0), 0));
+
+                      const cutoffDisplay = neracaDateTo
+                        ? new Date(neracaDateTo).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })
+                        : "Semua Waktu (Kumulatif)";
+
+                      return (
+                        <div style={{ background: "white", borderRadius: 14, border: "1px solid #e5e7eb", padding: "24px 28px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+                          <div style={{ textAlign: "center", borderBottom: "2px solid #e5e7eb", paddingBottom: 16, marginBottom: 20 }}>
+                            <h2 style={{ fontSize: 18, fontWeight: 900, color: "#111827", margin: 0, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                              NERACA KEUANGAN (BALANCE SHEET)
+                            </h2>
+                            <p style={{ fontSize: 13, color: "#4b5563", margin: "4px 0 0", fontWeight: 600 }}>
+                              SIAP SAJI — DYUMMY CATERING
+                            </p>
+                            <p style={{ fontSize: 12, color: "#9ca3af", margin: "2px 0 0" }}>
+                              Per Tanggal: {cutoffDisplay} | Mata Uang: Rupiah (IDR)
+                            </p>
+                          </div>
+
+                          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                            <thead>
+                              <tr style={{ borderBottom: "2px solid #111827", color: "#1e3a8a", fontWeight: 800 }}>
+                                <th style={{ textAlign: "left", padding: "8px 0", width: "70%" }}>DESKRIPSI AKUN</th>
+                                <th style={{ textAlign: "right", padding: "8px 0", width: "30%" }}>SALDO (RP)</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {/* ═════════════════════════════════════════════════════ */}
+                              {/* 1. BAGIAN ASET (AKTIVA)                              */}
+                              {/* ═════════════════════════════════════════════════════ */}
                               <tr>
-                                <td colSpan={2} style={{ padding: "8px 0 2px 14px", fontWeight: 800, color: "#1f2937" }}>
-                                  Aset Lainnya
+                                <td colSpan={2} style={{ padding: "16px 0 6px", fontWeight: 900, fontSize: 15, color: "#1e40af", background: "#f8fafc" }}>
+                                  ASET
                                 </td>
                               </tr>
-                              {asetLainnyaRows.map((r) => (
+
+                              {/* 1A. Kas & Bank */}
+                              <tr>
+                                <td colSpan={2} style={{ padding: "6px 0 2px 14px", fontWeight: 800, color: "#1f2937" }}>
+                                  Kas & Bank
+                                </td>
+                              </tr>
+                              {kasBankRows.map((r) => (
                                 <tr
                                   key={r.kode_akun}
                                   onClick={() => handleOpenDrillModal(r, "", neracaDateTo)}
@@ -5176,76 +5204,152 @@ export default function SiapSajiFinancePage() {
                               ))}
                               <tr>
                                 <td style={{ padding: "4px 0 8px 14px", fontWeight: 700, color: "#1f2937" }}>
-                                  Total Aset Lainnya
+                                  Total Kas & Bank
                                 </td>
                                 <td style={{ textAlign: "right", padding: "4px 0 8px 0", fontWeight: 700, borderTop: "1px dashed #cbd5e1", fontFamily: "monospace" }}>
-                                  Rp{totalAsetLainnya.toLocaleString("id-ID")}
+                                  Rp{totalKasBank.toLocaleString("id-ID")}
                                 </td>
                               </tr>
-                            </>
-                          )}
 
-                          {/* TOTAL ASET */}
-                          <tr style={{ background: "#dbeafe", borderTop: "1.5px solid #1e40af", borderBottom: "2px solid #1e40af" }}>
-                            <td style={{ padding: "10px 0 10px 10px", fontWeight: 900, fontSize: 14, color: "#1e3a8a" }}>
-                              TOTAL ASET (AKTIVA)
-                            </td>
-                            <td style={{ textAlign: "right", padding: "10px 10px 10px 0", fontWeight: 900, fontSize: 15, color: "#1e3a8a", fontFamily: "monospace" }}>
-                              Rp{totalAset.toLocaleString("id-ID")}
-                            </td>
-                          </tr>
-
-                          {/* ═════════════════════════════════════════════════════ */}
-                          {/* 2. BAGIAN LIABILITAS & EKUITAS (PASSIVA)             */}
-                          {/* ═════════════════════════════════════════════════════ */}
-                          <tr>
-                            <td colSpan={2} style={{ padding: "24px 0 6px", fontWeight: 900, fontSize: 15, color: "#991b1b", background: "#f8fafc" }}>
-                              LIABILITAS (KEWAJIBAN)
-                            </td>
-                          </tr>
-
-                          {/* 2A. Liabilitas Jangka Pendek / Lancar */}
-                          <tr>
-                            <td colSpan={2} style={{ padding: "6px 0 2px 14px", fontWeight: 800, color: "#1f2937" }}>
-                              Liabilitas Jangka Pendek (Utang Lancar)
-                            </td>
-                          </tr>
-                          {liabLancarRows.map((r) => (
-                            <tr
-                              key={r.kode_akun}
-                              onClick={() => handleOpenDrillModal(r, "", neracaDateTo)}
-                              title={`Klik untuk melihat rincian transaksi (${r.kode_akun}) ${r.nama_akun}`}
-                              style={{ cursor: "pointer", transition: "background 0.15s ease" }}
-                              onMouseEnter={(e) => (e.currentTarget.style.background = "#fef2f2")}
-                              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                            >
-                              <td style={{ padding: "4px 0 4px 28px", color: "#991b1b" }}>
-                                <span style={{ fontFamily: "monospace", color: "#dc2626", marginRight: 8, textDecoration: "underline", textDecorationStyle: "dotted" }}>({r.kode_akun})</span>
-                                <span style={{ textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}>{r.nama_akun}</span>
-                              </td>
-                              <td style={{ textAlign: "right", padding: "4px 0", fontFamily: "monospace", fontWeight: 600 }}>
-                                {Math.abs(Number(r.saldo || 0)).toLocaleString("id-ID")}
-                              </td>
-                            </tr>
-                          ))}
-                          <tr>
-                            <td style={{ padding: "4px 0 8px 14px", fontWeight: 700, color: "#1f2937" }}>
-                              Total Liabilitas Jangka Pendek
-                            </td>
-                            <td style={{ textAlign: "right", padding: "4px 0 8px 0", fontWeight: 700, borderTop: "1px dashed #cbd5e1", fontFamily: "monospace" }}>
-                              Rp{totalLiabLancar.toLocaleString("id-ID")}
-                            </td>
-                          </tr>
-
-                          {/* 2B. Liabilitas Jangka Panjang */}
-                          {liabJangkaPanjangRows.length > 0 && (
-                            <>
+                              {/* 1B. Aset Lancar Lainnya (Piutang Usaha, dll) */}
                               <tr>
                                 <td colSpan={2} style={{ padding: "8px 0 2px 14px", fontWeight: 800, color: "#1f2937" }}>
-                                  Liabilitas Jangka Panjang
+                                  Aset Lancar Lainnya
                                 </td>
                               </tr>
-                              {liabJangkaPanjangRows.map((r) => (
+                              {asetLancarLainRows.map((r) => (
+                                <tr
+                                  key={r.kode_akun}
+                                  onClick={() => handleOpenDrillModal(r, "", neracaDateTo)}
+                                  title={`Klik untuk melihat rincian transaksi (${r.kode_akun}) ${r.nama_akun}`}
+                                  style={{ cursor: "pointer", transition: "background 0.15s ease" }}
+                                  onMouseEnter={(e) => (e.currentTarget.style.background = "#eff6ff")}
+                                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                                >
+                                  <td style={{ padding: "4px 0 4px 28px", color: "#1d4ed8" }}>
+                                    <span style={{ fontFamily: "monospace", color: "#3b82f6", marginRight: 8, textDecoration: "underline", textDecorationStyle: "dotted" }}>({r.kode_akun})</span>
+                                    <span style={{ textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}>{r.nama_akun}</span>
+                                  </td>
+                                  <td style={{ textAlign: "right", padding: "4px 0", fontFamily: "monospace", fontWeight: 600 }}>
+                                    {Number(r.saldo || 0).toLocaleString("id-ID")}
+                                  </td>
+                                </tr>
+                              ))}
+                              <tr>
+                                <td style={{ padding: "4px 0 8px 14px", fontWeight: 700, color: "#1f2937" }}>
+                                  Total Aset Lancar Lainnya
+                                </td>
+                                <td style={{ textAlign: "right", padding: "4px 0 8px 0", fontWeight: 700, borderTop: "1px dashed #cbd5e1", fontFamily: "monospace" }}>
+                                  Rp{totalAsetLancarLain.toLocaleString("id-ID")}
+                                </td>
+                              </tr>
+
+                              {/* Subtotal Total Aset Lancar */}
+                              <tr style={{ background: "#f1f5f9" }}>
+                                <td style={{ padding: "8px 0 8px 14px", fontWeight: 800, color: "#0f172a" }}>
+                                  JUMLAH ASET LANCAR
+                                </td>
+                                <td style={{ textAlign: "right", padding: "8px 0", fontWeight: 800, color: "#0f172a", fontFamily: "monospace" }}>
+                                  Rp{totalAsetLancar.toLocaleString("id-ID")}
+                                </td>
+                              </tr>
+
+                              {/* 1C. Aset Tetap */}
+                              <tr>
+                                <td colSpan={2} style={{ padding: "12px 0 2px 14px", fontWeight: 800, color: "#1f2937" }}>
+                                  Aset Tetap
+                                </td>
+                              </tr>
+                              {asetTetapRows.map((r) => (
+                                <tr
+                                  key={r.kode_akun}
+                                  onClick={() => handleOpenDrillModal(r, "", neracaDateTo)}
+                                  title={`Klik untuk melihat rincian transaksi (${r.kode_akun}) ${r.nama_akun}`}
+                                  style={{ cursor: "pointer", transition: "background 0.15s ease" }}
+                                  onMouseEnter={(e) => (e.currentTarget.style.background = "#eff6ff")}
+                                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                                >
+                                  <td style={{ padding: "4px 0 4px 28px", color: "#1d4ed8" }}>
+                                    <span style={{ fontFamily: "monospace", color: "#3b82f6", marginRight: 8, textDecoration: "underline", textDecorationStyle: "dotted" }}>({r.kode_akun})</span>
+                                    <span style={{ textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}>{r.nama_akun}</span>
+                                  </td>
+                                  <td style={{ textAlign: "right", padding: "4px 0", fontFamily: "monospace", fontWeight: 600 }}>
+                                    {Number(r.saldo || 0).toLocaleString("id-ID")}
+                                  </td>
+                                </tr>
+                              ))}
+                              <tr>
+                                <td style={{ padding: "4px 0 8px 14px", fontWeight: 700, color: "#1f2937" }}>
+                                  Total Aset Tetap
+                                </td>
+                                <td style={{ textAlign: "right", padding: "4px 0 8px 0", fontWeight: 700, borderTop: "1px dashed #cbd5e1", fontFamily: "monospace" }}>
+                                  Rp{totalAsetTetap.toLocaleString("id-ID")}
+                                </td>
+                              </tr>
+
+                              {/* 1D. Aset Lainnya */}
+                              {asetLainnyaRows.length > 0 && (
+                                <>
+                                  <tr>
+                                    <td colSpan={2} style={{ padding: "8px 0 2px 14px", fontWeight: 800, color: "#1f2937" }}>
+                                      Aset Lainnya
+                                    </td>
+                                  </tr>
+                                  {asetLainnyaRows.map((r) => (
+                                    <tr
+                                      key={r.kode_akun}
+                                      onClick={() => handleOpenDrillModal(r, "", neracaDateTo)}
+                                      title={`Klik untuk melihat rincian transaksi (${r.kode_akun}) ${r.nama_akun}`}
+                                      style={{ cursor: "pointer", transition: "background 0.15s ease" }}
+                                      onMouseEnter={(e) => (e.currentTarget.style.background = "#eff6ff")}
+                                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                                    >
+                                      <td style={{ padding: "4px 0 4px 28px", color: "#1d4ed8" }}>
+                                        <span style={{ fontFamily: "monospace", color: "#3b82f6", marginRight: 8, textDecoration: "underline", textDecorationStyle: "dotted" }}>({r.kode_akun})</span>
+                                        <span style={{ textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}>{r.nama_akun}</span>
+                                      </td>
+                                      <td style={{ textAlign: "right", padding: "4px 0", fontFamily: "monospace", fontWeight: 600 }}>
+                                        {Number(r.saldo || 0).toLocaleString("id-ID")}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                  <tr>
+                                    <td style={{ padding: "4px 0 8px 14px", fontWeight: 700, color: "#1f2937" }}>
+                                      Total Aset Lainnya
+                                    </td>
+                                    <td style={{ textAlign: "right", padding: "4px 0 8px 0", fontWeight: 700, borderTop: "1px dashed #cbd5e1", fontFamily: "monospace" }}>
+                                      Rp{totalAsetLainnya.toLocaleString("id-ID")}
+                                    </td>
+                                  </tr>
+                                </>
+                              )}
+
+                              {/* TOTAL ASET */}
+                              <tr style={{ background: "#dbeafe", borderTop: "1.5px solid #1e40af", borderBottom: "2px solid #1e40af" }}>
+                                <td style={{ padding: "10px 0 10px 10px", fontWeight: 900, fontSize: 14, color: "#1e3a8a" }}>
+                                  TOTAL ASET (AKTIVA)
+                                </td>
+                                <td style={{ textAlign: "right", padding: "10px 10px 10px 0", fontWeight: 900, fontSize: 15, color: "#1e3a8a", fontFamily: "monospace" }}>
+                                  Rp{totalAset.toLocaleString("id-ID")}
+                                </td>
+                              </tr>
+
+                              {/* ═════════════════════════════════════════════════════ */}
+                              {/* 2. BAGIAN LIABILITAS & EKUITAS (PASSIVA)             */}
+                              {/* ═════════════════════════════════════════════════════ */}
+                              <tr>
+                                <td colSpan={2} style={{ padding: "24px 0 6px", fontWeight: 900, fontSize: 15, color: "#991b1b", background: "#f8fafc" }}>
+                                  LIABILITAS (KEWAJIBAN)
+                                </td>
+                              </tr>
+
+                              {/* 2A. Liabilitas Jangka Pendek / Lancar */}
+                              <tr>
+                                <td colSpan={2} style={{ padding: "6px 0 2px 14px", fontWeight: 800, color: "#1f2937" }}>
+                                  Liabilitas Jangka Pendek (Utang Lancar)
+                                </td>
+                              </tr>
+                              {liabLancarRows.map((r) => (
                                 <tr
                                   key={r.kode_akun}
                                   onClick={() => handleOpenDrillModal(r, "", neracaDateTo)}
@@ -5265,94 +5369,129 @@ export default function SiapSajiFinancePage() {
                               ))}
                               <tr>
                                 <td style={{ padding: "4px 0 8px 14px", fontWeight: 700, color: "#1f2937" }}>
-                                  Total Liabilitas Jangka Panjang
+                                  Total Liabilitas Jangka Pendek
                                 </td>
                                 <td style={{ textAlign: "right", padding: "4px 0 8px 0", fontWeight: 700, borderTop: "1px dashed #cbd5e1", fontFamily: "monospace" }}>
-                                  Rp{totalLiabJangkaPanjang.toLocaleString("id-ID")}
+                                  Rp{totalLiabLancar.toLocaleString("id-ID")}
                                 </td>
                               </tr>
-                            </>
-                          )}
 
-                          {/* Subtotal Jumlah Liabilitas */}
-                          <tr style={{ background: "#fef2f2" }}>
-                            <td style={{ padding: "8px 0 8px 14px", fontWeight: 800, color: "#991b1b" }}>
-                              JUMLAH LIABILITAS
-                            </td>
-                            <td style={{ textAlign: "right", padding: "8px 0", fontWeight: 800, color: "#991b1b", fontFamily: "monospace" }}>
-                              Rp{totalLiabilitas.toLocaleString("id-ID")}
-                            </td>
-                          </tr>
+                              {/* 2B. Liabilitas Jangka Panjang */}
+                              {liabJangkaPanjangRows.length > 0 && (
+                                <>
+                                  <tr>
+                                    <td colSpan={2} style={{ padding: "8px 0 2px 14px", fontWeight: 800, color: "#1f2937" }}>
+                                      Liabilitas Jangka Panjang
+                                    </td>
+                                  </tr>
+                                  {liabJangkaPanjangRows.map((r) => (
+                                    <tr
+                                      key={r.kode_akun}
+                                      onClick={() => handleOpenDrillModal(r, "", neracaDateTo)}
+                                      title={`Klik untuk melihat rincian transaksi (${r.kode_akun}) ${r.nama_akun}`}
+                                      style={{ cursor: "pointer", transition: "background 0.15s ease" }}
+                                      onMouseEnter={(e) => (e.currentTarget.style.background = "#fef2f2")}
+                                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                                    >
+                                      <td style={{ padding: "4px 0 4px 28px", color: "#991b1b" }}>
+                                        <span style={{ fontFamily: "monospace", color: "#dc2626", marginRight: 8, textDecoration: "underline", textDecorationStyle: "dotted" }}>({r.kode_akun})</span>
+                                        <span style={{ textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}>{r.nama_akun}</span>
+                                      </td>
+                                      <td style={{ textAlign: "right", padding: "4px 0", fontFamily: "monospace", fontWeight: 600 }}>
+                                        {Math.abs(Number(r.saldo || 0)).toLocaleString("id-ID")}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                  <tr>
+                                    <td style={{ padding: "4px 0 8px 14px", fontWeight: 700, color: "#1f2937" }}>
+                                      Total Liabilitas Jangka Panjang
+                                    </td>
+                                    <td style={{ textAlign: "right", padding: "4px 0 8px 0", fontWeight: 700, borderTop: "1px dashed #cbd5e1", fontFamily: "monospace" }}>
+                                      Rp{totalLiabJangkaPanjang.toLocaleString("id-ID")}
+                                    </td>
+                                  </tr>
+                                </>
+                              )}
 
-                          {/* ═════════════════════════════════════════════════════ */}
-                          {/* 3. EKUITAS (MODAL)                                  */}
-                          {/* ═════════════════════════════════════════════════════ */}
-                          <tr>
-                            <td colSpan={2} style={{ padding: "20px 0 6px", fontWeight: 900, fontSize: 15, color: "#15803d", background: "#f8fafc" }}>
-                              EKUITAS (MODAL)
-                            </td>
-                          </tr>
-                          {ekuitasRows.map((r) => (
-                            <tr
-                              key={r.kode_akun}
-                              onClick={() => handleOpenDrillModal(r, "", neracaDateTo)}
-                              title={`Klik untuk melihat rincian transaksi (${r.kode_akun}) ${r.nama_akun}`}
-                              style={{ cursor: "pointer", transition: "background 0.15s ease" }}
-                              onMouseEnter={(e) => (e.currentTarget.style.background = "#f0fdf4")}
-                              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                            >
-                              <td style={{ padding: "4px 0 4px 28px", color: "#166534" }}>
-                                <span style={{ fontFamily: "monospace", color: "#15803d", marginRight: 8, textDecoration: "underline", textDecorationStyle: "dotted" }}>({r.kode_akun})</span>
-                                <span style={{ textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}>{r.nama_akun}</span>
-                              </td>
-                              <td style={{ textAlign: "right", padding: "4px 0", fontFamily: "monospace", fontWeight: 600 }}>
-                                {Math.abs(Number(r.saldo || 0)).toLocaleString("id-ID")}
-                              </td>
-                            </tr>
-                          ))}
-                          {/* Laba Bersih Berjalan P&L */}
-                          <tr
-                            onClick={() => setActiveTab("pl")}
-                            title="Klik untuk membuka Laporan Laba/Rugi (P&L)"
-                            style={{ background: "#f0fdf4", cursor: "pointer" }}
-                          >
-                            <td style={{ padding: "5px 0 5px 28px", fontWeight: 700, color: "#15803d" }}>
-                              <span style={{ fontFamily: "monospace", color: "#16a34a", marginRight: 8 }}>(3-2001)</span>
-                              <span style={{ textDecoration: "underline", textDecorationStyle: "dotted" }}>Laba Bersih Berjalan (P&L) ↗</span>
-                            </td>
-                            <td style={{ textAlign: "right", padding: "5px 0", fontWeight: 800, color: "#15803d", fontFamily: "monospace" }}>
-                              Rp{labaBerjalan.toLocaleString("id-ID")}
-                            </td>
-                          </tr>
+                              {/* Subtotal Jumlah Liabilitas */}
+                              <tr style={{ background: "#fef2f2" }}>
+                                <td style={{ padding: "8px 0 8px 14px", fontWeight: 800, color: "#991b1b" }}>
+                                  JUMLAH LIABILITAS
+                                </td>
+                                <td style={{ textAlign: "right", padding: "8px 0", fontWeight: 800, color: "#991b1b", fontFamily: "monospace" }}>
+                                  Rp{totalLiabilitas.toLocaleString("id-ID")}
+                                </td>
+                              </tr>
 
-                          {/* Subtotal Jumlah Ekuitas */}
-                          <tr style={{ background: "#dcfce7" }}>
-                            <td style={{ padding: "8px 0 8px 14px", fontWeight: 800, color: "#166534" }}>
-                              JUMLAH EKUITAS
-                            </td>
-                            <td style={{ textAlign: "right", padding: "8px 0", fontWeight: 800, color: "#166534", fontFamily: "monospace" }}>
-                              Rp{totalEkuitasTotal.toLocaleString("id-ID")}
-                            </td>
-                          </tr>
+                              {/* ═════════════════════════════════════════════════════ */}
+                              {/* 3. EKUITAS (MODAL)                                  */}
+                              {/* ═════════════════════════════════════════════════════ */}
+                              <tr>
+                                <td colSpan={2} style={{ padding: "20px 0 6px", fontWeight: 900, fontSize: 15, color: "#15803d", background: "#f8fafc" }}>
+                                  EKUITAS (MODAL)
+                                </td>
+                              </tr>
+                              {ekuitasRows.map((r) => (
+                                <tr
+                                  key={r.kode_akun}
+                                  onClick={() => handleOpenDrillModal(r, "", neracaDateTo)}
+                                  title={`Klik untuk melihat rincian transaksi (${r.kode_akun}) ${r.nama_akun}`}
+                                  style={{ cursor: "pointer", transition: "background 0.15s ease" }}
+                                  onMouseEnter={(e) => (e.currentTarget.style.background = "#f0fdf4")}
+                                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                                >
+                                  <td style={{ padding: "4px 0 4px 28px", color: "#166534" }}>
+                                    <span style={{ fontFamily: "monospace", color: "#15803d", marginRight: 8, textDecoration: "underline", textDecorationStyle: "dotted" }}>({r.kode_akun})</span>
+                                    <span style={{ textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}>{r.nama_akun}</span>
+                                  </td>
+                                  <td style={{ textAlign: "right", padding: "4px 0", fontFamily: "monospace", fontWeight: 600 }}>
+                                    {Math.abs(Number(r.saldo || 0)).toLocaleString("id-ID")}
+                                  </td>
+                                </tr>
+                              ))}
+                              {/* Laba Bersih Berjalan P&L */}
+                              <tr
+                                onClick={() => setActiveTab("pl")}
+                                title="Klik untuk membuka Laporan Laba/Rugi (P&L)"
+                                style={{ background: "#f0fdf4", cursor: "pointer" }}
+                              >
+                                <td style={{ padding: "5px 0 5px 28px", fontWeight: 700, color: "#15803d" }}>
+                                  <span style={{ fontFamily: "monospace", color: "#16a34a", marginRight: 8 }}>(3-2001)</span>
+                                  <span style={{ textDecoration: "underline", textDecorationStyle: "dotted" }}>Laba Bersih Berjalan (P&L) ↗</span>
+                                </td>
+                                <td style={{ textAlign: "right", padding: "5px 0", fontWeight: 800, color: "#15803d", fontFamily: "monospace" }}>
+                                  Rp{labaBerjalan.toLocaleString("id-ID")}
+                                </td>
+                              </tr>
 
-                          {/* TOTAL LIABILITAS & EKUITAS (PASSIVA) */}
-                          <tr style={{ background: "#fae8ff", borderTop: "1.5px solid #86198f", borderBottom: "2px solid #86198f" }}>
-                            <td style={{ padding: "10px 0 10px 10px", fontWeight: 900, fontSize: 14, color: "#86198f" }}>
-                              TOTAL LIABILITAS & EKUITAS (PASSIVA)
-                            </td>
-                            <td style={{ textAlign: "right", padding: "10px 10px 10px 0", fontWeight: 900, fontSize: 15, color: "#86198f", fontFamily: "monospace" }}>
-                              Rp{totalPassiva.toLocaleString("id-ID")}
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  );
-                })()}
-              </>
-            );
-          })()}
-          </>
+                              {/* Subtotal Jumlah Ekuitas */}
+                              <tr style={{ background: "#dcfce7" }}>
+                                <td style={{ padding: "8px 0 8px 14px", fontWeight: 800, color: "#166534" }}>
+                                  JUMLAH EKUITAS
+                                </td>
+                                <td style={{ textAlign: "right", padding: "8px 0", fontWeight: 800, color: "#166534", fontFamily: "monospace" }}>
+                                  Rp{totalEkuitasTotal.toLocaleString("id-ID")}
+                                </td>
+                              </tr>
+
+                              {/* TOTAL LIABILITAS & EKUITAS (PASSIVA) */}
+                              <tr style={{ background: "#fae8ff", borderTop: "1.5px solid #86198f", borderBottom: "2px solid #86198f" }}>
+                                <td style={{ padding: "10px 0 10px 10px", fontWeight: 900, fontSize: 14, color: "#86198f" }}>
+                                  TOTAL LIABILITAS & EKUITAS (PASSIVA)
+                                </td>
+                                <td style={{ textAlign: "right", padding: "10px 10px 10px 0", fontWeight: 900, fontSize: 15, color: "#86198f", fontFamily: "monospace" }}>
+                                  Rp{totalPassiva.toLocaleString("id-ID")}
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    })()}
+                  </>
+                );
+              })()}
+            </>
           )}
         </div>
       )}
@@ -6088,6 +6227,293 @@ export default function SiapSajiFinancePage() {
         </div>
       )}
 
+      {/* MODAL RIWAYAT MUTASI PER REKENING KAS & BANK */}
+      {historyModalOpen && historyAccount && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 110, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div
+            style={{
+              background: "white",
+              borderRadius: 16,
+              width: "100%",
+              maxWidth: 1000,
+              maxHeight: "92vh",
+              display: "flex",
+              flexDirection: "column",
+              boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)",
+              overflow: "hidden",
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{ padding: "18px 24px", borderBottom: "1.5px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f8fafc" }}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 13, background: "#ede9fe", color: "#5005A6", fontWeight: 800, padding: "3px 10px", borderRadius: 6 }}>
+                    {historyAccount.nama_bank || (historyAccount.jenis === "Kas" ? "KAS TUNAI" : "BANK")}
+                  </span>
+                  <h3 style={{ fontSize: 18, fontWeight: 900, color: "#111827", margin: 0 }}>
+                    {historyAccount.nama_rekening}
+                  </h3>
+                  {historyAccount.no_rekening && (
+                    <span style={{ fontSize: 12, color: "#6b7280", fontFamily: "monospace", background: "#e2e8f0", padding: "2px 8px", borderRadius: 4 }}>
+                      {historyAccount.no_rekening}
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 6, fontSize: 12.5, color: "#4b5563", flexWrap: "wrap" }}>
+                  <span>Saldo Saat Ini: <strong style={{ color: "#5005A6" }}>Rp {Number(historyAccount.saldo_kini || 0).toLocaleString("id-ID")}</strong></span>
+                  <span>&bull;</span>
+                  <span>Total Masuk: <strong style={{ color: "#16a34a" }}>+Rp {historyTotalMasuk.toLocaleString("id-ID")}</strong></span>
+                  <span>&bull;</span>
+                  <span>Total Keluar: <strong style={{ color: "#dc2626" }}>-Rp {historyTotalKeluar.toLocaleString("id-ID")}</strong></span>
+                  <span>&bull;</span>
+                  <span>Total Transaksi: <strong>{historyTotal}</strong></span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setHistoryModalOpen(false)}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280", padding: 6, borderRadius: 6 }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Filter Toolbar */}
+            <div style={{ padding: "12px 24px", borderBottom: "1px solid #f1f5f9", background: "white", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", flex: "1 1 360px" }}>
+                {/* Search Input */}
+                <div style={{ position: "relative", flex: "1 1 200px" }}>
+                  <Search size={15} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
+                  <input
+                    type="text"
+                    placeholder="Cari keterangan, ref, nominal..."
+                    value={historySearch}
+                    onChange={(e) => setHistorySearch(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        setHistoryPage(1);
+                        fetchAccountHistory(historyAccount.id, historyDateFrom, historyDateTo, historySearch, historyJenis, 1, historyLimit);
+                      }
+                    }}
+                    style={{ width: "100%", padding: "6px 10px 6px 32px", borderRadius: 7, border: "1px solid #d1d5db", fontSize: 12.5, outline: "none" }}
+                  />
+                </div>
+
+                {/* Filter Jenis Mutasi */}
+                <select
+                  value={historyJenis}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setHistoryJenis(val);
+                    setHistoryPage(1);
+                    fetchAccountHistory(historyAccount.id, historyDateFrom, historyDateTo, historySearch, val, 1, historyLimit);
+                  }}
+                  style={{ padding: "6px 10px", borderRadius: 7, border: "1px solid #d1d5db", fontSize: 12.5, background: "white", outline: "none" }}
+                >
+                  <option value="">Semua Mutasi</option>
+                  <option value="Masuk">Masuk</option>
+                  <option value="Keluar">Keluar</option>
+                </select>
+
+                {/* Filter Date Range (Default MTD) */}
+                <div style={{ display: "flex", alignItems: "center", gap: 5, background: "#f9fafb", padding: "3px 8px", borderRadius: 7, border: "1px solid #d1d5db" }}>
+                  <span style={{ fontSize: 11.5, color: "#6b7280", fontWeight: 600 }}>Periode:</span>
+                  <input
+                    type="date"
+                    value={historyDateFrom}
+                    onChange={(e) => setHistoryDateFrom(e.target.value)}
+                    style={{ padding: "3px 6px", borderRadius: 5, border: "1px solid #d1d5db", fontSize: 11.5, outline: "none" }}
+                  />
+                  <span style={{ fontSize: 11.5, color: "#6b7280" }}>s/d</span>
+                  <input
+                    type="date"
+                    value={historyDateTo}
+                    onChange={(e) => setHistoryDateTo(e.target.value)}
+                    style={{ padding: "3px 6px", borderRadius: 5, border: "1px solid #d1d5db", fontSize: 11.5, outline: "none" }}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHistoryPage(1);
+                    fetchAccountHistory(historyAccount.id, historyDateFrom, historyDateTo, historySearch, historyJenis, 1, historyLimit);
+                  }}
+                  style={{ padding: "6px 12px", background: "#5005A6", color: "white", border: "none", borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                >
+                  Terapkan
+                </button>
+
+                {(historySearch || historyJenis || historyDateFrom !== getMtdStartStr() || historyDateTo !== getTodayStr()) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const mtd = getMtdStartStr();
+                      const today = getTodayStr();
+                      setHistorySearch("");
+                      setHistoryJenis("");
+                      setHistoryDateFrom(mtd);
+                      setHistoryDateTo(today);
+                      setHistoryPage(1);
+                      fetchAccountHistory(historyAccount.id, mtd, today, "", "", 1, historyLimit);
+                    }}
+                    style={{ padding: "6px 10px", background: "#f3f4f6", color: "#4b5563", border: "none", borderRadius: 7, fontSize: 12, cursor: "pointer" }}
+                  >
+                    Reset (MTD)
+                  </button>
+                )}
+              </div>
+
+              {/* Export Excel Button */}
+              <button
+                type="button"
+                onClick={handleExportAccountHistoryXLSX}
+                style={{
+                  padding: "6px 12px",
+                  background: "#f0fdf4",
+                  color: "#15803d",
+                  border: "1px solid #bbf7d0",
+                  borderRadius: 7,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                }}
+              >
+                <FileSpreadsheet size={14} /> Export Excel
+              </button>
+            </div>
+
+            {/* Modal Body / Table DataGrid */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "16px 24px" }}>
+              {historyLoading ? (
+                <div style={{ padding: "60px 0", textAlign: "center" }}>
+                  <RefreshCw size={32} className="animate-spin" style={{ color: "#5005A6", margin: "0 auto 12px" }} />
+                  <p style={{ fontSize: 14, fontWeight: 700, color: "#111827", margin: 0 }}>Memuat riwayat transaksi...</p>
+                </div>
+              ) : historyMutasi.length === 0 ? (
+                <div style={{ padding: "50px 0", textAlign: "center", color: "#9ca3af" }}>
+                  <FileText size={40} style={{ margin: "0 auto 10px", color: "#cbd5e1" }} />
+                  <div style={{ fontSize: 15, fontWeight: 700, color: "#374151" }}>Belum Ada Riwayat Mutasi</div>
+                  <p style={{ fontSize: 12.5, marginTop: 4 }}>Tidak ditemukan riwayat mutasi kas/bank untuk filter yang dipilih.</p>
+                </div>
+              ) : (
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                  <thead>
+                    <tr style={{ background: "#f8fafc", borderBottom: "1.5px solid #e2e8f0", color: "#475569", fontWeight: 700 }}>
+                      <th style={{ padding: "9px 12px", textAlign: "left", width: 50 }}>NO.</th>
+                      <th style={{ padding: "9px 12px", textAlign: "left", width: 110 }}>TANGGAL</th>
+                      <th style={{ padding: "9px 12px", textAlign: "left", width: 100 }}>JENIS</th>
+                      <th style={{ padding: "9px 12px", textAlign: "left", width: 120 }}>REFERENSI</th>
+                      <th style={{ padding: "9px 12px", textAlign: "left" }}>KETERANGAN</th>
+                      <th style={{ padding: "9px 12px", textAlign: "right", width: 140 }}>NOMINAL (RP)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {historyMutasi.map((row: any, i: number) => {
+                      const isMasuk = row.jenis === "Masuk";
+                      return (
+                        <tr
+                          key={row.id || i}
+                          style={{ borderBottom: "1px solid #f1f5f9" }}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = "#fafafa")}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                        >
+                          <td style={{ padding: "9px 12px", color: "#6b7280" }}>
+                            {(historyPage - 1) * historyLimit + i + 1}
+                          </td>
+                          <td style={{ padding: "9px 12px", whiteSpace: "nowrap", fontWeight: 600, color: "#374151" }}>
+                            {row.mutasi_date ? formatDate(row.mutasi_date) : "-"}
+                          </td>
+                          <td style={{ padding: "9px 12px" }}>
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 4,
+                                padding: "2px 8px",
+                                borderRadius: 4,
+                                fontSize: 11,
+                                fontWeight: 800,
+                                background: isMasuk ? "#f0fdf4" : "#fef2f2",
+                                color: isMasuk ? "#16a34a" : "#dc2626",
+                              }}
+                            >
+                              {isMasuk ? <ArrowDownLeft size={13} /> : <ArrowUpRight size={13} />}
+                              {row.jenis}
+                            </span>
+                          </td>
+                          <td style={{ padding: "9px 12px" }}>
+                            <span style={{ fontSize: 11.5, fontWeight: 700, color: "#475569", textTransform: "uppercase", background: "#f1f5f9", padding: "2px 6px", borderRadius: 4 }}>
+                              {row.ref_type || "mutasi"}
+                            </span>
+                            {row.ref_id && (
+                              <span style={{ fontSize: 11, color: "#64748b", marginLeft: 4, fontFamily: "monospace" }}>
+                                #{row.ref_id}
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ padding: "9px 12px", color: "#111827", lineHeight: 1.4 }}>
+                            {row.keterangan || "-"}
+                          </td>
+                          <td
+                            style={{
+                              padding: "9px 12px",
+                              textAlign: "right",
+                              fontFamily: "monospace",
+                              fontWeight: 800,
+                              fontSize: 13,
+                              color: isMasuk ? "#16a34a" : "#dc2626",
+                            }}
+                          >
+                            {isMasuk ? "+" : "-"}Rp {Number(row.nominal || 0).toLocaleString("id-ID")}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Modal Footer / Pagination */}
+            <div style={{ padding: "12px 24px", borderTop: "1.5px solid #e5e7eb", background: "#f8fafc", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+              <div style={{ fontSize: 12.5, color: "#4b5563" }}>
+                Total <strong>{historyTotal}</strong> data &bull; Halaman <strong>{historyPage}</strong> dari <strong>{Math.ceil(historyTotal / historyLimit) || 1}</strong>
+              </div>
+
+              {historyTotal > 0 && (
+                <Pagination
+                  page={historyPage}
+                  totalPages={Math.ceil(historyTotal / historyLimit) || 1}
+                  total={historyTotal}
+                  limit={historyLimit}
+                  onChange={(p: number) => {
+                    setHistoryPage(p);
+                    fetchAccountHistory(historyAccount.id, historyDateFrom, historyDateTo, historySearch, historyJenis, p, historyLimit);
+                  }}
+                  onLimitChange={(l: number) => {
+                    setHistoryLimit(l);
+                    setHistoryPage(1);
+                    fetchAccountHistory(historyAccount.id, historyDateFrom, historyDateTo, historySearch, historyJenis, 1, l);
+                  }}
+                />
+              )}
+
+              <button
+                type="button"
+                onClick={() => setHistoryModalOpen(false)}
+                style={{ padding: "6px 16px", borderRadius: 7, border: "1px solid #d1d5db", background: "white", fontSize: 13, cursor: "pointer", fontWeight: 600 }}
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL KAS MASUK / KAS KELUAR / TRANSFER ANTAR REKENING */}
       {isKasMutasiModalOpen && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
@@ -6406,10 +6832,10 @@ export default function SiapSajiFinancePage() {
                   {!jouFormDebitCoaId || !jouFormCreditCoaId
                     ? "Akun Debet & Kredit harus dipilih keduanya."
                     : jouFormDebitCoaId === jouFormCreditCoaId
-                    ? "Akun Debet dan Kredit tidak boleh sama."
-                    : !jouFormNominal || jouFormNominal <= 0
-                    ? "Nominal harus lebih dari Rp 0."
-                    : `Debet (Rp ${jouFormNominal.toLocaleString("id-ID")}) = Kredit (Rp ${jouFormNominal.toLocaleString("id-ID")})`}
+                      ? "Akun Debet dan Kredit tidak boleh sama."
+                      : !jouFormNominal || jouFormNominal <= 0
+                        ? "Nominal harus lebih dari Rp 0."
+                        : `Debet (Rp ${jouFormNominal.toLocaleString("id-ID")}) = Kredit (Rp ${jouFormNominal.toLocaleString("id-ID")})`}
                 </div>
                 <span style={{
                   fontSize: 11,
@@ -6607,13 +7033,13 @@ export default function SiapSajiFinancePage() {
                   background: (detailModalItem.data.status === "Dibatalkan" || detailModalItem.data.status === "dibatalkan" || detailModalItem.data.status_pembayaran === "Dibatalkan")
                     ? "#fee2e2"
                     : detailModalItem.data.status_pembayaran === "Lunas"
-                    ? "#f0fdf4"
-                    : "#fef3c7",
+                      ? "#f0fdf4"
+                      : "#fef3c7",
                   color: (detailModalItem.data.status === "Dibatalkan" || detailModalItem.data.status === "dibatalkan" || detailModalItem.data.status_pembayaran === "Dibatalkan")
                     ? "#991b1b"
                     : detailModalItem.data.status_pembayaran === "Lunas"
-                    ? "#15803d"
-                    : "#b45309",
+                      ? "#15803d"
+                      : "#b45309",
                 }}
               >
                 {(detailModalItem.data.status === "Dibatalkan" || detailModalItem.data.status === "dibatalkan" || detailModalItem.data.status_pembayaran === "Dibatalkan")
