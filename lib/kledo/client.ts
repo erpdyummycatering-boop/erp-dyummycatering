@@ -68,6 +68,43 @@ export function kledoList(data: any): any[] {
   return [];
 }
 
+export function kledoLastPage(data: any): number {
+  const raw = data?.last_page ?? data?.meta?.last_page ?? data?.pagination?.last_page;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/** Ambil seluruh halaman list Kledo (maks. 40 halaman × 100 baris). */
+export async function kledoListAll(
+  config: IntegrationConfig,
+  path: string,
+  search = ""
+): Promise<any[]> {
+  const collected: any[] = [];
+  const seen = new Set<number>();
+  let page = 1;
+  let lastPage = 1;
+  while (page <= lastPage && page <= 40) {
+    const query = new URLSearchParams({ per_page: "100", page: String(page) });
+    if (search.trim()) query.set("search", search.trim());
+    const result = await kledoRequest(config, { method: "GET", path: `${path}?${query.toString()}` });
+    const rows = kledoList(result.data);
+    const reportedLast = kledoLastPage(result.data);
+    if (reportedLast) lastPage = Math.min(reportedLast, 40);
+    for (const row of rows) {
+      const id = Number(row?.id);
+      if (!Number.isFinite(id) || seen.has(id)) continue;
+      seen.add(id);
+      collected.push(row);
+    }
+    if (!rows.length) break;
+    if (!reportedLast && rows.length < 100) break;
+    if (!reportedLast && rows.length >= 100) lastPage = page + 1;
+    page += 1;
+  }
+  return collected;
+}
+
 export async function kledoRequest(
   config: IntegrationConfig,
   opts: {

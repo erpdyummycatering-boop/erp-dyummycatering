@@ -17,7 +17,7 @@ export async function PUT(req: NextRequest) {
   if (!admin.ok) return admin.response;
   try {
     const body = await req.json();
-    const config = await saveConfig({
+    const saved = await saveConfig({
       name: body.name,
       baseUrl: body.base_url,
       environment: body.environment as ConfigEnvironment,
@@ -29,7 +29,7 @@ export async function PUT(req: NextRequest) {
       goLiveDate: body.go_live_date,
       userId: admin.userId,
     });
-    return NextResponse.json({ config });
+    return NextResponse.json(saved);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Gagal menyimpan konfigurasi";
     return NextResponse.json({ error: message }, { status: 400 });

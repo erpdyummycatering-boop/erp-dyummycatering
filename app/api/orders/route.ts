@@ -82,20 +82,29 @@ export async function POST(req: NextRequest) {
     ? `${session.user.name || ""} | ${(session.user as { name?: string; role?: string }).role || ""}`.trim()
     : null;
 
-  const { customer_id, customer_name, customer_phone, recipient_name, recipient_phone, pic_id, order_date, delivery_date, departure_time, arrival_time, shipping_fee, additional_menu_price, venue, order_notes, status_payment, items } = await req.json();
+  const body = await req.json();
+  const {
+    customer_id, customer_name, customer_phone, recipient_name, recipient_phone, pic_id,
+    order_date, delivery_date, departure_time, arrival_time, shipping_fee, additional_menu_price,
+    venue, order_notes, status_payment, items,
+  } = body;
+  const idempotencyKey = String(body.idempotency_key || "").trim().slice(0, 80);
   if (!customer_id || !delivery_date) return NextResponse.json({ error: "customer_id dan delivery_date wajib" }, { status: 400 });
 
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    
+    const phoneNorm = normalizePhoneNumber(customer_phone);
+    const grandTotal = (items || []).reduce((s: number, i: any) => s + (i.price * i.quantity - (i.discount || 0)), 0) + Number(shipping_fee || 0) + Number(additional_menu_price || 0);
+    const lockKey = idempotencyKey || [String(customer_id), phoneNorm, String(customer_name || ""), String(delivery_date).slice(0, 10), String(grandTotal)].join("|");
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1)::bigint)", [lockKey]);
+
     let final_pic_id = pic_id;
     if (userRole === "CS / Sales") {
       final_pic_id = userId;
     }
 
     let final_customer_id = customer_id;
-    const phoneNorm = normalizePhoneNumber(customer_phone);
     if (final_customer_id === "new") {
       if (!customer_name) {
         await client.query("ROLLBACK");
@@ -128,8 +137,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const grandTotal = (items || []).reduce((s: number, i: any) => s + (i.price * i.quantity - (i.discount || 0)), 0) + Number(shipping_fee || 0) + Number(additional_menu_price || 0);
-    
     // Check if repeat customer (if customer has any previous orders in database)
     const prevOrderRes = await client.query(
       `SELECT COUNT(*) FROM orders WHERE customer_id = $1`,
@@ -154,6 +161,19 @@ export async function POST(req: NextRequest) {
     }
 
     const final_order_date = order_date || new Date().toISOString().split("T")[0];
+
+    const duplicate = await client.query(
+      `SELECT * FROM orders
+       WHERE lini = 'catering' AND customer_id = $1 AND delivery_date = $2::date
+         AND grand_total = $3::numeric
+         AND created_at >= now() - interval '20 seconds'
+       ORDER BY id DESC LIMIT 1`,
+      [final_customer_id, String(delivery_date).slice(0, 10), grandTotal]
+    );
+    if (duplicate.rows[0]) {
+      await client.query("COMMIT");
+      return NextResponse.json({ ...duplicate.rows[0], duplicate: true }, { status: 200 });
+    }
 
     const orderRes = await client.query(
       `INSERT INTO orders (

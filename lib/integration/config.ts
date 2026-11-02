@@ -244,7 +244,13 @@ async function clearCacheForOtherConfigs(db: Sql, configId: number) {
   }
 }
 
-export async function saveConfig(input: SaveConfigInput): Promise<PublicIntegrationConfig> {
+export type SaveConfigResult = {
+  config: PublicIntegrationConfig;
+  message: string;
+  warning: string | null;
+};
+
+export async function saveConfig(input: SaveConfigInput): Promise<SaveConfigResult> {
   if (!(await integrationSchemaReady())) {
     throw new Error("Tabel integrasi belum ada. Terapkan refs/kledo_integration.sql di database staging.");
   }
@@ -275,20 +281,53 @@ export async function saveConfig(input: SaveConfigInput): Promise<PublicIntegrat
 
   let wantsActive = Boolean(input.isActive);
   let wantsSync = Boolean(input.syncEnabled);
-  let lastTestOk = row ? row.last_test_ok : null;
-  if (tokenChanged || urlChanged) {
+  let lastTestOk: boolean | null = row ? row.last_test_ok : null;
+  let lastTestMessage: string | null = row?.last_test_message ?? null;
+  let testedNow = false;
+  let message = "Konfigurasi tersimpan. Token tidak ditampilkan kembali.";
+  let warning: string | null = null;
+  const credentialsChanged = !row || urlChanged || tokenChanged;
+
+  if (credentialsChanged) {
+    const tokenPlain = tokenChanged
+      ? input.token!.trim()
+      : decryptSecret({
+          ciphertext: row!.token_ciphertext,
+          iv: row!.token_iv,
+          tag: row!.token_tag,
+          keyVersion: Number(row!.key_version || 1),
+        });
+    const probeConfig = draftConfig({
+      id: row ? Number(row.id) : 0,
+      name,
+      environment: input.environment,
+      baseUrl,
+      account,
+      token: tokenPlain,
+      settings,
+      tokenLast4: tokenPlain.slice(-4),
+    });
+    const test = await testConnection(probeConfig, { persist: false });
+    testedNow = true;
+    lastTestMessage = test.message;
+    if (!test.ok) {
+      const asked = wantsActive || wantsSync;
+      wantsActive = false;
+      wantsSync = false;
+      lastTestOk = false;
+      warning = asked
+        ? `Koneksi gagal: ${test.message} Config aktif dan Sync aktif tidak dihidupkan.`
+        : `Test koneksi gagal: ${test.message}`;
+      message = "Konfigurasi tersimpan, tetapi koneksi ke Kledo gagal.";
+    } else {
+      lastTestOk = true;
+      message = `Konfigurasi tersimpan. ${test.message}`;
+    }
+  } else if ((wantsActive || wantsSync) && lastTestOk !== true) {
     wantsActive = false;
     wantsSync = false;
-    lastTestOk = false;
-  }
-  const settingsChanged = row ? JSON.stringify(parseSettings(row.settings)) !== JSON.stringify(settings) : true;
-  if (settingsChanged && row) {
-    wantsActive = false;
-    wantsSync = false;
-    lastTestOk = false;
-  }
-  if ((wantsActive || wantsSync) && lastTestOk !== true) {
-    throw new Error("Test koneksi harus berhasil sebelum Sync atau status aktif dihidupkan.");
+    warning = "Config aktif dan Sync aktif tidak dihidupkan karena test koneksi terakhir belum berhasil. Jalankan Test koneksi dulu.";
+    message = "Konfigurasi tersimpan tanpa mengaktifkan sync.";
   }
 
   const encrypted = tokenChanged ? encryptSecret(input.token!.trim(), 1) : null;
@@ -303,14 +342,14 @@ export async function saveConfig(input: SaveConfigInput): Promise<PublicIntegrat
         `INSERT INTO integration_configs (
           tenant_code, environment, kledo_account, provider, lini, name, base_url,
           token_ciphertext, token_iv, token_tag, token_last4, key_version, token_expires_at,
-          settings, is_active, sync_enabled, go_live_date, last_test_ok, created_by, updated_by
+          settings, is_active, sync_enabled, go_live_date, last_test_ok, last_test_message, last_tested_at, created_by, updated_by
         ) VALUES (
-          $1,$2,$3,'kledo','catering',$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,$14,$15,$16,$17,$17
+          $1,$2,$3,'kledo','catering',$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,$14,$15,$16,$17,CASE WHEN $18 THEN now() ELSE NULL END,$19,$19
         ) RETURNING *`,
         [
           TENANT, input.environment, account, name, baseUrl,
           encrypted!.ciphertext, encrypted!.iv, encrypted!.tag, encrypted!.last4, encrypted!.keyVersion,
-          expires, JSON.stringify(settings), wantsActive, wantsSync, goLive, lastTestOk, input.userId ?? null,
+          expires, JSON.stringify(settings), wantsActive, wantsSync, goLive, lastTestOk, lastTestMessage, testedNow, input.userId ?? null,
         ]
       );
     } else {
@@ -318,6 +357,8 @@ export async function saveConfig(input: SaveConfigInput): Promise<PublicIntegrat
         `UPDATE integration_configs SET
           name=$2, base_url=$3, kledo_account=$4, token_expires_at=$5, settings=$6::jsonb,
           is_active=$7, sync_enabled=$8, go_live_date=$9, last_test_ok=$10, updated_by=$11, updated_at=now(),
+          last_test_message=CASE WHEN $17 THEN $18 ELSE last_test_message END,
+          last_tested_at=CASE WHEN $17 THEN now() ELSE last_tested_at END,
           token_ciphertext=COALESCE($12, token_ciphertext),
           token_iv=COALESCE($13, token_iv),
           token_tag=COALESCE($14, token_tag),
@@ -329,6 +370,7 @@ export async function saveConfig(input: SaveConfigInput): Promise<PublicIntegrat
           wantsActive, wantsSync, goLive, lastTestOk, input.userId ?? null,
           encrypted?.ciphertext ?? null, encrypted?.iv ?? null, encrypted?.tag ?? null,
           encrypted?.last4 ?? null, encrypted?.keyVersion ?? null,
+          testedNow, lastTestMessage,
         ]
       );
     }
@@ -348,7 +390,7 @@ export async function saveConfig(input: SaveConfigInput): Promise<PublicIntegrat
       tag: saved.rows[0].token_tag,
       keyVersion: Number(saved.rows[0].key_version || 1),
     });
-    return toPublic(mapRow(saved.rows[0], token));
+    return { config: toPublic(mapRow(saved.rows[0], token)), message, warning };
   } catch (err) {
     await client.query("ROLLBACK");
     const code = (err as { code?: string })?.code;
@@ -372,15 +414,47 @@ async function probe(config: IntegrationConfig, path: string): Promise<string | 
   }
 }
 
-export async function testConnection(config: IntegrationConfig): Promise<{
+function draftConfig(input: {
+  id: number;
+  name: string;
+  environment: ConfigEnvironment;
+  baseUrl: string;
+  account: string | null;
+  token: string;
+  settings: KledoSettings;
+  tokenLast4: string;
+}): IntegrationConfig {
+  return {
+    id: input.id,
+    tenantCode: TENANT,
+    environment: input.environment,
+    kledoAccount: input.account,
+    name: input.name,
+    baseUrl: input.baseUrl,
+    token: input.token,
+    tokenLast4: input.tokenLast4,
+    tokenExpiresAt: null,
+    settings: input.settings,
+    isActive: false,
+    syncEnabled: false,
+    goLiveDate: null,
+    lastTestedAt: null,
+    lastTestOk: null,
+    lastTestMessage: null,
+    keyVersion: 1,
+  };
+}
+
+export async function testConnection(config: IntegrationConfig, opts?: { persist?: boolean }): Promise<{
   ok: boolean;
   message: string;
   ratelimitLimit: number | null;
   ratelimitRemaining: number | null;
 }> {
+  const persist = Boolean(opts?.persist && config.id);
   if (!isValidKledoBaseUrl(config.baseUrl)) {
     const message = "Base URL tidak valid. Gunakan https://<subdomain>.api.kledo.id/api/v1";
-    await storeTest(config.id, false, message);
+    if (persist) await storeTest(config.id, false, message);
     return { ok: false, message, ratelimitLimit: null, ratelimitRemaining: null };
   }
   try {
@@ -417,19 +491,19 @@ export async function testConnection(config: IntegrationConfig): Promise<{
     }
     if (problems.length) {
       const message = problems.join("; ");
-      await storeTest(config.id, false, message);
+      if (persist) await storeTest(config.id, false, message);
       return { ok: false, message, ratelimitLimit: ping.ratelimitLimit, ratelimitRemaining: ping.ratelimitRemaining };
     }
     const quota = ping.ratelimitRemaining != null ? ` Sisa kuota ${ping.ratelimitRemaining}${ping.ratelimitLimit != null ? `/${ping.ratelimitLimit}` : ""}.` : "";
     const message = `Koneksi berhasil.${quota}`;
-    await storeTest(config.id, true, message);
+    if (persist) await storeTest(config.id, true, message);
     return { ok: true, message, ratelimitLimit: ping.ratelimitLimit, ratelimitRemaining: ping.ratelimitRemaining };
   } catch (err) {
     const status = err instanceof Error && "status" in err ? (err as { status: number }).status : 0;
     const message = status === 401
       ? "Token salah atau kedaluwarsa (401)."
       : err instanceof Error ? err.message : "Test koneksi gagal";
-    await storeTest(config.id, false, message);
+    if (persist) await storeTest(config.id, false, message);
     return { ok: false, message, ratelimitLimit: null, ratelimitRemaining: null };
   }
 }

@@ -20,9 +20,12 @@ export default function KledoSettingsPage() {
   const [tab, setTab] = useState<"config" | "monitor">("config");
   const [state, setState] = useState<any>(null);
   const [form, setForm] = useState<any>({
-    name: "Kledo Catering", environment: "demo", base_url: "https://ptlenterasinergiprima.api.kledo.id/api/v1",
+    name: "Kledo Catering", environment: "demo", base_url: "",
     token: "", token_expires_at: "", go_live_date: "", is_active: false, sync_enabled: false, settings: emptySettings,
   });
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [lookupSearch, setLookupSearch] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [lookups, setLookups] = useState<Record<string, Lookup[]>>({});
@@ -70,56 +73,98 @@ export default function KledoSettingsPage() {
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (tab === "monitor") loadJobs(); }, [tab, loadJobs]);
 
+  const settingsPayload = () => {
+    const settings = form.settings;
+    return {
+      sell_account_id: num(settings.sell_account_id),
+      unit_id: num(settings.unit_id),
+      tax_id: num(settings.tax_id),
+      pos_product_category_id: num(settings.pos_product_category_id),
+      shipping_product_id: num(settings.shipping_product_id),
+      addl_menu_product_id: num(settings.addl_menu_product_id),
+      shipping_mode: settings.shipping_mode,
+      due_days: Number(settings.due_days || 0),
+      auto_create_contact: Boolean(settings.auto_create_contact),
+      auto_create_product: Boolean(settings.auto_create_product),
+    };
+  };
   const num = (value: string) => value === "" || value == null ? null : Number(value);
   const save = async () => {
     setError(""); setMessage("");
-    const settings = form.settings;
-    const res = await fetch("/api/integrations/kledo", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: form.name,
-        environment: form.environment,
-        base_url: form.base_url,
-        token: form.token || undefined,
-        token_expires_at: form.token_expires_at || null,
-        go_live_date: form.go_live_date || null,
-        is_active: form.is_active,
-        sync_enabled: form.sync_enabled,
-        settings: {
-          sell_account_id: num(settings.sell_account_id),
-          unit_id: num(settings.unit_id),
-          tax_id: num(settings.tax_id),
-          pos_product_category_id: num(settings.pos_product_category_id),
-          shipping_product_id: num(settings.shipping_product_id),
-          addl_menu_product_id: num(settings.addl_menu_product_id),
-          shipping_mode: settings.shipping_mode,
-          due_days: Number(settings.due_days || 0),
-          auto_create_contact: Boolean(settings.auto_create_contact),
-          auto_create_product: Boolean(settings.auto_create_product),
-        },
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) setError(data.error || "Gagal menyimpan");
-    else { setMessage("Konfigurasi tersimpan. Token tidak ditampilkan kembali."); setForm((f: any) => ({ ...f, token: "" })); await load(); }
+    setSaving(true);
+    try {
+      const res = await fetch("/api/integrations/kledo", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name,
+          environment: form.environment,
+          base_url: form.base_url,
+          token: form.token || undefined,
+          token_expires_at: form.token_expires_at || null,
+          go_live_date: form.go_live_date || null,
+          is_active: form.is_active,
+          sync_enabled: form.sync_enabled,
+          settings: settingsPayload(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) setError(data.error || "Gagal menyimpan");
+      else {
+        if (data.warning) setError(data.warning);
+        setMessage(data.message || "Konfigurasi tersimpan. Token tidak ditampilkan kembali.");
+        setForm((f: any) => ({ ...f, token: "" }));
+        await load();
+      }
+    } finally {
+      setSaving(false);
+    }
   };
 
   const test = async () => {
     setError(""); setMessage("");
-    const res = await fetch("/api/integrations/kledo/test", { method: "POST" });
-    const data = await res.json();
-    if (!res.ok) setError(data.message || data.error || "Test gagal");
-    else setMessage(data.message || "Koneksi berhasil");
-    await load();
+    setTesting(true);
+    try {
+      const res = await fetch("/api/integrations/kledo/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name,
+          environment: form.environment,
+          base_url: form.base_url,
+          token: form.token || undefined,
+          settings: settingsPayload(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) setError(data.message || data.error || "Test gagal");
+      else setMessage(data.message || "Koneksi berhasil");
+      if (!form.token) await load();
+    } finally {
+      setTesting(false);
+    }
   };
 
   const loadLookup = async (resource: string) => {
-    const res = await fetch(`/api/integrations/kledo/lookups?resource=${resource}`);
+    const res = await fetch("/api/integrations/kledo/lookups", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        resource,
+        search: lookupSearch[resource] || "",
+        base_url: form.base_url,
+        token: form.token || undefined,
+        environment: form.environment,
+        settings: settingsPayload(),
+      }),
+    });
     const data = await res.json();
     if (!res.ok) { setError(data.error || "Gagal memuat referensi"); return; }
     setLookups((prev) => ({ ...prev, [resource]: data.data || [] }));
+    setMessage(`${resource}: ${data.data?.length || 0} data dimuat dari seluruh halaman.`);
   };
+
+  const account = accountFromUrl(form.base_url);
 
   const badge = state?.config?.badge || (form.environment === "production" ? "LIVE" : "DEMO");
   const expires = state?.config?.tokenExpiresAt ? new Date(state.config.tokenExpiresAt) : null;
@@ -149,8 +194,20 @@ export default function KledoSettingsPage() {
             {state?.config?.tokenLast4 ? ` Token tersimpan ••••${state.config.tokenLast4}.` : " Token belum tersimpan."}
             {state?.config?.lastTestMessage ? ` Test terakhir: ${state.config.lastTestMessage}` : ""}
           </p>
+          <FormField label="Nama" style={{ marginBottom: 14 }}>
+            <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          </FormField>
           <FormRow>
-            <FormField label="Nama"><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></FormField>
+            <FormField label="Subdomain perusahaan Kledo">
+              <input
+                value={account}
+                onChange={(e) => {
+                  const sub = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "");
+                  setForm({ ...form, base_url: sub ? `https://${sub}.api.kledo.id/api/v1` : "" });
+                }}
+                placeholder="namaperusahaan"
+              />
+            </FormField>
             <FormField label="Environment">
               <select value={form.environment} onChange={(e) => setForm({ ...form, environment: e.target.value })}>
                 {(state?.allowedEnvironments || ["demo", "staging"]).map((env: string) => <option key={env} value={env}>{env}</option>)}
@@ -158,7 +215,7 @@ export default function KledoSettingsPage() {
             </FormField>
           </FormRow>
           <FormField label="Base URL" style={{ marginBottom: 14 }}>
-            <input value={form.base_url} onChange={(e) => setForm({ ...form, base_url: e.target.value })} placeholder="https://subdomain.api.kledo.id/api/v1" />
+            <input value={form.base_url} onChange={(e) => setForm({ ...form, base_url: e.target.value })} placeholder="https://namaperusahaan.api.kledo.id/api/v1" />
           </FormField>
           <FormRow>
             <FormField label="Token (kosongkan jika tidak diganti)">
@@ -182,9 +239,16 @@ export default function KledoSettingsPage() {
               <option value="product">Produk Ongkos Kirim</option>
             </select>
           </FormField>
+          <FormField label="Cari akun / satuan / pajak / kategori" style={{ marginBottom: 8 }}>
+            <input
+              value={lookupSearch.accounts || ""}
+              onChange={(e) => setLookupSearch((s) => ({ ...s, accounts: e.target.value, units: e.target.value, taxes: e.target.value, categories: e.target.value, products: e.target.value }))}
+              placeholder="mis. 4-400 atau Pendapatan"
+            />
+          </FormField>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
             {["accounts", "units", "taxes", "categories", "products"].map((resource) => (
-              <button key={resource} className="btn btn-secondary btn-sm" type="button" onClick={() => loadLookup(resource)}>Muat {resource}</button>
+              <button key={resource} className="btn btn-secondary btn-sm" type="button" onClick={() => loadLookup(resource)}>Muat semua {resource}</button>
             ))}
           </div>
           <FormRow>
@@ -204,10 +268,10 @@ export default function KledoSettingsPage() {
           <label style={{ display: "flex", gap: 8, marginBottom: 8 }}><input type="checkbox" checked={!!form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} /> Config aktif</label>
           <label style={{ display: "flex", gap: 8, marginBottom: 14 }}><input type="checkbox" checked={!!form.sync_enabled} onChange={(e) => setForm({ ...form, sync_enabled: e.target.checked })} /> Sync aktif</label>
           <div style={{ display: "flex", gap: 8 }}>
-            <button className="btn btn-secondary" onClick={test}>Test koneksi</button>
-            <button className="btn btn-primary" onClick={save}>Simpan</button>
+            <button className="btn btn-secondary" onClick={test} disabled={testing || saving}>{testing ? "Menguji..." : "Test koneksi"}</button>
+            <button className="btn btn-primary" onClick={save} disabled={saving || testing}>{saving ? "Menyimpan..." : "Simpan"}</button>
           </div>
-          <p style={{ fontSize: 12, color: "#6b7280" }}>Test koneksi hanya membaca data. Tidak membuat SO atau invoice. Sync hanya bisa dinyalakan setelah test berhasil.</p>
+          <p style={{ fontSize: 12, color: "#6b7280" }}>Test koneksi memakai isian form ini, tanpa menyimpan, dan tidak membuat SO atau invoice. Jika Base URL atau token berubah, Simpan menguji ulang dan mempertahankan Config aktif serta Sync aktif hanya bila tes berhasil.</p>
         </div>
       )}
 
@@ -256,17 +320,22 @@ function Banner({ color, text }: { color: string; text: string }) {
   return <div style={{ background: color, borderRadius: 8, padding: "10px 12px", marginBottom: 10, fontSize: 14 }}>{text}</div>;
 }
 
+function accountFromUrl(url: string): string {
+  const match = String(url || "").trim().replace(/\/+$/, "").match(/^https:\/\/([a-z0-9-]+)\.api\.kledo\.id\/api\/v1$/i);
+  return match ? match[1].toLowerCase() : "";
+}
+
 function IdField({ label, value, options, onChange }: { label: string; value: string | number; options?: Lookup[]; onChange: (value: string) => void }) {
+  const current = value === null || value === undefined ? "" : String(value);
   return (
     <FormField label={label}>
-      {options && options.length > 0 ? (
-        <select value={value} onChange={(e) => onChange(e.target.value)}>
-          <option value="">—</option>
+      {options && options.length > 0 && (
+        <select value={options.some((opt) => String(opt.id) === current) ? current : ""} onChange={(e) => onChange(e.target.value)} style={{ marginBottom: 6 }}>
+          <option value="">— pilih dari daftar —</option>
           {options.map((opt) => <option key={opt.id} value={opt.id}>{opt.code ? `${opt.code} — ` : ""}{opt.name}</option>)}
         </select>
-      ) : (
-        <input value={value} onChange={(e) => onChange(e.target.value)} placeholder="ID Kledo" />
       )}
+      <input value={current} onChange={(e) => onChange(e.target.value)} placeholder="atau ketik ID" />
     </FormField>
   );
 }

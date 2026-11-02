@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { Plus, Printer, Trash2, Download, Eye, FileText, Upload } from "lucide-react";
 import { useSession } from "next-auth/react";
@@ -50,6 +50,9 @@ export default function OrdersPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [savingOrder, setSavingOrder] = useState(false);
+  const saveLock = useRef(false);
+  const idempotencyKey = useRef("");
   const [itemToDelete, setItemToDelete] = useState<any>(null);
   const [form, setForm] = useState(() => emptyForm(userRole, userId));
 
@@ -454,6 +457,7 @@ export default function OrdersPage() {
   const grandTotal = form.items.reduce((s, i) => s + (i.subtotal || 0), 0) + Number(form.shipping_fee || 0) + Number(form.additional_menu_price || 0);
 
   const handleSave = async () => {
+    if (saveLock.current) return;
     if (!form.customer_id || !form.delivery_date) return alert("Customer dan tanggal kirim wajib");
     if (form.customer_id === "new" && !form.customer_name) return alert("Nama customer baru wajib diisi");
     if (!form.items.some(i => i.product_id)) return alert("Minimal 1 item produk");
@@ -463,12 +467,18 @@ export default function OrdersPage() {
     if (userRole === "CS / Sales") {
       finalForm.pic_id = String(userId);
     }
+    if (!idempotencyKey.current) {
+      idempotencyKey.current = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+    }
 
+    saveLock.current = true;
+    setSavingOrder(true);
     try {
-      const res = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...finalForm, items: validItems }) });
+      const res = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...finalForm, items: validItems, idempotency_key: idempotencyKey.current }) });
       if (res.ok) { 
         setShowModal(false); 
         setForm(emptyForm(userRole, userId)); 
+        idempotencyKey.current = "";
         fetchOrders(1); 
         fetch("/api/customers?limit=10000").then(r => r.json()).then(d => setCustomers(d.data || []));
       } else {
@@ -477,6 +487,9 @@ export default function OrdersPage() {
       }
     } catch (e) {
       alert("Terjadi kesalahan saat menyimpan order.");
+    } finally {
+      saveLock.current = false;
+      setSavingOrder(false);
     }
   };
 
@@ -530,7 +543,11 @@ export default function OrdersPage() {
               />
             </label>
             <button className="btn btn-secondary btn-sm" onClick={handleExport}><Download size={14} /> Export Excel</button>
-            <button className="btn btn-primary" onClick={() => { setForm(emptyForm(userRole, userId)); setShowModal(true); }}><Plus size={14} /> Buat Order</button>
+            <button className="btn btn-primary" onClick={() => {
+              idempotencyKey.current = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+              setForm(emptyForm(userRole, userId));
+              setShowModal(true);
+            }}><Plus size={14} /> Buat Order</button>
           </div>
         }
       />
@@ -863,7 +880,7 @@ export default function OrdersPage() {
         </FormField>
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
           <button className="btn btn-secondary" onClick={() => setShowModal(false)}>Batal</button>
-          <button className="btn btn-primary" onClick={handleSave}>Simpan Order</button>
+          <button className="btn btn-primary" onClick={handleSave} disabled={savingOrder}>{savingOrder ? "Menyimpan..." : "Simpan Order"}</button>
         </div>
       </Modal>
 
