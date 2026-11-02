@@ -94,7 +94,7 @@ export default function OrdersPage() {
   const [fDateFrom, setFDateFrom] = useState("");
   const [fDateTo, setFDateTo] = useState("");
   const [fPicId, setFPicId] = useState("");
-  const [sortBy, setSortBy] = useState<"delivery_date" | "closing_date">("delivery_date");
+  const [sortBy, setSortBy] = useState<"delivery_date" | "closing_date">("closing_date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const handleSort = (field: "delivery_date" | "closing_date") => {

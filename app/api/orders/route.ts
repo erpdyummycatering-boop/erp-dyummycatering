@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   const date_from = p.get("date_from") || "";
   const date_to = p.get("date_to") || "";
   const pic_id = p.get("pic_id") || "";
-  const sort_by = p.get("sort_by") || "delivery_date";
+  const sort_by = p.get("sort_by") || "closing_date";
   const sort_dir = (p.get("sort_dir") || "desc").toLowerCase() === "asc" ? "ASC" : "DESC";
 
   const wheres: string[] = ["o.lini = 'catering'"];
@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
 
   const where = wheres.length ? "WHERE " + wheres.join(" AND ") : "";
 
-  let orderBySql = `ORDER BY o.delivery_date ${sort_dir}, o.id ${sort_dir}`;
+  let orderBySql = `ORDER BY COALESCE(o.closing_date, o.order_date) ${sort_dir}, o.id ${sort_dir}`;
   if (sort_by === "closing_date" || sort_by === "order_date") {
     orderBySql = `ORDER BY COALESCE(o.closing_date, o.order_date) ${sort_dir}, o.id ${sort_dir}`;
   } else if (sort_by === "delivery_date") {
