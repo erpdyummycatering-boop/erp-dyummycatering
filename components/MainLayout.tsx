@@ -119,6 +119,13 @@ const RUMPUN_MENU: ModuleGroup[] = [
     icon: ShoppingBag,
     sections: [
       {
+        section: "CRM",
+        items: [
+          { href: "/crm/data-kledo", label: "Data Kledo", icon: FileSpreadsheet },
+          { href: "/crm/pengaturan-kledo", label: "Pengaturan Kledo", icon: Plug },
+        ],
+      },
+      {
         section: "CRM Catering",
         items: [
           { href: "/customers", label: "Data Kontak", icon: Users },
@@ -179,7 +186,6 @@ const RUMPUN_MENU: ModuleGroup[] = [
           { href: "/pl-dashboard", label: "P&L Dashboard", icon: PieChart },
           { href: "/targets", label: "Target & Realisasi", icon: Target },
           { href: "/settings", label: "Manajemen User", icon: Settings },
-          { href: "/settings/integrations", label: "Integrasi Kledo", icon: Plug },
           { href: "/products", label: "Katalog Produk", icon: Layers },
         ],
       },

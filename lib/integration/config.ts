@@ -58,6 +58,28 @@ function toPublic(config: IntegrationConfig): PublicIntegrationConfig {
   return copy;
 }
 
+const sellAccountCache = new Map<string, { at: number; label: string | null }>();
+
+async function lookupSellAccountLabel(config: IntegrationConfig): Promise<string | null> {
+  const id = config.settings.sell_account_id;
+  if (!id || !config.token) return null;
+  const key = `${config.id}:${config.baseUrl}:${id}`;
+  const hit = sellAccountCache.get(key);
+  if (hit && Date.now() - hit.at < 60_000) return hit.label;
+  try {
+    const result = await kledoRequest(config, { method: "GET", path: `/finance/accounts/${id}` });
+    const row = result.data || {};
+    const code = String(row.ref_code || row.code || "").trim();
+    const name = String(row.name || "").trim();
+    const label = [code, name].filter(Boolean).join(" — ") || null;
+    sellAccountCache.set(key, { at: Date.now(), label });
+    return label;
+  } catch {
+    sellAccountCache.set(key, { at: Date.now(), label: null });
+    return null;
+  }
+}
+
 function mapRow(row: any, token: string): IntegrationConfig {
   return {
     id: Number(row.id),
@@ -106,6 +128,7 @@ export async function getConfigState(): Promise<{
     allowedEnvironments: allowedConfigEnvironments(appEnv),
     guardMessage: null as string | null,
     config: null as PublicIntegrationConfig | null,
+    sellAccountLabel: null as string | null,
   };
   if (!(await integrationSchemaReady())) return base;
   base.schemaReady = true;
@@ -130,7 +153,9 @@ export async function getConfigState(): Promise<{
       return base;
     }
     try {
-      base.config = toPublic(await decryptRow(chosen));
+      const full = await decryptRow(chosen);
+      base.config = toPublic(full);
+      base.sellAccountLabel = await lookupSellAccountLabel(full);
     } catch {
       base.guardMessage = "Token tidak bisa dibaca. Periksa INTEGRATION_ENC_KEY environment ini.";
       base.config = toPublic(mapRow(chosen, ""));

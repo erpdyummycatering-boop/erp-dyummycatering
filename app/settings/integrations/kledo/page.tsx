@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
-export default function KledoSettingsAlias() {
-  redirect("/settings/integrations");
+export default function LegacyKledoSettingsAlias() {
+  redirect("/crm/pengaturan-kledo");
 }

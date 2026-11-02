@@ -133,6 +133,8 @@ export const ROLES: RoleConfig[] = [
       "/pl-dashboard",
       "/targets",
       "/settings/integrations",
+      "/crm/pengaturan-kledo",
+      "/crm/data-kledo",
       "/siap-saji/dashboard",
       "/siap-saji/orders",
       "/siap-saji/shipping-monitoring",
