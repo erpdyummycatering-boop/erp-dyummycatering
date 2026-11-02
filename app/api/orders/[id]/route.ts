@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import pool from "@/lib/db";
+import { canManageKledo } from "@/lib/integration/access";
+import { toDateOnly } from "@/lib/integration/dates";
+import {
+  enqueueCateringUpdate,
+  financialChanged,
+  loadOrderState,
+  type OrderItemState,
+} from "@/lib/integration/orderHooks";
+import { publishJobsAfterResponse } from "@/lib/qstash";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
@@ -59,15 +68,47 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const client = await pool.connect();
   try {
-    const exist = await client.query("SELECT pic_id FROM orders WHERE id = $1", [id]);
-    if (!exist.rows.length) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    if (userRole === "CS / Sales" && Number(exist.rows[0].pic_id) !== Number(userId)) {
+    const previous = await loadOrderState(client, Number(id));
+    if (!previous) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (userRole === "CS / Sales" && Number((await client.query("SELECT pic_id FROM orders WHERE id=$1", [id])).rows[0]?.pic_id) !== Number(userId)) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
     let final_pic_id = pic_id;
     if (userRole === "CS / Sales") {
       final_pic_id = userId;
+    }
+
+    const nextItems: OrderItemState[] = (items || []).filter((item: { product_id?: unknown }) => item.product_id).map((item: any) => ({
+      product_id: Number(item.product_id),
+      price: Number(item.price || 0),
+      quantity: Number(item.quantity || 0),
+      discount: Number(item.discount || 0),
+      custom_menu: item.custom_menu || "",
+      notes: item.notes || "",
+    }));
+    const nextState = {
+      customer_id: Number(customer_id),
+      order_date: toDateOnly(order_date) || "",
+      delivery_date: toDateOnly(delivery_date) || "",
+      shipping_fee: Number(shipping_fee || 0),
+      additional_menu_price: Number(additional_menu_price || 0),
+      items: nextItems,
+    };
+    const changed = financialChanged(previous, nextState);
+    const cancelling = status_order === "Batal" || status_order === "Dibatalkan";
+    if (previous.kledo_invoice_id && changed) {
+      return NextResponse.json({
+        error: "Invoice Kledo sudah terbit. Perubahan item, harga, ongkir, tanggal, atau customer harus direvisi manual di Kledo.",
+      }, { status: 409 });
+    }
+    if (previous.kledo_invoice_id && cancelling && !body.confirm_void_invoice) {
+      return NextResponse.json({
+        error: `Invoice ${previous.kledo_invoice_number || "Kledo"} sudah terbit. Batalkan lewat Finance dengan konfirmasi void invoice.`,
+      }, { status: 409 });
+    }
+    if (previous.kledo_invoice_id && cancelling && body.confirm_void_invoice && !canManageKledo(userRole)) {
+      return NextResponse.json({ error: "Hanya Finance atau Super Admin yang dapat membatalkan invoice Kledo." }, { status: 403 });
     }
 
     await client.query("BEGIN");
@@ -120,10 +161,23 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       );
     }
 
+    const kledoJobIds = await enqueueCateringUpdate(client, {
+      userId: userId ? Number(userId) : null,
+      previous,
+      nextStatus: status_order,
+      next: {
+        ...nextState,
+        venue: venue || "",
+        recipient_name: recipient_name || "",
+        recipient_phone: recipient_phone || "",
+      },
+    });
+
     await client.query("COMMIT");
+    publishJobsAfterResponse(kledoJobIds);
     return NextResponse.json(res.rows[0]);
   } catch (e: any) {
-    await client.query("ROLLBACK");
+    try { await client.query("ROLLBACK"); } catch { /* tidak ada transaksi terbuka */ }
     console.error("Gagal memperbarui order:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   } finally {
@@ -139,15 +193,50 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const { id } = await params;
   const client = await pool.connect();
   try {
-    const exist = await client.query("SELECT pic_id FROM orders WHERE id = $1", [id]);
-    if (!exist.rows.length) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    if (userRole === "CS / Sales" && Number(exist.rows[0].pic_id) !== Number(userId)) {
+    const previous = await loadOrderState(client, Number(id));
+    if (!previous) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const pic = await client.query("SELECT pic_id FROM orders WHERE id = $1", [id]);
+    if (userRole === "CS / Sales" && Number(pic.rows[0]?.pic_id) !== Number(userId)) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
+    }
+    if (previous.kledo_invoice_id) {
+      return NextResponse.json({
+        error: `Order sudah memiliki invoice Kledo${previous.kledo_invoice_number ? ` (${previous.kledo_invoice_number})` : ""} dan tidak bisa dihapus.`,
+      }, { status: 409 });
+    }
+
+    await client.query("BEGIN");
+    if (previous.kledo_so_id) {
+      await client.query(
+        `UPDATE orders SET status_order='Batal', cancelled_at=now(), cancel_reason=$2, cancelled_by=$3, updated_at=now() WHERE id=$1`,
+        [id, "Dihapus dari ERP", userId ? Number(userId) : null]
+      );
+      const kledoJobIds = await enqueueCateringUpdate(client, {
+        userId: userId ? Number(userId) : null,
+        previous,
+        nextStatus: "Batal",
+        next: {
+          customer_id: previous.customer_id,
+          order_date: previous.order_date,
+          delivery_date: previous.delivery_date,
+          shipping_fee: previous.shipping_fee,
+          additional_menu_price: previous.additional_menu_price,
+          venue: previous.venue,
+          recipient_name: previous.recipient_name,
+          recipient_phone: previous.recipient_phone,
+          items: previous.items,
+        },
+      });
+      await client.query("COMMIT");
+      publishJobsAfterResponse(kledoJobIds);
+      return NextResponse.json({ success: true, cancelled: true });
     }
 
     await client.query("DELETE FROM orders WHERE id = $1", [id]);
+    await client.query("COMMIT");
     return NextResponse.json({ success: true });
   } catch (err: any) {
+    try { await client.query("ROLLBACK"); } catch { /* tidak ada transaksi terbuka */ }
     console.error("Gagal menghapus order:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   } finally { client.release(); }

@@ -8,7 +8,7 @@ import {
   CalendarDays, BookOpen, ClipboardList, TrendingUp, CreditCard,
   PieChart, Settings, Menu, X, Utensils, Target,
   ShoppingCart, Layers, LogIn, LogOut, MapPin, Truck, ChevronRight,
-  UserCheck, DollarSign, UploadCloud, FileText, Clock, Building, FileSpreadsheet
+  UserCheck, DollarSign, UploadCloud, FileText, Clock, Building, FileSpreadsheet, Plug
 } from "lucide-react";
 import { useRole } from "@/contexts/RoleContext";
 import { getRoleConfig, ROLES } from "@/lib/roleConfig";
@@ -123,6 +123,13 @@ const RUMPUN_MENU: ModuleGroup[] = [
         items: [
           { href: "/customers", label: "Data Kontak", icon: Users },
           { href: "/orders", label: "Order Catering", icon: ShoppingBag },
+        ],
+      },
+      {
+        section: "CRM Kledo",
+        items: [
+          { href: "/crm/data-kledo", label: "Data Kledo", icon: FileSpreadsheet },
+          { href: "/crm/pengaturan-kledo", label: "Pengaturan Kledo", icon: Plug },
         ],
       },
     ],

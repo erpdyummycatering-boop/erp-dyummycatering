@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import pool from "@/lib/db";
+import { normalizePhoneNumber } from "@/lib/phoneUtils";
+import { enqueueCateringCreate, phoneMatchSql } from "@/lib/integration/orderHooks";
+import { publishJobsAfterResponse } from "@/lib/qstash";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -21,7 +24,7 @@ export async function GET(req: NextRequest) {
   const sort_by = p.get("sort_by") || "delivery_date";
   const sort_dir = (p.get("sort_dir") || "desc").toLowerCase() === "asc" ? "ASC" : "DESC";
 
-  const wheres: string[] = [];
+  const wheres: string[] = ["o.lini = 'catering'"];
   const vals: any[] = [];
   let idx = 1;
 
@@ -79,13 +82,23 @@ export async function POST(req: NextRequest) {
     ? `${session.user.name || ""} | ${(session.user as { name?: string; role?: string }).role || ""}`.trim()
     : null;
 
-  const { customer_id, customer_name, customer_phone, recipient_name, recipient_phone, pic_id, order_date, delivery_date, departure_time, arrival_time, shipping_fee, additional_menu_price, venue, order_notes, status_payment, items } = await req.json();
+  const body = await req.json();
+  const {
+    customer_id, customer_name, customer_phone, recipient_name, recipient_phone, pic_id,
+    order_date, delivery_date, departure_time, arrival_time, shipping_fee, additional_menu_price,
+    venue, order_notes, status_payment, items,
+  } = body;
+  const idempotencyKey = String(body.idempotency_key || "").trim().slice(0, 80);
   if (!customer_id || !delivery_date) return NextResponse.json({ error: "customer_id dan delivery_date wajib" }, { status: 400 });
 
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    
+    const phoneNorm = normalizePhoneNumber(customer_phone);
+    const grandTotal = (items || []).reduce((s: number, i: any) => s + (i.price * i.quantity - (i.discount || 0)), 0) + Number(shipping_fee || 0) + Number(additional_menu_price || 0);
+    const lockKey = idempotencyKey || [String(customer_id), phoneNorm, String(customer_name || ""), String(delivery_date).slice(0, 10), String(grandTotal)].join("|");
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1)::bigint)", [lockKey]);
+
     let final_pic_id = pic_id;
     if (userRole === "CS / Sales") {
       final_pic_id = userId;
@@ -97,13 +110,15 @@ export async function POST(req: NextRequest) {
         await client.query("ROLLBACK");
         return NextResponse.json({ error: "Nama customer baru wajib diisi" }, { status: 400 });
       }
-      const exist = await client.query("SELECT id FROM customers WHERE phone = $1", [customer_phone]);
+      const exist = phoneNorm
+        ? await client.query(`SELECT id FROM customers WHERE ${phoneMatchSql("phone")} = $1 LIMIT 1`, [phoneNorm])
+        : { rows: [] as { id: number }[] };
       if (exist.rows.length > 0) {
         final_customer_id = exist.rows[0].id;
       } else {
         const ins = await client.query(
           "INSERT INTO customers (name, phone, type, notes, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING id",
-          [customer_name, customer_phone || null, "Perorangan", order_notes || null, createdBy]
+          [customer_name, phoneNorm || null, "Perorangan", order_notes || null, createdBy]
         );
         final_customer_id = ins.rows[0].id;
 
@@ -122,8 +137,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const grandTotal = (items || []).reduce((s: number, i: any) => s + (i.price * i.quantity - (i.discount || 0)), 0) + Number(shipping_fee || 0) + Number(additional_menu_price || 0);
-    
     // Check if repeat customer (if customer has any previous orders in database)
     const prevOrderRes = await client.query(
       `SELECT COUNT(*) FROM orders WHERE customer_id = $1`,
@@ -135,11 +148,11 @@ export async function POST(req: NextRequest) {
     } else {
       // Also check by phone if phone exists
       const customerRes = await client.query("SELECT phone FROM customers WHERE id = $1", [final_customer_id]);
-      const phone = customerRes.rows[0]?.phone;
-      if (phone && phone.trim()) {
+      const phone = normalizePhoneNumber(customerRes.rows[0]?.phone);
+      if (phone) {
         const phoneOrdersRes = await client.query(
-          `SELECT COUNT(*) FROM orders o JOIN customers c ON o.customer_id = c.id WHERE c.phone = $1`,
-          [phone.trim()]
+          `SELECT COUNT(*) FROM orders o JOIN customers c ON o.customer_id = c.id WHERE ${phoneMatchSql("c.phone")} = $1`,
+          [phone]
         );
         if (Number(phoneOrdersRes.rows[0].count) > 0) {
           jenis_order = "Repeat Order";
@@ -148,6 +161,19 @@ export async function POST(req: NextRequest) {
     }
 
     const final_order_date = order_date || new Date().toISOString().split("T")[0];
+
+    const duplicate = await client.query(
+      `SELECT * FROM orders
+       WHERE lini = 'catering' AND customer_id = $1 AND delivery_date = $2::date
+         AND grand_total = $3::numeric
+         AND created_at >= now() - interval '20 seconds'
+       ORDER BY id DESC LIMIT 1`,
+      [final_customer_id, String(delivery_date).slice(0, 10), grandTotal]
+    );
+    if (duplicate.rows[0]) {
+      await client.query("COMMIT");
+      return NextResponse.json({ ...duplicate.rows[0], duplicate: true }, { status: 200 });
+    }
 
     const orderRes = await client.query(
       `INSERT INTO orders (
@@ -194,7 +220,16 @@ export async function POST(req: NextRequest) {
       [final_customer_id]
     );
 
+    const kledoJobIds = await enqueueCateringCreate(client, {
+      orderId: Number(orderId),
+      userId: userId ? Number(userId) : null,
+      deliveryDate: String(delivery_date).slice(0, 10),
+      lini: "catering",
+      inputSource: "manual",
+    });
+
     await client.query("COMMIT");
+    publishJobsAfterResponse(kledoJobIds);
     return NextResponse.json(orderRes.rows[0], { status: 201 });
   } catch (e: any) {
     await client.query("ROLLBACK");

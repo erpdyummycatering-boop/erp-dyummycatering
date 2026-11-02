@@ -8,7 +8,9 @@ import { Trash2, Save, ArrowLeft, Plus, CheckCircle2 } from "lucide-react";
 import { PageHeader, FormRow, FormField } from "@/components/ui/PageHeader";
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { Modal } from "@/components/ui/Modal";
-import { fmt } from "@/lib/utils";
+import { fmt, formatOrderNo } from "@/lib/utils";
+import { canManageKledo } from "@/lib/integration/access";
+import { KledoOrderPanel } from "@/components/kledo/KledoOrderPanel";
 
 const STATUS_ORDER = ["Baru", "Diproses", "Selesai", "Batal"];
 const STATUS_PAY = ["Belum Lunas", "DP 50%", "Lunas"];
@@ -56,6 +58,8 @@ export default function OrderDetailPage() {
     items: []
   });
 
+  const [confirmVoid, setConfirmVoid] = useState(false);
+  const [kledo, setKledo] = useState<any>(null);
   const [showQuickCust, setShowQuickCust] = useState(false);
   const [quickCustForm, setQuickCustForm] = useState({ name: "", phone: "", type: "Perorangan", email: "", address: "", notes: "" });
 
@@ -106,6 +110,7 @@ export default function OrderDetailPage() {
         return r.json();
       })
       .then(d => {
+        setKledo(d);
         setForm({
           customer_id: String(d.customer_id),
           recipient_name: d.recipient_name || "",
@@ -182,7 +187,7 @@ export default function OrderDetailPage() {
       const res = await fetch(`/api/orders/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, items: validItems })
+        body: JSON.stringify({ ...form, confirm_void_invoice: confirmVoid, items: validItems })
       });
 
       if (res.ok) {
@@ -224,7 +229,7 @@ export default function OrderDetailPage() {
       </div>
 
       <PageHeader 
-        title={`Edit Order ORD-${String(id).padStart(3, "0")}`}
+        title={`Edit Order ${formatOrderNo(id)}`}
         subtitle="Kelola rincian pengiriman, item pesanan, dan menu custom"
         actions={
           <div style={{ display: "flex", gap: 8 }}>
@@ -237,6 +242,16 @@ export default function OrderDetailPage() {
           </div>
         }
       />
+
+      {kledo && (
+        <KledoOrderPanel
+          order={kledo}
+          canManage={canManageKledo(userRole)}
+          onDone={() => {
+            fetch(`/api/orders/${id}`).then((r) => r.json()).then((d) => setKledo(d)).catch(() => undefined);
+          }}
+        />
+      )}
 
       {message && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#E1F5EE", border: "1px solid #9FE1CB", color: "#0F6E56", padding: "10px 16px", borderRadius: 8, marginBottom: 16, fontSize: 15, fontWeight: 600 }}>
@@ -329,6 +344,12 @@ export default function OrderDetailPage() {
               />
             </FormField>
           </FormRow>
+          {kledo?.kledo_invoice_id && form.status_order === "Batal" && canManageKledo(userRole) && (
+            <label style={{ display: "flex", gap: 8, marginBottom: 12, fontSize: 14 }}>
+              <input type="checkbox" checked={confirmVoid} onChange={(e) => setConfirmVoid(e.target.checked)} />
+              Konfirmasi void invoice Kledo beserta sales order
+            </label>
+          )}
 
           <FormRow>
             <FormField label="Biaya Ongkir (Rp)">

@@ -20,8 +20,10 @@ When building, generating, or refactoring code for this project, you MUST strict
 * **RAW SQL ONLY:** Execute all database queries using raw SQL strings via the `@neondatabase/serverless` pool.
 * **Parameterization:** Always use parameterized queries (e.g., `WHERE id = $1`) to prevent SQL injection.
 * **No Migration Files:** Do not generate standalone SQL migration scripts. Schema is managed via the seed SQL in `refs/skema_seed_erp_catering_dengan_cost_control.sql`.
+* **Exception — Kledo:** `refs/kledo_integration.sql` is an idempotent integration migration (configs, mappings, sync queue, sync log, and `kledo_*` columns). It is applied manually to Neon staging; runtime code must keep working when the config row is absent (integration stays off).
 * **Drizzle Exception:** Drizzle is only allowed if writing standalone seed scripts, not for runtime API queries.
 * **Tables in scope:** `users`, `customers`, `leads`, `products`, `recipes`, `orders`, `order_items`, `production_schedules`, `schedule_orders`, `schedule_menus`, `purchase_requests`, `pr_items`, `purchase_orders`, `overheads`.
+* **Kledo module:** `lib/kledo/*` and `lib/integration/*` talk to Kledo with raw SQL only. Catering orders (`orders.lini = 'catering'`) sync through the outbox. Siap-saji is out of scope. Scheduling uses Upstash QStash (`/api/qstash/*`), not Vercel Cron.
 
 ## 3. Technology Stack & Features
 

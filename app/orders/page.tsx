@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { Plus, Printer, Trash2, Download, Eye, FileText, Upload } from "lucide-react";
 import { useSession } from "next-auth/react";
@@ -9,8 +9,10 @@ import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { PageHeader, FormRow, FormField } from "@/components/ui/PageHeader";
 import { Pagination } from "@/components/ui/Pagination";
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
-import { fmt, statusBadgeColor } from "@/lib/utils";
+import { fmt, statusBadgeColor, formatOrderNo } from "@/lib/utils";
 import { exportToExcel } from "@/lib/export";
+import { canManageKledo } from "@/lib/integration/access";
+import { KledoStatusBadge } from "@/components/kledo/KledoStatusBadge";
 import * as XLSX from "xlsx";
 
 const STATUS_ORDER = ["Baru", "Diproses", "Selesai", "Batal"];
@@ -48,6 +50,9 @@ export default function OrdersPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [savingOrder, setSavingOrder] = useState(false);
+  const saveLock = useRef(false);
+  const idempotencyKey = useRef("");
   const [itemToDelete, setItemToDelete] = useState<any>(null);
   const [form, setForm] = useState(() => emptyForm(userRole, userId));
 
@@ -452,6 +457,7 @@ export default function OrdersPage() {
   const grandTotal = form.items.reduce((s, i) => s + (i.subtotal || 0), 0) + Number(form.shipping_fee || 0) + Number(form.additional_menu_price || 0);
 
   const handleSave = async () => {
+    if (saveLock.current) return;
     if (!form.customer_id || !form.delivery_date) return alert("Customer dan tanggal kirim wajib");
     if (form.customer_id === "new" && !form.customer_name) return alert("Nama customer baru wajib diisi");
     if (!form.items.some(i => i.product_id)) return alert("Minimal 1 item produk");
@@ -461,12 +467,18 @@ export default function OrdersPage() {
     if (userRole === "CS / Sales") {
       finalForm.pic_id = String(userId);
     }
+    if (!idempotencyKey.current) {
+      idempotencyKey.current = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+    }
 
+    saveLock.current = true;
+    setSavingOrder(true);
     try {
-      const res = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...finalForm, items: validItems }) });
+      const res = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...finalForm, items: validItems, idempotency_key: idempotencyKey.current }) });
       if (res.ok) { 
         setShowModal(false); 
         setForm(emptyForm(userRole, userId)); 
+        idempotencyKey.current = "";
         fetchOrders(1); 
         fetch("/api/customers?limit=10000").then(r => r.json()).then(d => setCustomers(d.data || []));
       } else {
@@ -475,6 +487,9 @@ export default function OrdersPage() {
       }
     } catch (e) {
       alert("Terjadi kesalahan saat menyimpan order.");
+    } finally {
+      saveLock.current = false;
+      setSavingOrder(false);
     }
   };
 
@@ -528,7 +543,11 @@ export default function OrdersPage() {
               />
             </label>
             <button className="btn btn-secondary btn-sm" onClick={handleExport}><Download size={14} /> Export Excel</button>
-            <button className="btn btn-primary" onClick={() => { setForm(emptyForm(userRole, userId)); setShowModal(true); }}><Plus size={14} /> Buat Order</button>
+            <button className="btn btn-primary" onClick={() => {
+              idempotencyKey.current = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+              setForm(emptyForm(userRole, userId));
+              setShowModal(true);
+            }}><Plus size={14} /> Buat Order</button>
           </div>
         }
       />
@@ -614,16 +633,17 @@ export default function OrdersPage() {
                     <th>Item</th>
                     <th>Total</th>
                     <th>Status</th>
+                    <th>Kledo</th>
                     <th>Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.length === 0 ? (
-                    <tr><td colSpan={11} style={{ textAlign: "center", padding: 24, color: "#6b7280" }}>Tidak ada order</td></tr>
+                    <tr><td colSpan={12} style={{ textAlign: "center", padding: 24, color: "#6b7280" }}>Tidak ada order</td></tr>
                   ) : rows.map((o: any, idx: number) => (
                     <tr key={o.id}>
                       <td style={{ fontSize: 14, color: "#6b7280" }}>{(meta.page - 1) * meta.limit + idx + 1}</td>
-                      <td style={{ fontWeight: 700, color: "#5005A6", fontSize: 14 }}>ORD-{String(o.id).padStart(3, "0")}</td>
+                      <td style={{ fontWeight: 700, color: "#5005A6", fontSize: 14 }}>{formatOrderNo(o.id, o.order_no)}</td>
                       <td style={{ fontWeight: 500 }}>{o.customer_name}</td>
                       <td style={{ fontSize: 14, color: "#6b7280" }}>{o.pic_name || "-"}</td>
                       <td style={{ fontSize: 14 }}>{String(o.delivery_date || "").slice(0, 10)}</td>
@@ -640,6 +660,7 @@ export default function OrdersPage() {
                       <td style={{ fontSize: 15, color: "#6b7280" }}>{(o.items || []).length} item</td>
                       <td style={{ fontWeight: 700, color: "#5005A6" }}>{fmt(o.grand_total)}</td>
                       <td><Badge color={statusBadgeColor(o.status_order)}>{o.status_order}</Badge></td>
+                      <td><KledoStatusBadge order={o} /></td>
                       <td>
                         <div style={{ display: "flex", gap: 4 }}>
                           <Link href={`/orders/${o.id}`}>
@@ -650,6 +671,14 @@ export default function OrdersPage() {
                           <button className="btn btn-secondary btn-sm" onClick={() => window.open(`/print/konfirmasi/${o.id}`, "_blank")} title="Konfirmasi PDF">
                             <FileText size={11} /> Konfirmasi
                           </button>
+                          {canManageKledo(userRole) && (
+                            <button className="btn btn-secondary btn-sm" title="Sync ulang ke Kledo" onClick={async () => {
+                              const res = await fetch(`/api/integrations/kledo/orders/${o.id}/sync`, { method: "POST" });
+                              const data = await res.json().catch(() => ({}));
+                              if (!res.ok) alert(data.error || "Gagal mengantri sync");
+                              else { alert("Sync masuk antrian."); fetchOrders(meta.page); }
+                            }}>Sync</button>
+                          )}
                           <button className="btn btn-secondary btn-sm" onClick={() => setItemToDelete(o)} title="Hapus">
                             <Trash2 size={11} color="#E24B4A" />
                           </button>
@@ -851,15 +880,26 @@ export default function OrdersPage() {
         </FormField>
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
           <button className="btn btn-secondary" onClick={() => setShowModal(false)}>Batal</button>
-          <button className="btn btn-primary" onClick={handleSave}>Simpan Order</button>
+          <button className="btn btn-primary" onClick={handleSave} disabled={savingOrder}>{savingOrder ? "Menyimpan..." : "Simpan Order"}</button>
         </div>
       </Modal>
 
       <ConfirmModal
         show={!!itemToDelete}
-        title="Hapus Order"
-        message={`Yakin ingin menghapus pesanan ORD-${String(itemToDelete?.id || "").padStart(3, "0")} dari ${itemToDelete?.customer_name}? Data yang dihapus tidak dapat dikembalikan.`}
-        onConfirm={executeDelete}
+        title={itemToDelete?.kledo_invoice_id ? "Tidak bisa dihapus" : itemToDelete?.kledo_so_id ? "Batalkan Order" : "Hapus Order"}
+        danger={!itemToDelete?.kledo_invoice_id}
+        confirmLabel={itemToDelete?.kledo_invoice_id ? "Mengerti" : itemToDelete?.kledo_so_id ? "Ya, Batalkan" : "Ya, Hapus"}
+        message={
+          itemToDelete?.kledo_invoice_id
+            ? `${formatOrderNo(itemToDelete.id, itemToDelete.order_no)} sudah punya invoice Kledo${itemToDelete.kledo_invoice_number ? ` (${itemToDelete.kledo_invoice_number})` : ""}. Order yang sudah punya invoice tidak bisa dihapus.`
+            : itemToDelete?.kledo_so_id
+              ? `${formatOrderNo(itemToDelete.id, itemToDelete.order_no)} sudah punya Sales Order Kledo. Order akan berstatus Batal dan SO di-void. Data tetap tersimpan.`
+              : `Yakin ingin menghapus pesanan ${formatOrderNo(itemToDelete?.id || "", itemToDelete?.order_no)} dari ${itemToDelete?.customer_name}? Data yang dihapus tidak dapat dikembalikan.`
+        }
+        onConfirm={() => {
+          if (itemToDelete?.kledo_invoice_id) { setItemToDelete(null); return; }
+          executeDelete();
+        }}
         onCancel={() => setItemToDelete(null)}
       />
 
