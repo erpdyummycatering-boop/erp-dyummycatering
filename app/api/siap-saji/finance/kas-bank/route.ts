@@ -143,6 +143,8 @@ export async function POST(req: NextRequest) {
   try {
     const saldo = Number(saldo_awal || 0);
 
+    await client.query("BEGIN");
+
     const res = await client.query(
       `INSERT INTO kas_bank (lini, nama_rekening, jenis, no_rekening, nama_bank, saldo_awal, saldo_kini, is_payment_default, coa_id)
        VALUES ('siap_saji', $1, $2, $3, $4, $5, $5, $6, $7)
@@ -158,8 +160,38 @@ export async function POST(req: NextRequest) {
       ]
     );
 
-    return NextResponse.json(res.rows[0], { status: 201 });
+    const newKb = res.rows[0];
+
+    // Jika ada Saldo Awal > 0 dan terhubung ke Akun CoA, catat Jurnal Double-Entry Modal Awal
+    if (saldo > 0 && coa_id) {
+      // Cari COA Modal Siap Saji (kode 3-1001)
+      const modalRes = await client.query(
+        "SELECT id FROM coa WHERE kode_akun = '3-1001' AND lini = 'siap_saji' LIMIT 1"
+      );
+      const modalCoaId = modalRes.rows[0]?.id;
+
+      if (modalCoaId) {
+        const today = new Date().toISOString().split("T")[0];
+        await client.query(
+          `INSERT INTO journals (lini, journal_date, ref_type, ref_id, ref_no, akun_debit, akun_kredit, nominal, keterangan)
+           VALUES ('siap_saji', $1, 'modal', $2, $3, $4, $5, $6, $7)`,
+          [
+            today,
+            newKb.id,
+            `SA-${newKb.id}`,
+            Number(coa_id), // Debet: Kas/Bank bertambah
+            modalCoaId,     // Kredit: Modal bertambah
+            saldo,
+            `Saldo Awal Rekening ${nama_rekening.trim()}`,
+          ]
+        );
+      }
+    }
+
+    await client.query("COMMIT");
+    return NextResponse.json(newKb, { status: 201 });
   } catch (error: any) {
+    await client.query("ROLLBACK");
     console.error("Gagal menambah akun kas/bank:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   } finally {
