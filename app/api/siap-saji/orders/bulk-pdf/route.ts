@@ -151,7 +151,7 @@ export async function GET(req: NextRequest) {
 
       // Jeda pemisah antar nota di roll: langsung ke D'Yummy nota berikutnya tanpa dashline
       if (!isLast) {
-        h += 52;
+        h += 80;
       }
 
       return h;
@@ -323,7 +323,7 @@ export async function GET(req: NextRequest) {
 
       // Pemisah antar nota roll: langsung jeda bersih ke header D'Yummy nota berikutnya tanpa dashline
       if (!isLastInRoll) {
-        y -= 52; // Spasi sebelum D'Yummy Siap Saji di nota berikutnya
+        y -= 80; // Spasi sebelum D'Yummy Siap Saji di nota berikutnya
       }
 
       return y;
@@ -340,11 +340,11 @@ export async function GET(req: NextRequest) {
         totalContentHeight += measureOrderHeight(order, isLast);
       });
 
-      // Padding atas 60pt (sebelum header) & padding bawah 60pt (setelah garis di bawah Total)
-      const totalRollHeight = Math.ceil(totalContentHeight + 90 + 36);
+      // Padding atas 110pt (sebelum header) & padding bawah 60pt (setelah garis di bawah Total)
+      const totalRollHeight = Math.ceil(totalContentHeight + 110 + 36);
 
       const page = pdfDoc.addPage([width, totalRollHeight]);
-      let y = totalRollHeight - 90; // padding atas 90pt agar header tidak menempel // Initial baseline offset so title font is never cut off at top
+      let y = totalRollHeight - 110; // padding atas 110pt agar header tidak menempel ke tepi / dashline // Initial baseline offset so title font is never cut off at top
 
       orderRes.rows.forEach((order, idx) => {
         const isLast = idx === orderRes.rows.length - 1;
@@ -354,9 +354,9 @@ export async function GET(req: NextRequest) {
       // ── DYNAMIC EXACT HEIGHT PER RECEIPT PAGE MODE (Zero Wasted Blank Paper) ──
       for (const order of orderRes.rows) {
         // Budget height including generous margin
-        const height = Math.ceil(measureOrderHeight(order, true) + 60 + 36);
+        const height = Math.ceil(measureOrderHeight(order, true) + 85 + 36);
         const page = pdfDoc.addPage([width, height]);
-        renderSingleOrder(page, order, height - 60, true);
+        renderSingleOrder(page, order, height - 85, true);
       }
     }
 

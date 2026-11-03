@@ -141,8 +141,8 @@ export async function GET(
       return h;
     };
 
-    // Padding atas 60pt dan bawah 40pt (setelah garis di bawah Total)
-    const height = Math.ceil(measureOrderHeight() + 60 + 20);
+    // Padding atas 85pt dan bawah 40pt (setelah garis di bawah Total)
+    const height = Math.ceil(measureOrderHeight() + 85 + 20);
 
     const pdfDoc = await PDFDocument.create();
     const page = pdfDoc.addPage([width, height]);
@@ -150,8 +150,8 @@ export async function GET(
     const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-    // Initial baseline offset at (height - 60) so title header is never cut off at the top
-    let y = height - 60;
+    // Initial baseline offset at (height - 85) so title header has generous top breathing room
+    let y = height - 85;
 
     const drawCenterText = (text: string, font: any, size: number) => {
       const textWidth = font.widthOfTextAtSize(text, size);
