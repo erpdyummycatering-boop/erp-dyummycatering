@@ -97,11 +97,6 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     };
     const changed = financialChanged(previous, nextState);
     const cancelling = status_order === "Batal" || status_order === "Dibatalkan";
-    if (previous.kledo_invoice_id && changed) {
-      return NextResponse.json({
-        error: "Invoice Kledo sudah terbit. Perubahan item, harga, ongkir, tanggal, atau customer harus direvisi manual di Kledo.",
-      }, { status: 409 });
-    }
     if (previous.kledo_invoice_id && cancelling && !body.confirm_void_invoice) {
       return NextResponse.json({
         error: `Invoice ${previous.kledo_invoice_number || "Kledo"} sudah terbit. Batalkan lewat Finance dengan konfirmasi void invoice.`,
