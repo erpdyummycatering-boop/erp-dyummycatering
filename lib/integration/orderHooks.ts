@@ -6,6 +6,7 @@ import {
   cancelOpenJobs,
   enqueueJob,
   invCreateKey,
+  invUpdateKey,
   invVoidKey,
   soCreateKey,
   soUpdateKey,
@@ -236,17 +237,19 @@ export async function enqueueCateringUpdate(
       return ids;
     }
 
-    if (opts.previous.kledo_invoice_id) return ids;
-
     const inScope = deliveryInScope(config, opts.next.delivery_date);
+    let hashChanged = false;
+    let nextHash = "";
+
     if (!opts.previous.kledo_so_id) {
-      if (!inScope || !config.syncEnabled) return ids;
-      await push(await enqueueJob(client, {
-        configId: config.id, entityType: "sales_order", localId: opts.previous.id, action: "create",
-        idempotencyKey: soCreateKey(config.id, opts.previous.id), priority: 5, triggeredBy: "order_update", createdBy: opts.userId,
-      }));
+      if (inScope && config.syncEnabled) {
+        await push(await enqueueJob(client, {
+          configId: config.id, entityType: "sales_order", localId: opts.previous.id, action: "create",
+          idempotencyKey: soCreateKey(config.id, opts.previous.id), priority: 5, triggeredBy: "order_update", createdBy: opts.userId,
+        }));
+      }
     } else {
-      const hash = orderSyncHash({
+      nextHash = orderSyncHash({
         customer_id: opts.next.customer_id,
         order_date: opts.next.order_date,
         delivery_date: opts.next.delivery_date,
@@ -268,14 +271,26 @@ export async function enqueueCateringUpdate(
         recipient_phone: opts.previous.recipient_phone,
         items: asItems(opts.previous.items),
       });
-      if (hash !== previousHash && config.syncEnabled) {
-        const key = soUpdateKey(config.id, opts.previous.id, hash);
+      hashChanged = nextHash !== previousHash;
+      if (hashChanged && config.syncEnabled) {
+        const key = soUpdateKey(config.id, opts.previous.id, nextHash);
         await cancelOpenJobs(client, config.id, opts.previous.id, key);
         await push(await enqueueJob(client, {
           configId: config.id, entityType: "sales_order", localId: opts.previous.id, action: "update",
           idempotencyKey: key, priority: 3, triggeredBy: "order_update", createdBy: opts.userId,
         }));
       }
+    }
+
+    if (opts.previous.kledo_invoice_id) {
+      if (hashChanged && config.syncEnabled) {
+        const invKey = invUpdateKey(config.id, opts.previous.id, nextHash);
+        await push(await enqueueJob(client, {
+          configId: config.id, entityType: "invoice", localId: opts.previous.id, action: "update",
+          idempotencyKey: invKey, priority: 4, triggeredBy: "order_update", createdBy: opts.userId,
+        }));
+      }
+      return ids;
     }
 
     if (opts.nextStatus === "Selesai" && inScope && config.syncEnabled) {
@@ -315,6 +330,23 @@ export async function enqueueManual(opts: {
     return enqueueJob(pool, {
       configId: config.id, entityType: "invoice", localId: opts.orderId, action: "create_invoice",
       idempotencyKey: invCreateKey(config.id, opts.orderId), priority: 4, triggeredBy, createdBy: opts.userId,
+    });
+  }
+  if (state.kledo_invoice_id) {
+    const hash = orderSyncHash({
+      customer_id: state.customer_id,
+      order_date: state.order_date,
+      delivery_date: state.delivery_date,
+      shipping_fee: state.shipping_fee,
+      additional_menu_price: state.additional_menu_price,
+      venue: state.venue,
+      recipient_name: state.recipient_name,
+      recipient_phone: state.recipient_phone,
+      items: asItems(state.items),
+    });
+    return enqueueJob(pool, {
+      configId: config.id, entityType: "invoice", localId: opts.orderId, action: "update",
+      idempotencyKey: invUpdateKey(config.id, opts.orderId, hash), priority: 3, triggeredBy: "manual", createdBy: opts.userId,
     });
   }
   if (state.kledo_so_id) {

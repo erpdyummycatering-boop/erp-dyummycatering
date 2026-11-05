@@ -39,6 +39,9 @@ export function soVoidKey(configId: number, orderId: number) {
 export function invCreateKey(configId: number, orderId: number) {
   return `kledo:${configId}:inv:create:${orderId}`;
 }
+export function invUpdateKey(configId: number, orderId: number, hash: string) {
+  return `kledo:${configId}:inv:update:${orderId}:${hash}`;
+}
 export function invVoidKey(configId: number, orderId: number) {
   return `kledo:${configId}:inv:void:${orderId}`;
 }

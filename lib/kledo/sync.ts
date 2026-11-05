@@ -77,6 +77,7 @@ export async function executeSyncJob(db: Sql, job: JobRow, config: IntegrationCo
 
   const cancelled = order.status_order === "Batal" || order.status_order === "Dibatalkan";
   if (job.entity_type === "invoice" && job.action === "void") return voidInvoice(db, ctx, order);
+  if (job.entity_type === "invoice" && job.action === "update") return updateInvoice(db, ctx, order);
   if (job.entity_type === "invoice" || job.action === "create_invoice") {
     if (cancelled) return [];
     return createInvoice(db, ctx, order);
@@ -458,6 +459,50 @@ async function createInvoice(db: Sql, ctx: Ctx, order: OrderSnapshot): Promise<F
     kledo_last_synced_at: new Date().toISOString(),
     kledo_sync_error: warning,
     invoiced_at: new Date().toISOString(),
+  });
+  return [];
+}
+
+async function updateInvoice(db: Sql, ctx: Ctx, order: OrderSnapshot): Promise<FollowUp[]> {
+  const mapped = await getMapping(db, ctx.config.id, "invoice", order.id);
+  if (!mapped) return createInvoice(db, ctx, order);
+  const so = await getMapping(db, ctx.config.id, "sales_order", order.id);
+  if (!so) throw new DeferJob(300, "Invoice menunggu Sales Order");
+
+  assertReady(order);
+  const contactId = await ensureContact(db, ctx, order);
+  for (const item of order.items) await ensureProduct(db, ctx, item);
+  const transDate = invoiceTransDate(ctx.job, order);
+  const built = orderToInvoice(order, contactId, so.remoteId, ctx.config.settings, transDate);
+  if ("error" in built) throw new BlockedJob(built.error, BLOCK_TEXT[built.error]);
+
+  let remoteId = mapped.remoteId;
+  let remoteRef = mapped.remoteRef;
+  let remoteTotal: unknown = null;
+  let remoteStatus: string | null = null;
+
+  try {
+    const updated = await call(ctx, "PUT", `/finance/invoices/${remoteId}`, built.body);
+    remoteRef = updated.data?.ref_number || remoteRef;
+    remoteTotal = updated.data?.amount_after_tax;
+    remoteStatus = updated.data?.status_id != null ? String(updated.data.status_id) : null;
+  } catch (err: any) {
+    if (err instanceof KledoError) {
+      const errMsg = err.result?.message || err.message;
+      throw new BlockedJob("VALIDATION", `Gagal update invoice di Kledo: ${errMsg}`);
+    }
+    throw err;
+  }
+
+  const warning = totalWarning(order, remoteTotal);
+  await saveMapping(db, ctx.config.id, "invoice", order.id, order.order_no, remoteId, remoteRef, orderSyncHash(order), remoteStatus);
+  await patchOrder(db, order.id, {
+    kledo_config_id: ctx.config.id,
+    kledo_invoice_id: remoteId,
+    kledo_invoice_number: remoteRef,
+    kledo_sync_status: "invoiced",
+    kledo_last_synced_at: new Date().toISOString(),
+    kledo_sync_error: warning,
   });
   return [];
 }

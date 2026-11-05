@@ -47,8 +47,8 @@ export function KledoOrderPanel({
         {order.kledo_sync_error && <span style={{ color: "#A32D2D" }}>{order.kledo_sync_error}</span>}
       </div>
       {order.kledo_invoice_id && (
-        <p style={{ margin: "10px 0 0", fontSize: 13, color: "#854F0B" }}>
-          Invoice sudah terbit. Perubahan harga, item, ongkir, tanggal, atau customer tidak dikirim otomatis ke Kledo.
+        <p style={{ margin: "10px 0 0", fontSize: 13, color: "#0F6E56" }}>
+          Invoice sudah terbit ({order.kledo_invoice_number || `INV ${order.kledo_invoice_id}`}). Perubahan item atau harga akan otomatis memperbarui invoice Kledo.
         </p>
       )}
       {canManage && (
