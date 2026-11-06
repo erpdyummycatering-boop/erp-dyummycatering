@@ -6,10 +6,9 @@ import {
   Calendar,
   Search,
   FileSpreadsheet,
-  TrendingUp,
-  ShoppingCart,
-  Phone,
   ArrowUpDown,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -32,10 +31,32 @@ export default function SalesByCustomerReportPage() {
   const [search, setSearch] = useState("");
   const [quickFilter, setQuickFilter] = useState<"all" | "today" | "month" | "year">("all");
 
-  // Pagination & Table Search State
+  // Pagination, Search & Sorting State
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const [tableSearch, setTableSearch] = useState("");
+  const [sortBy, setSortBy] = useState<string>("total_omset");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const toggleSort = (colKey: string) => {
+    if (sortBy === colKey) {
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(colKey);
+      setSortDir("asc");
+    }
+  };
+
+  const renderSortIndicator = (colKey: string) => {
+    if (sortBy !== colKey) {
+      return <ArrowUpDown size={12} color="#9ca3af" style={{ marginLeft: 4, display: "inline-block", verticalAlign: "middle" }} />;
+    }
+    return sortDir === "asc" ? (
+      <ChevronUp size={13} color="#5005A6" style={{ marginLeft: 4, display: "inline-block", verticalAlign: "middle" }} />
+    ) : (
+      <ChevronDown size={13} color="#5005A6" style={{ marginLeft: 4, display: "inline-block", verticalAlign: "middle" }} />
+    );
+  };
 
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -401,11 +422,22 @@ export default function SalesByCustomerReportPage() {
             );
           });
 
-          const totalItems = filteredCusts.length;
+          const sortedCusts = [...filteredCusts].sort((a: any, b: any) => {
+            if (["total_orders", "total_qty", "total_omset"].includes(sortBy)) {
+              const valA = Number(a[sortBy] || 0);
+              const valB = Number(b[sortBy] || 0);
+              return sortDir === "asc" ? valA - valB : valB - valA;
+            }
+            const valA = (a[sortBy] ?? "").toString().toLowerCase();
+            const valB = (b[sortBy] ?? "").toString().toLowerCase();
+            return sortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
+          });
+
+          const totalItems = sortedCusts.length;
           const totalPages = Math.max(1, Math.ceil(totalItems / limit));
           const safePage = Math.min(page, totalPages);
           const startIndex = (safePage - 1) * limit;
-          const pagedCustomers = filteredCusts.slice(startIndex, startIndex + limit);
+          const pagedCustomers = sortedCusts.slice(startIndex, startIndex + limit);
 
           return (
             <>
@@ -413,13 +445,27 @@ export default function SalesByCustomerReportPage() {
                 <thead>
                   <tr style={{ background: "#fafafa", color: "#6b7280", fontWeight: 700, fontSize: 11, textTransform: "uppercase" }}>
                     <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", width: 50 }}>No.</th>
-                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Nama Customer</th>
-                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>No. HP / WA</th>
-                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Kecamatan</th>
-                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "center" }}>Total Order</th>
-                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "right" }}>Qty (Pcs)</th>
-                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "right" }}>Angka Rupiah (Omset)</th>
-                    <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Order Terakhir</th>
+                    <th onClick={() => toggleSort("customer_name")} style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", cursor: "pointer", userSelect: "none" }}>
+                      Nama Customer {renderSortIndicator("customer_name")}
+                    </th>
+                    <th onClick={() => toggleSort("customer_phone")} style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", cursor: "pointer", userSelect: "none" }}>
+                      No. HP / WA {renderSortIndicator("customer_phone")}
+                    </th>
+                    <th onClick={() => toggleSort("area_kecamatan")} style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", cursor: "pointer", userSelect: "none" }}>
+                      Kecamatan {renderSortIndicator("area_kecamatan")}
+                    </th>
+                    <th onClick={() => toggleSort("total_orders")} style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "center", cursor: "pointer", userSelect: "none" }}>
+                      Total Order {renderSortIndicator("total_orders")}
+                    </th>
+                    <th onClick={() => toggleSort("total_qty")} style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "right", cursor: "pointer", userSelect: "none" }}>
+                      Qty (Pcs) {renderSortIndicator("total_qty")}
+                    </th>
+                    <th onClick={() => toggleSort("total_omset")} style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "right", cursor: "pointer", userSelect: "none" }}>
+                      Angka Rupiah (Omset) {renderSortIndicator("total_omset")}
+                    </th>
+                    <th onClick={() => toggleSort("last_order_date")} style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", cursor: "pointer", userSelect: "none" }}>
+                      Order Terakhir {renderSortIndicator("last_order_date")}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>

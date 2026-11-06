@@ -32,6 +32,11 @@ export default function KledoSettingsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [jobStatus, setJobStatus] = useState("");
   const [logs, setLogs] = useState<any[] | null>(null);
+  const [now, setNow] = useState(0);
+
+  useEffect(() => {
+    setNow(Date.now());
+  }, []);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/integrations/kledo");
@@ -168,7 +173,7 @@ export default function KledoSettingsPage() {
 
   const badge = state?.config?.badge || (form.environment === "production" ? "LIVE" : "DEMO");
   const expires = state?.config?.tokenExpiresAt ? new Date(state.config.tokenExpiresAt) : null;
-  const expiring = expires ? expires.getTime() - Date.now() < 14 * 86400000 : false;
+  const expiring = expires && now ? expires.getTime() - now < 14 * 86400000 : false;
 
   return (
     <div>

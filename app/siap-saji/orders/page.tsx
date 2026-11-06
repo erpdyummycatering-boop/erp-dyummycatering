@@ -3632,7 +3632,7 @@ export default function SiapSajiOrdersPage() {
               </div>
 
               <div style={{ borderTop: "1px dashed #9ca3af", marginTop: 12, paddingTop: 6, textAlign: "center", fontSize: 11, color: "#6b7280" }}>
-                Wanti Nova, {new Date(selectedStruk.created_at || Date.now()).toLocaleDateString("id-ID")}
+                Wanti Nova, {selectedStruk.created_at ? new Date(selectedStruk.created_at).toLocaleDateString("id-ID") : "-"}
               </div>
             </div>
 
@@ -4129,7 +4129,7 @@ export default function SiapSajiOrdersPage() {
                     </div>
 
                     <div style={{ borderTop: "1px dashed #9ca3af", marginTop: 12, paddingTop: 6, textAlign: "center", fontSize: 11, color: "#6b7280" }}>
-                      Wanti Nova, {new Date(order.created_at || Date.now()).toLocaleDateString("id-ID")}
+                      Wanti Nova, {order.created_at ? new Date(order.created_at).toLocaleDateString("id-ID") : "-"}
                     </div>
                   </div>
                 </div>

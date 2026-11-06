@@ -5,14 +5,13 @@ import {
   Layers,
   Calendar,
   Search,
-  Filter,
-  RefreshCw,
   FileSpreadsheet,
-  TrendingUp,
-  ShoppingBag,
   PieChart as PieIcon,
   Table,
   BarChart3,
+  ArrowUpDown,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -58,10 +57,32 @@ export default function SalesByProductReportPage() {
   const [tableTab, setTableTab] = useState<"standard" | "pivot">("standard");
   const [pivotMetric, setPivotMetric] = useState<"qty" | "omset" | "both">("both");
 
-  // Pagination & Table Search State
+  // Pagination, Search & Sorting State
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const [tableSearch, setTableSearch] = useState("");
+  const [sortBy, setSortBy] = useState<string>("total_omset");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const toggleSort = (colKey: string) => {
+    if (sortBy === colKey) {
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(colKey);
+      setSortDir("asc");
+    }
+  };
+
+  const renderSortIndicator = (colKey: string) => {
+    if (sortBy !== colKey) {
+      return <ArrowUpDown size={12} color="#9ca3af" style={{ marginLeft: 4, display: "inline-block", verticalAlign: "middle" }} />;
+    }
+    return sortDir === "asc" ? (
+      <ChevronUp size={13} color="#5005A6" style={{ marginLeft: 4, display: "inline-block", verticalAlign: "middle" }} />
+    ) : (
+      <ChevronDown size={13} color="#5005A6" style={{ marginLeft: 4, display: "inline-block", verticalAlign: "middle" }} />
+    );
+  };
 
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -719,11 +740,22 @@ export default function SalesByProductReportPage() {
             );
           });
 
-          const totalItems = filteredProds.length;
+          const sortedProds = [...filteredProds].sort((a: any, b: any) => {
+            if (["avg_price", "total_qty", "total_omset"].includes(sortBy)) {
+              const valA = Number(a[sortBy] || 0);
+              const valB = Number(b[sortBy] || 0);
+              return sortDir === "asc" ? valA - valB : valB - valA;
+            }
+            const valA = (a[sortBy] ?? "").toString().toLowerCase();
+            const valB = (b[sortBy] ?? "").toString().toLowerCase();
+            return sortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
+          });
+
+          const totalItems = sortedProds.length;
           const totalPages = Math.max(1, Math.ceil(totalItems / limit));
           const safePage = Math.min(page, totalPages);
           const startIndex = (safePage - 1) * limit;
-          const pagedProducts = filteredProds.slice(startIndex, startIndex + limit);
+          const pagedProducts = sortedProds.slice(startIndex, startIndex + limit);
 
           const timeSeries = data?.time_series || [];
           const timeLabels: string[] = timeSeries.map((t: any) => t.time_label);
@@ -748,8 +780,8 @@ export default function SalesByProductReportPage() {
                         <th style={{ position: "sticky", top: 0, left: 0, zIndex: 30, background: "#f9fafb", borderBottom: "2px solid #e5e7eb", padding: "12px 14px", minWidth: 45 }}>
                           No
                         </th>
-                        <th style={{ position: "sticky", top: 0, left: 45, zIndex: 30, background: "#f9fafb", borderBottom: "2px solid #e5e7eb", padding: "12px 14px", minWidth: 200, boxShadow: "2px 0 5px -2px rgba(0,0,0,0.1)" }}>
-                          Nama Produk
+                        <th onClick={() => toggleSort("product_name")} style={{ position: "sticky", top: 0, left: 45, zIndex: 30, background: "#f9fafb", borderBottom: "2px solid #e5e7eb", padding: "12px 14px", minWidth: 200, boxShadow: "2px 0 5px -2px rgba(0,0,0,0.1)", cursor: "pointer", userSelect: "none" }}>
+                          Nama Produk {renderSortIndicator("product_name")}
                         </th>
                         {timeLabels.map((tl) => (
                           <th
@@ -904,12 +936,24 @@ export default function SalesByProductReportPage() {
                   <thead>
                     <tr style={{ background: "#fafafa", color: "#6b7280", fontWeight: 700, fontSize: 11, textTransform: "uppercase" }}>
                       <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", width: 50 }}>No.</th>
-                      <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", width: 110 }}>SKU</th>
-                      <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Nama Produk</th>
-                      <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px" }}>Kategori</th>
-                      <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "right" }}>Harga Rata-Rata</th>
-                      <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "right" }}>Qty Terjual</th>
-                      <th style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "right" }}>Total Rupiah (Omset)</th>
+                      <th onClick={() => toggleSort("sku")} style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", width: 110, cursor: "pointer", userSelect: "none" }}>
+                        SKU {renderSortIndicator("sku")}
+                      </th>
+                      <th onClick={() => toggleSort("product_name")} style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", cursor: "pointer", userSelect: "none" }}>
+                        Nama Produk {renderSortIndicator("product_name")}
+                      </th>
+                      <th onClick={() => toggleSort("category_name")} style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", cursor: "pointer", userSelect: "none" }}>
+                        Kategori {renderSortIndicator("category_name")}
+                      </th>
+                      <th onClick={() => toggleSort("avg_price")} style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "right", cursor: "pointer", userSelect: "none" }}>
+                        Harga Rata-Rata {renderSortIndicator("avg_price")}
+                      </th>
+                      <th onClick={() => toggleSort("total_qty")} style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "right", cursor: "pointer", userSelect: "none" }}>
+                        Qty Terjual {renderSortIndicator("total_qty")}
+                      </th>
+                      <th onClick={() => toggleSort("total_omset")} style={{ position: "sticky", top: 0, background: "#f9fafb", zIndex: 10, borderBottom: "2px solid #e5e7eb", padding: "12px 14px", textAlign: "right", cursor: "pointer", userSelect: "none" }}>
+                        Total Rupiah (Omset) {renderSortIndicator("total_omset")}
+                      </th>
                     </tr>
                   </thead>
                   <tbody>

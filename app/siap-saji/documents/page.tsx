@@ -96,7 +96,7 @@ export default function SiapSajiDocumentsPage() {
       }
       return rekapSortOrder === "asc" ? comp : -comp;
     });
-  }, [docData?.data, activeTab, rekapSortField, rekapSortOrder]);
+  }, [docData, activeTab, rekapSortField, rekapSortOrder]);
 
   const toggleRekapSort = (field: string) => {
     if (rekapSortField === field) {
