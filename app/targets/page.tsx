@@ -185,7 +185,7 @@ export default function TargetsPage() {
       {targets.length === 0 ? (
         <div className="erp-card" style={{ padding: "48px 24px", textAlign: "center", color: "#6b7280" }}>
           <p style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>Belum ada target yang ditetapkan</p>
-          <p style={{ fontSize: 15 }}>Klik "Tambah Target" untuk mulai menetapkan KPI bulan ini</p>
+          <p style={{ fontSize: 15 }}>Klik &ldquo;Tambah Target&rdquo; untuk mulai menetapkan KPI bulan ini</p>
           <button className="btn btn-primary" onClick={openAdd} style={{ marginTop: 16 }}><Plus size={14} /> Tambah Target Pertama</button>
         </div>
       ) : (

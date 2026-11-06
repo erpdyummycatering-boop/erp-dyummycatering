@@ -347,7 +347,7 @@ export default function ScheduleDetailPage() {
 
         {menus.length === 0 && customItems.length === 0 && (
           <div style={{ padding: "32px 24px", textAlign: "center", color: "#6b7280", fontSize: 15 }}>
-            Belum ada menu atau bahan baku. Klik "Tambah Item" untuk mulai merencanakan.
+            Belum ada menu atau bahan baku. Klik &ldquo;Tambah Item&rdquo; untuk mulai merencanakan.
           </div>
         )}
 

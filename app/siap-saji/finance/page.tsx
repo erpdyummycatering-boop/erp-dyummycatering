@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, Fragment } from "react";
-import { CreditCard, DollarSign, Plus, FileText, PieChart, BookOpen, ArrowUpRight, ArrowDownLeft, ArrowRightLeft, X, Check, CheckCircle, RefreshCw, Search, Edit3, Trash2, Calendar, Printer, Download, FileSpreadsheet, Eye, AlertTriangle, Receipt } from "lucide-react";
+import { CreditCard, DollarSign, Plus, FileText, PieChart, BookOpen, ArrowUpRight, ArrowDownLeft, ArrowRightLeft, X, RefreshCw, Search, Edit3, Trash2, Calendar, Printer, FileSpreadsheet, Eye, AlertTriangle, Receipt, ArrowUpDown, ChevronUp, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/ui/Pagination";
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
@@ -16,7 +16,6 @@ export default function SiapSajiFinancePage() {
 
   // ── State Modal List Transaksi Keuangan (Drill-down dari P&L dan Neraca) ──
   const [drillModalOpen, setDrillModalOpen] = useState(false);
-  const [drillModalTitle, setDrillModalTitle] = useState("");
   const [drillModalCoaId, setDrillModalCoaId] = useState<number | null>(null);
   const [drillModalCoaCode, setDrillModalCoaCode] = useState("");
   const [drillModalCoaName, setDrillModalCoaName] = useState("");
@@ -63,6 +62,114 @@ export default function SiapSajiFinancePage() {
     return clean ? Number(clean) : 0;
   };
 
+  // Sorting Helper Component & State
+  const renderSortIndicator = (currentCol: string, activeCol: string, sortDir: "asc" | "desc") => {
+    if (activeCol !== currentCol) {
+      return <ArrowUpDown size={12} color="#9ca3af" style={{ marginLeft: 4, display: "inline-block", verticalAlign: "middle" }} />;
+    }
+    return sortDir === "asc" ? (
+      <ChevronUp size={13} color="#5005A6" style={{ marginLeft: 4, display: "inline-block", verticalAlign: "middle" }} />
+    ) : (
+      <ChevronDown size={13} color="#5005A6" style={{ marginLeft: 4, display: "inline-block", verticalAlign: "middle" }} />
+    );
+  };
+
+  // Tab 2: Purchases Sort State
+  const [purSortBy, setPurSortBy] = useState<string>("purchase_date");
+  const [purSortDir, setPurSortDir] = useState<"asc" | "desc">("desc");
+  const togglePurSort = (colKey: string) => {
+    if (purSortBy === colKey) {
+      setPurSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setPurSortBy(colKey);
+      setPurSortDir("asc");
+    }
+  };
+
+  // Tab 3: Expenses Sort State
+  const [expSortBy, setExpSortBy] = useState<string>("expense_date");
+  const [expSortDir, setExpSortDir] = useState<"asc" | "desc">("desc");
+  const toggleExpSort = (colKey: string) => {
+    if (expSortBy === colKey) {
+      setExpSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setExpSortBy(colKey);
+      setExpSortDir("asc");
+    }
+  };
+
+  // Tab 4: Kas & Bank Mutasi Sort State
+  const [mutSortBy, setMutSortBy] = useState<string>("mutasi_date");
+  const [mutSortDir, setMutSortDir] = useState<"asc" | "desc">("desc");
+  const toggleMutSort = (colKey: string) => {
+    if (mutSortBy === colKey) {
+      setMutSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setMutSortBy(colKey);
+      setMutSortDir("asc");
+    }
+  };
+
+  // Tab 5: Journals Sort State
+  const [jouSortBy, setJouSortBy] = useState<string>("journal_date");
+  const [jouSortDir, setJouSortDir] = useState<"asc" | "desc">("desc");
+  const toggleJouSort = (colKey: string) => {
+    if (jouSortBy === colKey) {
+      setJouSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setJouSortBy(colKey);
+      setJouSortDir("asc");
+    }
+  };
+
+  // Tab 6: Ledger Sort State
+  const [ledgerSortBy, setLedgerSortBy] = useState<string>("journal_date");
+  const [ledgerSortDir, setLedgerSortDir] = useState<"asc" | "desc">("asc");
+  const toggleLedgerSort = (colKey: string) => {
+    if (ledgerSortBy === colKey) {
+      setLedgerSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setLedgerSortBy(colKey);
+      setLedgerSortDir("asc");
+    }
+  };
+
+  // Tab 7: COA Sort State
+  const [coaSortBy, setCoaSortBy] = useState<string>("kode_akun");
+  const [coaSortDir, setCoaSortDir] = useState<"asc" | "desc">("asc");
+  const toggleCoaSort = (colKey: string) => {
+    if (coaSortBy === colKey) {
+      setCoaSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setCoaSortBy(colKey);
+      setCoaSortDir("asc");
+    }
+  };
+
+  // Modal Kas & Bank History Mutasi Sort State
+  const [historySortBy, setHistorySortBy] = useState<string>("mutasi_date");
+  const [historySortDir, setHistorySortDir] = useState<"asc" | "desc">("desc");
+  const toggleHistorySort = (colKey: string) => {
+    if (historySortBy === colKey) {
+      setHistorySortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setHistorySortBy(colKey);
+      setHistorySortDir("asc");
+    }
+  };
+
+  // Modal Drill-down Jurnal Sort State
+  const [drillSortBy, setDrillSortBy] = useState<string>("journal_date");
+  const [drillSortDir, setDrillSortDir] = useState<"asc" | "desc">("desc");
+  const toggleDrillSort = (colKey: string) => {
+    if (drillSortBy === colKey) {
+      setDrillSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setDrillSortBy(colKey);
+      setDrillSortDir("asc");
+    }
+  };
+
   // Pagination states
   const [purPage, setPurPage] = useState(1);
   const [purLimit, setPurLimit] = useState(10);
@@ -84,8 +191,6 @@ export default function SiapSajiFinancePage() {
   // Tab 7: Neraca Date & Cutoff Filters
   const [neracaPreset, setNeracaPreset] = useState<string>("today"); // "today" | "yesterday" | "this_month" | "last_month" | "this_year" | "all" | "custom"
   const [neracaDateTo, setNeracaDateTo] = useState<string>(new Date().toISOString().split("T")[0]);
-  const [neracaMonth, setNeracaMonth] = useState<string>(String(new Date().getMonth() + 1));
-  const [neracaYear, setNeracaYear] = useState<string>(String(new Date().getFullYear()));
 
   const handleNeracaShortcutChange = (preset: string) => {
     setNeracaPreset(preset);
@@ -484,7 +589,6 @@ export default function SiapSajiFinancePage() {
     setDrillModalCoaId(resolvedId || null);
     setDrillModalCoaCode(account.kode_akun);
     setDrillModalCoaName(account.nama_akun);
-    setDrillModalTitle(`Rincian Transaksi: (${account.kode_akun}) ${account.nama_akun}`);
 
     // Compute default date range if not passed
     let from = customFrom !== undefined ? customFrom : "";
@@ -2797,15 +2901,33 @@ export default function SiapSajiFinancePage() {
                     })()}
                   </th>
                   <th style={{ padding: "12px 14px", width: 45 }}>No.</th>
-                  <th style={{ padding: "12px 16px" }}>Tanggal</th>
-                  <th style={{ padding: "12px 16px" }}>Ref Nota</th>
-                  <th style={{ padding: "12px 16px" }}>Keterangan Belanja</th>
-                  <th style={{ padding: "12px 16px" }}>Kategori HPP</th>
-                  <th style={{ padding: "12px 16px" }}>Rekening / Sumber</th>
-                  <th style={{ padding: "12px 16px", textAlign: "center" }}>Status Bayar</th>
-                  <th style={{ padding: "12px 16px", textAlign: "right" }}>Total Nota</th>
-                  <th style={{ padding: "12px 16px", textAlign: "right" }}>Dibayar</th>
-                  <th style={{ padding: "12px 16px", textAlign: "right" }}>Sisa Hutang</th>
+                  <th onClick={() => togglePurSort("purchase_date")} style={{ padding: "12px 16px", cursor: "pointer", userSelect: "none" }}>
+                    Tanggal {renderSortIndicator("purchase_date", purSortBy, purSortDir)}
+                  </th>
+                  <th onClick={() => togglePurSort("nota_ref")} style={{ padding: "12px 16px", cursor: "pointer", userSelect: "none" }}>
+                    Ref Nota {renderSortIndicator("nota_ref", purSortBy, purSortDir)}
+                  </th>
+                  <th onClick={() => togglePurSort("keterangan")} style={{ padding: "12px 16px", cursor: "pointer", userSelect: "none" }}>
+                    Keterangan Belanja {renderSortIndicator("keterangan", purSortBy, purSortDir)}
+                  </th>
+                  <th onClick={() => togglePurSort("coa_nama")} style={{ padding: "12px 16px", cursor: "pointer", userSelect: "none" }}>
+                    Kategori HPP {renderSortIndicator("coa_nama", purSortBy, purSortDir)}
+                  </th>
+                  <th onClick={() => togglePurSort("kas_bank_nama")} style={{ padding: "12px 16px", cursor: "pointer", userSelect: "none" }}>
+                    Rekening / Sumber {renderSortIndicator("kas_bank_nama", purSortBy, purSortDir)}
+                  </th>
+                  <th onClick={() => togglePurSort("status_pembayaran")} style={{ padding: "12px 16px", textAlign: "center", cursor: "pointer", userSelect: "none" }}>
+                    Status Bayar {renderSortIndicator("status_pembayaran", purSortBy, purSortDir)}
+                  </th>
+                  <th onClick={() => togglePurSort("total_amount")} style={{ padding: "12px 16px", textAlign: "right", cursor: "pointer", userSelect: "none" }}>
+                    Total Nota {renderSortIndicator("total_amount", purSortBy, purSortDir)}
+                  </th>
+                  <th onClick={() => togglePurSort("dibayar")} style={{ padding: "12px 16px", textAlign: "right", cursor: "pointer", userSelect: "none" }}>
+                    Dibayar {renderSortIndicator("dibayar", purSortBy, purSortDir)}
+                  </th>
+                  <th onClick={() => togglePurSort("sisa_hutang")} style={{ padding: "12px 16px", textAlign: "right", cursor: "pointer", userSelect: "none" }}>
+                    Sisa Hutang {renderSortIndicator("sisa_hutang", purSortBy, purSortDir)}
+                  </th>
                   <th style={{ padding: "12px 16px", textAlign: "center", width: 140 }}>Aksi</th>
                 </tr>
               </thead>
@@ -2823,7 +2945,26 @@ export default function SiapSajiFinancePage() {
                     </td>
                   </tr>
                 ) : (
-                  purchases.slice((purPage - 1) * purLimit, purPage * purLimit).map((p, idx) => {
+                  [...purchases]
+                    .sort((a, b) => {
+                      let valA: any = a[purSortBy];
+                      let valB: any = b[purSortBy];
+                      if (["total_amount", "dibayar", "sisa_hutang"].includes(purSortBy)) {
+                        valA = Number(valA || 0);
+                        valB = Number(valB || 0);
+                        return purSortDir === "asc" ? valA - valB : valB - valA;
+                      }
+                      if (purSortBy === "coa_nama") {
+                        valA = `${a.coa_kode || ""} ${a.coa_nama || ""}`.toLowerCase();
+                        valB = `${b.coa_kode || ""} ${b.coa_nama || ""}`.toLowerCase();
+                        return purSortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                      }
+                      valA = (valA ?? "").toString().toLowerCase();
+                      valB = (valB ?? "").toString().toLowerCase();
+                      return purSortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                    })
+                    .slice((purPage - 1) * purLimit, purPage * purLimit)
+                    .map((p, idx) => {
                     const isCancelled = p.status === "Dibatalkan" || p.status_pembayaran === "Dibatalkan";
                     const sisa = Number(p.sisa_hutang || 0);
                     const dibayar = Number(p.dibayar || 0);
@@ -3137,14 +3278,30 @@ export default function SiapSajiFinancePage() {
                   })()}
                 </th>
                 <th style={{ padding: "12px 16px", width: 50 }}>No.</th>
-                <th style={{ padding: "12px 16px" }}>Tanggal</th>
-                <th style={{ padding: "12px 16px" }}>Keterangan Biaya</th>
-                <th style={{ padding: "12px 16px" }}>Kategori Beban</th>
-                <th style={{ padding: "12px 16px" }}>Sumber / Rekening</th>
-                <th style={{ padding: "12px 16px", textAlign: "center" }}>Status Bayar</th>
-                <th style={{ padding: "12px 16px", textAlign: "right" }}>Total Biaya</th>
-                <th style={{ padding: "12px 16px", textAlign: "right" }}>Dibayar</th>
-                <th style={{ padding: "12px 16px", textAlign: "right" }}>Sisa Hutang</th>
+                <th onClick={() => toggleExpSort("expense_date")} style={{ padding: "12px 16px", cursor: "pointer", userSelect: "none" }}>
+                  Tanggal {renderSortIndicator("expense_date", expSortBy, expSortDir)}
+                </th>
+                <th onClick={() => toggleExpSort("keterangan")} style={{ padding: "12px 16px", cursor: "pointer", userSelect: "none" }}>
+                  Keterangan Biaya {renderSortIndicator("keterangan", expSortBy, expSortDir)}
+                </th>
+                <th onClick={() => toggleExpSort("coa_nama")} style={{ padding: "12px 16px", cursor: "pointer", userSelect: "none" }}>
+                  Kategori Beban {renderSortIndicator("coa_nama", expSortBy, expSortDir)}
+                </th>
+                <th onClick={() => toggleExpSort("kas_bank_nama")} style={{ padding: "12px 16px", cursor: "pointer", userSelect: "none" }}>
+                  Sumber / Rekening {renderSortIndicator("kas_bank_nama", expSortBy, expSortDir)}
+                </th>
+                <th onClick={() => toggleExpSort("status_pembayaran")} style={{ padding: "12px 16px", textAlign: "center", cursor: "pointer", userSelect: "none" }}>
+                  Status Bayar {renderSortIndicator("status_pembayaran", expSortBy, expSortDir)}
+                </th>
+                <th onClick={() => toggleExpSort("total_biaya")} style={{ padding: "12px 16px", textAlign: "right", cursor: "pointer", userSelect: "none" }}>
+                  Total Biaya {renderSortIndicator("total_biaya", expSortBy, expSortDir)}
+                </th>
+                <th onClick={() => toggleExpSort("dibayar")} style={{ padding: "12px 16px", textAlign: "right", cursor: "pointer", userSelect: "none" }}>
+                  Dibayar {renderSortIndicator("dibayar", expSortBy, expSortDir)}
+                </th>
+                <th onClick={() => toggleExpSort("sisa_hutang")} style={{ padding: "12px 16px", textAlign: "right", cursor: "pointer", userSelect: "none" }}>
+                  Sisa Hutang {renderSortIndicator("sisa_hutang", expSortBy, expSortDir)}
+                </th>
                 <th style={{ padding: "12px 16px", textAlign: "center", width: 140 }}>Aksi</th>
               </tr>
             </thead>
@@ -3162,7 +3319,35 @@ export default function SiapSajiFinancePage() {
                   </td>
                 </tr>
               ) : (
-                expenses.slice((expPage - 1) * expLimit, expPage * expLimit).map((e, idx) => {
+                [...expenses]
+                  .sort((a, b) => {
+                    const sisaA = Number(a.sisa_hutang || 0);
+                    const dibayarA = Number(a.dibayar || 0);
+                    const totalA = (dibayarA + sisaA) > 0 ? (dibayarA + sisaA) : Number(a.nominal || 0);
+
+                    const sisaB = Number(b.sisa_hutang || 0);
+                    const dibayarB = Number(b.dibayar || 0);
+                    const totalB = (dibayarB + sisaB) > 0 ? (dibayarB + sisaB) : Number(b.nominal || 0);
+
+                    if (expSortBy === "total_biaya") {
+                      return expSortDir === "asc" ? totalA - totalB : totalB - totalA;
+                    }
+                    if (["dibayar", "sisa_hutang"].includes(expSortBy)) {
+                      const valA = Number(a[expSortBy] || 0);
+                      const valB = Number(b[expSortBy] || 0);
+                      return expSortDir === "asc" ? valA - valB : valB - valA;
+                    }
+                    if (expSortBy === "coa_nama") {
+                      const valA = `${a.coa_kode || ""} ${a.coa_nama || ""}`.toLowerCase();
+                      const valB = `${b.coa_kode || ""} ${b.coa_nama || ""}`.toLowerCase();
+                      return expSortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                    }
+                    const valA = (a[expSortBy] ?? "").toString().toLowerCase();
+                    const valB = (b[expSortBy] ?? "").toString().toLowerCase();
+                    return expSortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                  })
+                  .slice((expPage - 1) * expLimit, expPage * expLimit)
+                  .map((e, idx) => {
                   const isCancelled = e.status === "dibatalkan" || e.status_pembayaran === "Dibatalkan";
                   const sisa = Number(e.sisa_hutang || 0);
                   const dibayar = Number(e.dibayar || 0);
@@ -3593,15 +3778,37 @@ export default function SiapSajiFinancePage() {
                 <thead>
                   <tr style={{ background: "#fafafa", borderBottom: "1px solid #e5e7eb", color: "#6b7280", fontWeight: 700, fontSize: 11, textTransform: "uppercase" }}>
                     <th style={{ padding: "10px 12px", width: 50 }}>No.</th>
-                    <th style={{ padding: "10px 12px" }}>Tanggal</th>
-                    <th style={{ padding: "10px 12px" }}>Rekening</th>
-                    <th style={{ padding: "10px 12px" }}>Jenis</th>
-                    <th style={{ padding: "10px 12px" }}>Keterangan</th>
-                    <th style={{ padding: "10px 12px", textAlign: "right" }}>Nominal</th>
+                    <th onClick={() => toggleMutSort("mutasi_date")} style={{ padding: "10px 12px", cursor: "pointer", userSelect: "none" }}>
+                      Tanggal {renderSortIndicator("mutasi_date", mutSortBy, mutSortDir)}
+                    </th>
+                    <th onClick={() => toggleMutSort("kas_bank_nama")} style={{ padding: "10px 12px", cursor: "pointer", userSelect: "none" }}>
+                      Rekening {renderSortIndicator("kas_bank_nama", mutSortBy, mutSortDir)}
+                    </th>
+                    <th onClick={() => toggleMutSort("jenis")} style={{ padding: "10px 12px", cursor: "pointer", userSelect: "none" }}>
+                      Jenis {renderSortIndicator("jenis", mutSortBy, mutSortDir)}
+                    </th>
+                    <th onClick={() => toggleMutSort("keterangan")} style={{ padding: "10px 12px", cursor: "pointer", userSelect: "none" }}>
+                      Keterangan {renderSortIndicator("keterangan", mutSortBy, mutSortDir)}
+                    </th>
+                    <th onClick={() => toggleMutSort("nominal")} style={{ padding: "10px 12px", textAlign: "right", cursor: "pointer", userSelect: "none" }}>
+                      Nominal {renderSortIndicator("nominal", mutSortBy, mutSortDir)}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {mutasi.slice((mutPage - 1) * mutLimit, mutPage * mutLimit).map((m, idx) => (
+                  {[...mutasi]
+                    .sort((a, b) => {
+                      if (mutSortBy === "nominal") {
+                        const valA = Number(a.nominal || 0);
+                        const valB = Number(b.nominal || 0);
+                        return mutSortDir === "asc" ? valA - valB : valB - valA;
+                      }
+                      const valA = (a[mutSortBy] ?? "").toString().toLowerCase();
+                      const valB = (b[mutSortBy] ?? "").toString().toLowerCase();
+                      return mutSortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                    })
+                    .slice((mutPage - 1) * mutLimit, mutPage * mutLimit)
+                    .map((m, idx) => (
                     <tr key={idx} style={{ borderBottom: "1px solid #f3f4f6" }}>
                       <td style={{ padding: "10px 12px", color: "#6b7280" }}>{(mutPage - 1) * mutLimit + idx + 1}</td>
                       <td style={{ padding: "10px 12px", fontWeight: 600 }}>{formatDate(m.mutasi_date)}</td>
@@ -3747,11 +3954,21 @@ export default function SiapSajiFinancePage() {
             <thead>
               <tr style={{ background: "#fafafa", borderBottom: "2px solid #e5e7eb", color: "#6b7280", fontWeight: 700, fontSize: 11, textTransform: "uppercase" }}>
                 <th style={{ padding: "12px 16px", width: 50 }}>No.</th>
-                <th style={{ padding: "12px 16px", width: 110 }}>Tanggal</th>
-                <th style={{ padding: "12px 16px", width: 140 }}>Ref No / Tipe</th>
-                <th style={{ padding: "12px 16px" }}>Posisi Akun & Keterangan Jurnal</th>
-                <th style={{ padding: "12px 16px", textAlign: "right", width: 140, color: "#15803d" }}>Debit (Rp)</th>
-                <th style={{ padding: "12px 16px", textAlign: "right", width: 140, color: "#b91c1c" }}>Kredit (Rp)</th>
+                <th onClick={() => toggleJouSort("journal_date")} style={{ padding: "12px 16px", width: 110, cursor: "pointer", userSelect: "none" }}>
+                  Tanggal {renderSortIndicator("journal_date", jouSortBy, jouSortDir)}
+                </th>
+                <th onClick={() => toggleJouSort("ref_no")} style={{ padding: "12px 16px", width: 140, cursor: "pointer", userSelect: "none" }}>
+                  Ref No / Tipe {renderSortIndicator("ref_no", jouSortBy, jouSortDir)}
+                </th>
+                <th onClick={() => toggleJouSort("keterangan")} style={{ padding: "12px 16px", cursor: "pointer", userSelect: "none" }}>
+                  Posisi Akun & Keterangan Jurnal {renderSortIndicator("keterangan", jouSortBy, jouSortDir)}
+                </th>
+                <th onClick={() => toggleJouSort("nominal")} style={{ padding: "12px 16px", textAlign: "right", width: 140, color: "#15803d", cursor: "pointer", userSelect: "none" }}>
+                  Debit (Rp) {renderSortIndicator("nominal", jouSortBy, jouSortDir)}
+                </th>
+                <th onClick={() => toggleJouSort("nominal")} style={{ padding: "12px 16px", textAlign: "right", width: 140, color: "#b91c1c", cursor: "pointer", userSelect: "none" }}>
+                  Kredit (Rp) {renderSortIndicator("nominal", jouSortBy, jouSortDir)}
+                </th>
                 <th style={{ padding: "12px 16px", textAlign: "center", width: 140 }}>Aksi</th>
               </tr>
             </thead>
@@ -3769,7 +3986,24 @@ export default function SiapSajiFinancePage() {
                   </td>
                 </tr>
               ) : (
-                journals.slice((jouPage - 1) * jouLimit, jouPage * jouLimit).map((j, idx) => {
+                [...journals]
+                  .sort((a, b) => {
+                    if (jouSortBy === "nominal") {
+                      const valA = Number(a.nominal || 0);
+                      const valB = Number(b.nominal || 0);
+                      return jouSortDir === "asc" ? valA - valB : valB - valA;
+                    }
+                    if (jouSortBy === "ref_no") {
+                      const valA = `${a.ref_no || ""} ${a.ref_type || ""}`.toLowerCase();
+                      const valB = `${b.ref_no || ""} ${b.ref_type || ""}`.toLowerCase();
+                      return jouSortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                    }
+                    const valA = (a[jouSortBy] ?? "").toString().toLowerCase();
+                    const valB = (b[jouSortBy] ?? "").toString().toLowerCase();
+                    return jouSortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                  })
+                  .slice((jouPage - 1) * jouLimit, jouPage * jouLimit)
+                  .map((j, idx) => {
                   const itemNo = (jouPage - 1) * jouLimit + idx + 1;
                   const isCancelled = j.status === "dibatalkan";
                   return (
@@ -4708,12 +4942,24 @@ export default function SiapSajiFinancePage() {
               <thead>
                 <tr style={{ background: "#fafafa", borderBottom: "1px solid #e5e7eb", color: "#6b7280", fontWeight: 700, fontSize: 11, textTransform: "uppercase" }}>
                   <th style={{ padding: "12px 14px", width: 45 }}>No.</th>
-                  <th style={{ padding: "12px 14px", width: 110 }}>Kode Akun</th>
-                  <th style={{ padding: "12px 14px" }}>Nama Akun</th>
-                  <th style={{ padding: "12px 14px", width: 120 }}>Kelompok</th>
-                  <th style={{ padding: "12px 14px", width: 150 }}>Sub Kelompok</th>
-                  <th style={{ padding: "12px 14px", width: 165 }}>Klasifikasi P&L</th>
-                  <th style={{ padding: "12px 14px", width: 90 }}>Status</th>
+                  <th onClick={() => toggleCoaSort("kode_akun")} style={{ padding: "12px 14px", width: 110, cursor: "pointer", userSelect: "none" }}>
+                    Kode Akun {renderSortIndicator("kode_akun", coaSortBy, coaSortDir)}
+                  </th>
+                  <th onClick={() => toggleCoaSort("nama_akun")} style={{ padding: "12px 14px", cursor: "pointer", userSelect: "none" }}>
+                    Nama Akun {renderSortIndicator("nama_akun", coaSortBy, coaSortDir)}
+                  </th>
+                  <th onClick={() => toggleCoaSort("kelompok")} style={{ padding: "12px 14px", width: 120, cursor: "pointer", userSelect: "none" }}>
+                    Kelompok {renderSortIndicator("kelompok", coaSortBy, coaSortDir)}
+                  </th>
+                  <th onClick={() => toggleCoaSort("sub_kelompok")} style={{ padding: "12px 14px", width: 150, cursor: "pointer", userSelect: "none" }}>
+                    Sub Kelompok {renderSortIndicator("sub_kelompok", coaSortBy, coaSortDir)}
+                  </th>
+                  <th onClick={() => toggleCoaSort("klasifikasi_pl")} style={{ padding: "12px 14px", width: 165, cursor: "pointer", userSelect: "none" }}>
+                    Klasifikasi P&L {renderSortIndicator("klasifikasi_pl", coaSortBy, coaSortDir)}
+                  </th>
+                  <th onClick={() => toggleCoaSort("is_active")} style={{ padding: "12px 14px", width: 90, cursor: "pointer", userSelect: "none" }}>
+                    Status {renderSortIndicator("is_active", coaSortBy, coaSortDir)}
+                  </th>
                   <th style={{ padding: "12px 14px", width: 100, textAlign: "right" }}>Aksi</th>
                 </tr>
               </thead>
@@ -4731,7 +4977,12 @@ export default function SiapSajiFinancePage() {
                     </td>
                   </tr>
                 ) : (
-                  (coaTableList.length > 0 ? coaTableList : coaListAll)
+                  [...(coaTableList.length > 0 ? coaTableList : coaListAll)]
+                    .sort((a, b) => {
+                      const valA = (a[coaSortBy] ?? "").toString().toLowerCase();
+                      const valB = (b[coaSortBy] ?? "").toString().toLowerCase();
+                      return coaSortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                    })
                     .slice((coaPage - 1) * coaLimit, coaPage * coaLimit)
                     .map((c, idx) => {
                       let plTag = "-";
@@ -5830,13 +6081,27 @@ export default function SiapSajiFinancePage() {
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                     <thead>
                       <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", color: "#475569", fontWeight: 700 }}>
-                        <th style={{ padding: "10px 14px", textAlign: "left" }}>TANGGAL</th>
-                        <th style={{ padding: "10px 14px", textAlign: "left" }}>NO. REF / TIPE</th>
-                        <th style={{ padding: "10px 14px", textAlign: "left" }}>KETERANGAN</th>
-                        <th style={{ padding: "10px 14px", textAlign: "left" }}>AKUN LAWAN</th>
-                        <th style={{ padding: "10px 14px", textAlign: "right" }}>DEBIT (RP)</th>
-                        <th style={{ padding: "10px 14px", textAlign: "right" }}>KREDIT (RP)</th>
-                        <th style={{ padding: "10px 14px", textAlign: "center" }}>STATUS</th>
+                        <th onClick={() => toggleLedgerSort("journal_date")} style={{ padding: "10px 14px", textAlign: "left", cursor: "pointer", userSelect: "none" }}>
+                          TANGGAL {renderSortIndicator("journal_date", ledgerSortBy, ledgerSortDir)}
+                        </th>
+                        <th onClick={() => toggleLedgerSort("ref_no")} style={{ padding: "10px 14px", textAlign: "left", cursor: "pointer", userSelect: "none" }}>
+                          NO. REF / TIPE {renderSortIndicator("ref_no", ledgerSortBy, ledgerSortDir)}
+                        </th>
+                        <th onClick={() => toggleLedgerSort("keterangan")} style={{ padding: "10px 14px", textAlign: "left", cursor: "pointer", userSelect: "none" }}>
+                          KETERANGAN {renderSortIndicator("keterangan", ledgerSortBy, ledgerSortDir)}
+                        </th>
+                        <th onClick={() => toggleLedgerSort("akun_lawan")} style={{ padding: "10px 14px", textAlign: "left", cursor: "pointer", userSelect: "none" }}>
+                          AKUN LAWAN {renderSortIndicator("akun_lawan", ledgerSortBy, ledgerSortDir)}
+                        </th>
+                        <th onClick={() => toggleLedgerSort("debit")} style={{ padding: "10px 14px", textAlign: "right", cursor: "pointer", userSelect: "none" }}>
+                          DEBIT (RP) {renderSortIndicator("debit", ledgerSortBy, ledgerSortDir)}
+                        </th>
+                        <th onClick={() => toggleLedgerSort("kredit")} style={{ padding: "10px 14px", textAlign: "right", cursor: "pointer", userSelect: "none" }}>
+                          KREDIT (RP) {renderSortIndicator("kredit", ledgerSortBy, ledgerSortDir)}
+                        </th>
+                        <th onClick={() => toggleLedgerSort("status")} style={{ padding: "10px 14px", textAlign: "center", cursor: "pointer", userSelect: "none" }}>
+                          STATUS {renderSortIndicator("status", ledgerSortBy, ledgerSortDir)}
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -5862,7 +6127,23 @@ export default function SiapSajiFinancePage() {
                           </td>
                         </tr>
                       ) : (
-                        ledgerData.entries.map((item: any, idx: number) => {
+                        [...ledgerData.entries]
+                          .sort((a, b) => {
+                            if (["debit", "kredit"].includes(ledgerSortBy)) {
+                              const valA = Number(a[ledgerSortBy] || 0);
+                              const valB = Number(b[ledgerSortBy] || 0);
+                              return ledgerSortDir === "asc" ? valA - valB : valB - valA;
+                            }
+                            if (ledgerSortBy === "ref_no") {
+                              const valA = `${a.ref_no || ""} ${a.ref_type || ""}`.toLowerCase();
+                              const valB = `${b.ref_no || ""} ${b.ref_type || ""}`.toLowerCase();
+                              return ledgerSortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                            }
+                            const valA = (a[ledgerSortBy] ?? "").toString().toLowerCase();
+                            const valB = (b[ledgerSortBy] ?? "").toString().toLowerCase();
+                            return ledgerSortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                          })
+                          .map((item: any, idx: number) => {
                           const isDebit = Number(item.debit || 0) > 0;
                           return (
                             <tr
@@ -6404,15 +6685,36 @@ export default function SiapSajiFinancePage() {
                   <thead>
                     <tr style={{ background: "#f8fafc", borderBottom: "1.5px solid #e2e8f0", color: "#475569", fontWeight: 700 }}>
                       <th style={{ padding: "9px 12px", textAlign: "left", width: 50 }}>NO.</th>
-                      <th style={{ padding: "9px 12px", textAlign: "left", width: 110 }}>TANGGAL</th>
-                      <th style={{ padding: "9px 12px", textAlign: "left", width: 100 }}>JENIS</th>
-                      <th style={{ padding: "9px 12px", textAlign: "left", width: 120 }}>REFERENSI</th>
-                      <th style={{ padding: "9px 12px", textAlign: "left" }}>KETERANGAN</th>
-                      <th style={{ padding: "9px 12px", textAlign: "right", width: 140 }}>NOMINAL (RP)</th>
+                      <th onClick={() => toggleHistorySort("mutasi_date")} style={{ padding: "9px 12px", textAlign: "left", width: 110, cursor: "pointer", userSelect: "none" }}>
+                        TANGGAL {renderSortIndicator("mutasi_date", historySortBy, historySortDir)}
+                      </th>
+                      <th onClick={() => toggleHistorySort("jenis")} style={{ padding: "9px 12px", textAlign: "left", width: 100, cursor: "pointer", userSelect: "none" }}>
+                        JENIS {renderSortIndicator("jenis", historySortBy, historySortDir)}
+                      </th>
+                      <th onClick={() => toggleHistorySort("ref_no")} style={{ padding: "9px 12px", textAlign: "left", width: 120, cursor: "pointer", userSelect: "none" }}>
+                        REFERENSI {renderSortIndicator("ref_no", historySortBy, historySortDir)}
+                      </th>
+                      <th onClick={() => toggleHistorySort("keterangan")} style={{ padding: "9px 12px", textAlign: "left", cursor: "pointer", userSelect: "none" }}>
+                        KETERANGAN {renderSortIndicator("keterangan", historySortBy, historySortDir)}
+                      </th>
+                      <th onClick={() => toggleHistorySort("nominal")} style={{ padding: "9px 12px", textAlign: "right", width: 140, cursor: "pointer", userSelect: "none" }}>
+                        NOMINAL (RP) {renderSortIndicator("nominal", historySortBy, historySortDir)}
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {historyMutasi.map((row: any, i: number) => {
+                    {[...historyMutasi]
+                      .sort((a, b) => {
+                        if (historySortBy === "nominal") {
+                          const valA = Number(a.nominal || 0);
+                          const valB = Number(b.nominal || 0);
+                          return historySortDir === "asc" ? valA - valB : valB - valA;
+                        }
+                        const valA = (a[historySortBy] ?? "").toString().toLowerCase();
+                        const valB = (b[historySortBy] ?? "").toString().toLowerCase();
+                        return historySortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                      })
+                      .map((row: any, i: number) => {
                       const isMasuk = row.jenis === "Masuk";
                       return (
                         <tr
@@ -7699,17 +8001,63 @@ export default function SiapSajiFinancePage() {
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
                   <thead>
                     <tr style={{ background: "#f8fafc", borderBottom: "1.5px solid #e2e8f0", color: "#475569", fontWeight: 700 }}>
-                      <th style={{ padding: "9px 12px", textAlign: "left" }}>TANGGAL</th>
-                      <th style={{ padding: "9px 12px", textAlign: "left" }}>REF NO / TIPE</th>
-                      <th style={{ padding: "9px 12px", textAlign: "left" }}>KETERANGAN</th>
-                      <th style={{ padding: "9px 12px", textAlign: "left" }}>AKUN LAWAN</th>
-                      <th style={{ padding: "9px 12px", textAlign: "center" }}>POSISI</th>
-                      <th style={{ padding: "9px 12px", textAlign: "right" }}>NOMINAL (RP)</th>
-                      <th style={{ padding: "9px 12px", textAlign: "center" }}>STATUS</th>
+                      <th onClick={() => toggleDrillSort("journal_date")} style={{ padding: "9px 12px", textAlign: "left", cursor: "pointer", userSelect: "none" }}>
+                        TANGGAL {renderSortIndicator("journal_date", drillSortBy, drillSortDir)}
+                      </th>
+                      <th onClick={() => toggleDrillSort("ref_no")} style={{ padding: "9px 12px", textAlign: "left", cursor: "pointer", userSelect: "none" }}>
+                        REF NO / TIPE {renderSortIndicator("ref_no", drillSortBy, drillSortDir)}
+                      </th>
+                      <th onClick={() => toggleDrillSort("keterangan")} style={{ padding: "9px 12px", textAlign: "left", cursor: "pointer", userSelect: "none" }}>
+                        KETERANGAN {renderSortIndicator("keterangan", drillSortBy, drillSortDir)}
+                      </th>
+                      <th onClick={() => toggleDrillSort("lawan")} style={{ padding: "9px 12px", textAlign: "left", cursor: "pointer", userSelect: "none" }}>
+                        AKUN LAWAN {renderSortIndicator("lawan", drillSortBy, drillSortDir)}
+                      </th>
+                      <th onClick={() => toggleDrillSort("posisi")} style={{ padding: "9px 12px", textAlign: "center", cursor: "pointer", userSelect: "none" }}>
+                        POSISI {renderSortIndicator("posisi", drillSortBy, drillSortDir)}
+                      </th>
+                      <th onClick={() => toggleDrillSort("nominal")} style={{ padding: "9px 12px", textAlign: "right", cursor: "pointer", userSelect: "none" }}>
+                        NOMINAL (RP) {renderSortIndicator("nominal", drillSortBy, drillSortDir)}
+                      </th>
+                      <th onClick={() => toggleDrillSort("status")} style={{ padding: "9px 12px", textAlign: "center", cursor: "pointer", userSelect: "none" }}>
+                        STATUS {renderSortIndicator("status", drillSortBy, drillSortDir)}
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {drillData.map((row: any, i: number) => {
+                    {[...drillData]
+                      .sort((a, b) => {
+                        const isTargetDebitA = a.akun_debit === drillModalCoaId || a.debit_kode === drillModalCoaCode;
+                        const lawanNamaA = isTargetDebitA ? a.kredit_nama : a.debit_nama;
+                        const posisiA = isTargetDebitA ? "Debit" : "Kredit";
+
+                        const isTargetDebitB = b.akun_debit === drillModalCoaId || b.debit_kode === drillModalCoaCode;
+                        const lawanNamaB = isTargetDebitB ? b.kredit_nama : b.debit_nama;
+                        const posisiB = isTargetDebitB ? "Debit" : "Kredit";
+
+                        if (drillSortBy === "nominal") {
+                          const valA = Number(a.nominal || 0);
+                          const valB = Number(b.nominal || 0);
+                          return drillSortDir === "asc" ? valA - valB : valB - valA;
+                        }
+                        if (drillSortBy === "lawan") {
+                          const valA = (lawanNamaA || "").toLowerCase();
+                          const valB = (lawanNamaB || "").toLowerCase();
+                          return drillSortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                        }
+                        if (drillSortBy === "posisi") {
+                          return drillSortDir === "asc" ? posisiA.localeCompare(posisiB) : posisiB.localeCompare(posisiA);
+                        }
+                        if (drillSortBy === "ref_no") {
+                          const valA = `${a.ref_no || ""} ${a.ref_type || ""}`.toLowerCase();
+                          const valB = `${b.ref_no || ""} ${b.ref_type || ""}`.toLowerCase();
+                          return drillSortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                        }
+                        const valA = (a[drillSortBy] ?? "").toString().toLowerCase();
+                        const valB = (b[drillSortBy] ?? "").toString().toLowerCase();
+                        return drillSortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                      })
+                      .map((row: any, i: number) => {
                       const isTargetDebit = row.akun_debit === drillModalCoaId || row.debit_kode === drillModalCoaCode;
                       const lawanNama = isTargetDebit ? row.kredit_nama : row.debit_nama;
                       const lawanKode = isTargetDebit ? row.kredit_kode : row.debit_kode;

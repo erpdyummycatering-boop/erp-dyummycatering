@@ -180,7 +180,7 @@ export default function KoreksiPresensiPage() {
                     <span style={{ textDecoration: "line-through", color: "#E24B4A" }}>{c.nilai_sebelum || "KOSONG"}</span> →{" "}
                     <span style={{ color: "#639922", fontWeight: 700 }}>{c.nilai_sesudah}</span>
                   </div>
-                  <div style={{ color: "#6b7280", fontStyle: "italic", marginTop: 2 }}>"Alasan: {c.alasan}"</div>
+                  <div style={{ color: "#6b7280", fontStyle: "italic", marginTop: 2 }}>&ldquo;Alasan: {c.alasan}&rdquo;</div>
                 </div>
               ))
             )}

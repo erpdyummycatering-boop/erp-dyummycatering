@@ -58,7 +58,7 @@ export function SearchableSelect({ options, value, onChange, placeholder, classN
                     font: "inherit",
                   }}
                 >
-                  + Tambah Kontak "{inputValue}"
+                  + Tambah Kontak &ldquo;{inputValue}&rdquo;
                 </button>
               </div>
             );

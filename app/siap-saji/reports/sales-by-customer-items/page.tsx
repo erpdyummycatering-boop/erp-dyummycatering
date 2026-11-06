@@ -160,7 +160,7 @@ export default function SalesByCustomerItemsReportPage() {
       }
     }
     return list;
-  }, [reportData?.dates]);
+  }, [reportData]);
 
   // Sliced for pagination on web view
   const pagedEntries = useMemo(() => {
