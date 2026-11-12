@@ -52,6 +52,7 @@ export async function GET(req: NextRequest) {
         dt.tier,
         dt.tunjangan_km,
         dt.insentif_trip,
+        dt.destinasi,
         dt.keterangan
        FROM hr_driver_trips dt
        WHERE dt.tanggal BETWEEN $1 AND $2
@@ -89,7 +90,7 @@ export async function GET(req: NextRequest) {
 // POST API untuk simpan / update log trip & KM driver
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { employee_id, tanggal, km, total_trip, total_destinasi, insentif_trip, keterangan } = body;
+  const { employee_id, tanggal, km, total_trip, total_destinasi, insentif_trip, destinasi, keterangan } = body;
 
   if (!employee_id || !tanggal) {
     return NextResponse.json({ error: "Driver dan tanggal wajib diisi." }, { status: 400 });
@@ -135,18 +136,18 @@ export async function POST(req: NextRequest) {
     if (checkExist.rows.length > 0) {
       const updateRes = await client.query(
         `UPDATE hr_driver_trips
-         SET km = $1, total_trip = $2, total_destinasi = $3, tier = $4, tunjangan_km = $5, insentif_trip = $6, keterangan = $7
-         WHERE id = $8
+         SET km = $1, total_trip = $2, total_destinasi = $3, tier = $4, tunjangan_km = $5, insentif_trip = $6, destinasi = $7, keterangan = $8
+         WHERE id = $9
          RETURNING *`,
-        [kmNum, total_trip || 1, total_destinasi || 1, tier, tunjanganKm, insentif_trip || 0, keterangan || null, checkExist.rows[0].id]
+        [kmNum, total_trip || 1, total_destinasi || 1, tier, tunjanganKm, insentif_trip || 0, destinasi || null, keterangan || null, checkExist.rows[0].id]
       );
       resultRow = updateRes.rows[0];
     } else {
       const insertRes = await client.query(
-        `INSERT INTO hr_driver_trips (employee_id, tanggal, km, total_trip, total_destinasi, tier, tunjangan_km, insentif_trip, keterangan)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        `INSERT INTO hr_driver_trips (employee_id, tanggal, km, total_trip, total_destinasi, tier, tunjangan_km, insentif_trip, destinasi, keterangan)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          RETURNING *`,
-        [employee_id, tanggal, kmNum, total_trip || 1, total_destinasi || 1, tier, tunjanganKm, insentif_trip || 0, keterangan || null]
+        [employee_id, tanggal, kmNum, total_trip || 1, total_destinasi || 1, tier, tunjanganKm, insentif_trip || 0, destinasi || null, keterangan || null]
       );
       resultRow = insertRes.rows[0];
     }
@@ -163,7 +164,7 @@ export async function POST(req: NextRequest) {
 // PUT API untuk mengoreksi / update log trip driver tertentu berdasarkan id
 export async function PUT(req: NextRequest) {
   const body = await req.json();
-  const { id, km, total_trip, total_destinasi, insentif_trip, keterangan } = body;
+  const { id, km, total_trip, total_destinasi, insentif_trip, destinasi, keterangan } = body;
 
   if (!id) {
     return NextResponse.json({ error: "ID trip wajib disertakan." }, { status: 400 });
@@ -218,8 +219,9 @@ export async function PUT(req: NextRequest) {
            tier = $4,
            tunjangan_km = $5,
            insentif_trip = $6,
-           keterangan = $7
-       WHERE id = $8
+           destinasi = $7,
+           keterangan = $8
+       WHERE id = $9
        RETURNING *`,
       [
         kmNum,
@@ -228,6 +230,7 @@ export async function PUT(req: NextRequest) {
         tier,
         tunjanganKm,
         insentif_trip || 0,
+        destinasi || null,
         keterangan || null,
         id,
       ]

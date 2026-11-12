@@ -45,6 +45,7 @@ interface DriverTrip {
   tier: string;
   tunjangan_km: number;
   insentif_trip: number;
+  destinasi?: string | null;
   keterangan: string | null;
 }
 
@@ -65,8 +66,10 @@ export default function HRDriverTripsPage() {
   const [totalDestinasi, setTotalDestinasi] = useState<number>(1);
   const [kmInput, setKmInput] = useState<number>(0);
   const [insentifInput, setInsentifInput] = useState<number>(0);
+  const [destinasiInput, setDestinasiInput] = useState("");
   const [keteranganInput, setKeteranganInput] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [isCalculatingKm, setIsCalculatingKm] = useState(false);
 
   const fetchTripData = async () => {
     setLoading(true);
@@ -97,6 +100,7 @@ export default function HRDriverTripsPage() {
     setTotalDestinasi(1);
     setKmInput(0);
     setInsentifInput(0);
+    setDestinasiInput("");
     setKeteranganInput("");
     setIsModalOpen(true);
   };
@@ -109,8 +113,55 @@ export default function HRDriverTripsPage() {
     setTotalDestinasi(trip.total_destinasi || 1);
     setKmInput(trip.km || 0);
     setInsentifInput(trip.insentif_trip || 0);
+    setDestinasiInput(trip.destinasi || "");
     setKeteranganInput(trip.keterangan || "");
     setIsModalOpen(true);
+  };
+
+  // Auto cek KM via Nominatim + OSRM OpenStreetMap
+  const handleAutoCheckKm = async () => {
+    if (!destinasiInput.trim()) {
+      toast.error("Ketik nama lokasi atau alamat tujuan terlebih dahulu (contoh: Batununggal / Dago)");
+      return;
+    }
+    setIsCalculatingKm(true);
+    try {
+      // Dapur Dyummy Catering: Jl Sindangsari 4 No 48 Antapani / Bandung (-6.9142, 107.6586)
+      const originLat = -6.9142;
+      const originLng = 107.6586;
+
+      const q = destinasiInput.toLowerCase().includes("bandung") ? destinasiInput : `${destinasiInput}, Bandung`;
+      const geoUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`;
+      const geoRes = await fetch(geoUrl, {
+        headers: { "Accept-Language": "id" },
+      });
+      const geoData = await geoRes.json();
+
+      if (!geoData || geoData.length === 0) {
+        toast.warning("Lokasi tidak ditemukan di peta, silakan ketik KM manual atau lengkapi nama area/kecamatan.");
+        return;
+      }
+
+      const destLat = parseFloat(geoData[0].lat);
+      const destLng = parseFloat(geoData[0].lon);
+
+      const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${originLng},${originLat};${destLng},${destLat}?overview=false`;
+      const osrmRes = await fetch(osrmUrl);
+      const osrmData = await osrmRes.json();
+
+      if (osrmData && osrmData.routes && osrmData.routes.length > 0) {
+        const meters = osrmData.routes[0].distance;
+        const calculatedKm = Math.max(1, Math.round((meters / 1000) * 10) / 10);
+        setKmInput(calculatedKm);
+        toast.success(`Jarak terdeteksi otomatis: ${calculatedKm} KM (${geoData[0].display_name.split(",")[0]})`);
+      } else {
+        toast.warning("Gagal menghitung rute, silakan isi manual.");
+      }
+    } catch (err: any) {
+      toast.error("Pengecekan rute online tidak tersedia, silakan masukkan KM manual.");
+    } finally {
+      setIsCalculatingKm(false);
+    }
   };
 
   const handleDeleteTrip = async (trip: DriverTrip) => {
@@ -155,6 +206,7 @@ export default function HRDriverTripsPage() {
             total_destinasi: Number(totalDestinasi),
             km: Number(kmInput),
             insentif_trip: Number(insentifInput),
+            destinasi: destinasiInput,
             keterangan: keteranganInput,
           }),
         });
@@ -170,6 +222,7 @@ export default function HRDriverTripsPage() {
             total_destinasi: Number(totalDestinasi),
             km: Number(kmInput),
             insentif_trip: Number(insentifInput),
+            destinasi: destinasiInput,
             keterangan: keteranganInput,
           }),
         });
@@ -728,23 +781,65 @@ export default function HRDriverTripsPage() {
                 </div>
               </div>
 
+              {/* Destinasi & Fitur Pengecekan KM Otomatis (Nominatim / OSRM) */}
+              <div style={{ marginBottom: 14, background: "#f8fafc", padding: 12, borderRadius: 8, border: "1px solid #e2e8f0" }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#1e293b", marginBottom: 4 }}>
+                  📍 Alamat / Destinasi Tujuan (Cek KM Otomatis)
+                </label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input
+                    type="text"
+                    placeholder="Contoh: Batununggal / Dago / Jl. Buah Batu"
+                    value={destinasiInput}
+                    onChange={(e) => setDestinasiInput(e.target.value)}
+                    style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 13 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAutoCheckKm}
+                    disabled={isCalculatingKm}
+                    style={{
+                      padding: "8px 14px",
+                      background: "#5005A6",
+                      color: "white",
+                      border: "none",
+                      borderRadius: 8,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {isCalculatingKm ? <RefreshCw size={14} className="animate-spin" /> : <Calculator size={14} />}
+                    {isCalculatingKm ? "Menghitung..." : "Cek KM"}
+                  </button>
+                </div>
+                <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>
+                  💡 Dihitung otomatis dari Dapur Dyummy (Antapani, Bandung) via OpenStreetMap/OSRM. Tetap bisa diedit manual.
+                </div>
+              </div>
+
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
                 <div>
                   <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#374151", marginBottom: 4 }}>
-                    Total Jarak KM *
+                    Total Jarak KM * (Bisa Edit Manual)
                   </label>
                   <input
                     type="number"
+                    step="0.1"
                     min={0}
-                    placeholder="Misal: 12"
+                    placeholder="Misal: 9"
                     value={kmInput}
                     onChange={(e) => setKmInput(Number(e.target.value))}
-                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13 }}
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, fontWeight: 700, color: "#2563eb" }}
                   />
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#374151", marginBottom: 4 }}>
-                    Insentif Tambahan (Rp)
+                    Insentif / Lembur Custom (Rp)
                   </label>
                   <input
                     type="number"

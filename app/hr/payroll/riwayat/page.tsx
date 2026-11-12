@@ -17,6 +17,8 @@ import {
   Trash2,
   Copy,
   Building2,
+  Edit,
+  Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
@@ -25,12 +27,136 @@ import { Pagination } from "@/components/ui/Pagination";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 
+// Helper categorizer matching user spreadsheet and images
+const getDivisionCategory = (d: any) => {
+  const j = (d.snapshot_jabatan || "").toLowerCase();
+  const dep = (d.snapshot_departemen || "").toLowerCase();
+  const n = (d.snapshot_nama || "").toLowerCase();
+  const tg = (d.snapshot_tipe_gaji || "").toUpperCase();
+  const tk = (d.tipe_karyawan || "").toUpperCase();
+
+  // 1. Freelance
+  if (
+    tk === "FREELANCE" ||
+    j.includes("freelance") ||
+    n.includes("freelance") ||
+    n.includes("(freelance)")
+  ) {
+    return "Gaji Freelance";
+  }
+
+  // 2. Driver
+  if (tg === "HARIAN_DRIVER" || j.includes("driver") || dep.includes("driver")) {
+    return "Gaji Driver";
+  }
+
+  // 3. Siap Saji
+  if (j.includes("siap saji") || dep.includes("siap saji")) {
+    if (tg === "BULANAN" || j.includes("office") || j.includes("direktur")) {
+      return "Gaji Office Siap Saji";
+    }
+    return "Gaji Siap Saji";
+  }
+
+  // 4. Office (Bulanan / Office Dept)
+  if (tg === "BULANAN" || dep.includes("office") || j.includes("direktur") || j.includes("hrd") || j.includes("finance")) {
+    return "Gaji Office";
+  }
+
+  // 5. Default Produksi Catering
+  return "Gaji Produksi";
+};
+
 export default function RiwayatPayrollPage() {
   const [payrolls, setPayrolls] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPayroll, setSelectedPayroll] = useState<any>(null);
   const [isSlipModalOpen, setIsSlipModalOpen] = useState(false);
   const [selectedSlip, setSelectedSlip] = useState<any>(null);
+
+  // Edit / Penyesuaian Potongan Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingDetail, setEditingDetail] = useState<any>(null);
+  const [savingDetail, setSavingDetail] = useState(false);
+  const [editForm, setEditForm] = useState<{
+    tunjangan_km: number;
+    tunjangan_bonus: number;
+    subtotal_lembur_pagi: number;
+    potongan_tabungan: number;
+    rincian_potongan: { nama: string; nominal: number }[];
+    catatan_payroll: string;
+  }>({
+    tunjangan_km: 0,
+    tunjangan_bonus: 0,
+    subtotal_lembur_pagi: 0,
+    potongan_tabungan: 0,
+    rincian_potongan: [],
+    catatan_payroll: "",
+  });
+
+  const handleOpenEditDetail = (d: any) => {
+    let rincian: { nama: string; nominal: number }[] = [];
+    if (Array.isArray(d.rincian_potongan)) {
+      rincian = d.rincian_potongan;
+    } else if (typeof d.rincian_potongan === "string") {
+      try {
+        rincian = JSON.parse(d.rincian_potongan);
+      } catch (e) {
+        rincian = [];
+      }
+    }
+    // If no rincian but potongan_lain exists
+    if (rincian.length === 0 && Number(d.potongan_lain) > 0) {
+      rincian = [{ nama: "Iuran / Potongan Lain", nominal: Number(d.potongan_lain) }];
+    }
+
+    setEditingDetail(d);
+    setEditForm({
+      tunjangan_km: Number(d.tunjangan_km || 0),
+      tunjangan_bonus: Number(d.tunjangan_bonus || d.subtotal_bonus || 0),
+      subtotal_lembur_pagi: Number(d.subtotal_lembur_pagi || 0),
+      potongan_tabungan: Number(d.potongan_tabungan || 0),
+      rincian_potongan: rincian,
+      catatan_payroll: d.catatan_payroll || "",
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveEditDetail = async () => {
+    if (!selectedPayroll || !editingDetail) return;
+    setSavingDetail(true);
+    try {
+      const res = await fetch(
+        `/api/hr/payroll/${selectedPayroll.id}/details/${editingDetail.id}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tunjangan_km: editForm.tunjangan_km,
+            tunjangan_bonus: editForm.tunjangan_bonus,
+            subtotal_lembur_pagi: editForm.subtotal_lembur_pagi,
+            potongan_tabungan: editForm.potongan_tabungan,
+            rincian_potongan: editForm.rincian_potongan,
+            catatan_payroll: editForm.catatan_payroll,
+          }),
+        }
+      );
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(`Berhasil memperbarui data payroll ${editingDetail.snapshot_nama}`);
+        setIsEditModalOpen(false);
+        // Refresh details
+        await handleViewDetails(selectedPayroll.id);
+        fetchPayrolls();
+      } else {
+        alert(data.error || "Gagal menyimpan perubahan");
+      }
+    } catch (err: any) {
+      alert(err.message || "Gagal menyimpan perubahan");
+    } finally {
+      setSavingDetail(false);
+    }
+  };
 
   // Multi-selection state for batch printing A4
   const [selectedDetailIds, setSelectedDetailIds] = useState<number[]>([]);
@@ -140,33 +266,178 @@ export default function RiwayatPayrollPage() {
   };
 
   const handleExportExcel = (p: any) => {
-    if (!p.details) return;
-    const dataToExport = p.details.map((d: any, idx: number) => ({
-      No: idx + 1,
-      "Kode Karyawan": d.kode_karyawan,
-      "Nama Karyawan": d.snapshot_nama,
-      Departemen: d.snapshot_departemen,
-      Jabatan: d.snapshot_jabatan,
-      "Hari Hadir": d.hari_hadir,
-      "Hari Absen": d.hari_absen,
-      "Gaji Pokok / Hari": d.gaji_pokok_harian_snapshot,
-      "Subtotal Pokok": d.subtotal_gaji_pokok,
-      "Subtotal Lembur": d.subtotal_lembur,
-      "Lembur Pagi": d.subtotal_lembur_pagi || 0,
-      "Tunjangan Bonus": d.tunjangan_bonus || d.subtotal_bonus || 0,
-      "Tunjangan KM": d.tunjangan_km || 0,
-      "Potongan Tabungan": d.potongan_tabungan || 0,
-      "Potongan Terlambat": d.potongan_terlambat || 0,
-      "Potongan Lain": d.potongan_lain || 0,
-      "Total Potongan": d.total_potongan || 0,
-      "Gaji Kotor": d.gaji_kotor,
-      "Gaji Bersih": d.gaji_bersih,
-    }));
+    if (!p.details || p.details.length === 0) {
+      alert("Tidak ada data rincian payroll untuk diekspor.");
+      return;
+    }
 
-    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    const details: any[] = p.details;
+
+    // Calculate group sums for approval summary
+    const divSums: { [key: string]: { count: number; total: number; names: string[] } } = {
+      "Gaji Produksi": { count: 0, total: 0, names: [] },
+      "Gaji Driver": { count: 0, total: 0, names: [] },
+      "Gaji Siap Saji": { count: 0, total: 0, names: [] },
+      "Gaji Freelance": { count: 0, total: 0, names: [] },
+      "Gaji Office": { count: 0, total: 0, names: [] },
+      "Gaji Office Siap Saji": { count: 0, total: 0, names: [] },
+    };
+
+    let totalGajiKotorSemua = 0;
+    let totalTabungan = 0;
+    const iuranMap: { [key: string]: number } = {};
+
+    details.forEach((d) => {
+      const cat = getDivisionCategory(d);
+      if (!divSums[cat]) {
+        divSums[cat] = { count: 0, total: 0, names: [] };
+      }
+      const net = Number(d.gaji_bersih || 0);
+      const tabungan = Number(d.potongan_tabungan || 0);
+      const potLain = Number(d.potongan_lain || 0);
+      // Gaji sebelum potongan tabungan & iuran = net + tabungan + potLain
+      const subKotor = net + tabungan + potLain;
+
+      divSums[cat].count += 1;
+      divSums[cat].total += subKotor;
+      divSums[cat].names.push(d.snapshot_nama);
+
+      totalGajiKotorSemua += subKotor;
+      totalTabungan += tabungan;
+
+      // Parse rincian potongan
+      let rincian: any[] = [];
+      if (Array.isArray(d.rincian_potongan)) {
+        rincian = d.rincian_potongan;
+      } else if (typeof d.rincian_potongan === "string") {
+        try {
+          rincian = JSON.parse(d.rincian_potongan);
+        } catch (e) {
+          rincian = [];
+        }
+      }
+      if (rincian.length > 0) {
+        rincian.forEach((item: any) => {
+          const itemNama = item.nama || "Iuran Lain";
+          iuranMap[itemNama] = (iuranMap[itemNama] || 0) + (Number(item.nominal) || 0);
+        });
+      } else if (potLain > 0) {
+        iuranMap["Iuran Lainnya"] = (iuranMap["Iuran Lainnya"] || 0) + potLain;
+      }
+    });
+
+    const totalIuran = Object.values(iuranMap).reduce((a, b) => a + b, 0);
+    const subtotalSetelahTabungan = totalGajiKotorSemua - totalTabungan;
+    const grandTotalApproval = subtotalSetelahTabungan - totalIuran;
+
+    // --- SHEET 1: RINGKASAN APPROVAL FINANCE ---
+    const sheet1Rows: any[] = [
+      ["RINGKASAN APPROVAL GAJI KARYAWAN"],
+      [`Periode: ${p.nama_periode}`],
+      [`Tipe Payroll: ${p.tipe_payroll || "PEKANAN"}`],
+      [""],
+      ["DIVISI / KOMPONEN", "JUMLAH (RP)", "KETERANGAN"],
+      ["Gaji Produksi", divSums["Gaji Produksi"].total, `${divSums["Gaji Produksi"].count} Karyawan`],
+      ["Gaji Driver", divSums["Gaji Driver"].total, `${divSums["Gaji Driver"].count} Karyawan`],
+      ["Gaji Siap Saji", divSums["Gaji Siap Saji"].total, `${divSums["Gaji Siap Saji"].count} Karyawan`],
+      ["Gaji Freelance", divSums["Gaji Freelance"].total, `${divSums["Gaji Freelance"].count} Karyawan`],
+      ["Gaji Office", divSums["Gaji Office"].total, `${divSums["Gaji Office"].count} Karyawan`],
+      ["Gaji Office Siap Saji", divSums["Gaji Office Siap Saji"].total, `${divSums["Gaji Office Siap Saji"].count} Karyawan`],
+      ["TOTAL KOTOR", totalGajiKotorSemua, `${details.length} Karyawan`],
+      ["TABUNGAN", -totalTabungan, "Potongan Tabungan Karyawan"],
+      ["SUBTOTAL SETELAH TABUNGAN", subtotalSetelahTabungan, ""],
+    ];
+
+    Object.entries(iuranMap).forEach(([namaIuran, nom]) => {
+      sheet1Rows.push([namaIuran, -nom, "Potongan Iuran Dinamis"]);
+    });
+
+    sheet1Rows.push(["GRAND TOTAL APPROVAL", grandTotalApproval, "Total Dana Yang Ditransfer"]);
+
+    const ws1 = XLSX.utils.aoa_to_sheet(sheet1Rows);
+
+    // --- SHEET 2: REKAP DETAIL KARYAWAN PER DIVISI ---
+    const sheet2Rows: any[] = [
+      [
+        "No",
+        "Divisi ERP",
+        "Kode Karyawan",
+        "Nama Karyawan",
+        "Departemen",
+        "Jabatan",
+        "Hari Hadir",
+        "Hari Absen",
+        "Gaji Pokok / Hari",
+        "Subtotal Pokok",
+        "Subtotal Lembur",
+        "Lembur Pagi",
+        "Tunjangan Bonus",
+        "Tunjangan KM Driver",
+        "Gaji Sebelum Potongan",
+        "Potongan Tabungan",
+        "Potongan Iuran / Lain",
+        "Potongan Terlambat",
+        "Total Potongan",
+        "Gaji Bersih Diterima",
+      ],
+    ];
+
+    // Urutkan data per kategori divisi
+    const categoryOrder = [
+      "Gaji Produksi",
+      "Gaji Driver",
+      "Gaji Siap Saji",
+      "Gaji Freelance",
+      "Gaji Office",
+      "Gaji Office Siap Saji",
+    ];
+
+    const sortedDetails = [...details].sort((a, b) => {
+      const catA = getDivisionCategory(a);
+      const catB = getDivisionCategory(b);
+      const idxA = categoryOrder.indexOf(catA);
+      const idxB = categoryOrder.indexOf(catB);
+      if (idxA !== idxB) return idxA - idxB;
+      return (a.snapshot_nama || "").localeCompare(b.snapshot_nama || "");
+    });
+
+    sortedDetails.forEach((d: any, idx: number) => {
+      const net = Number(d.gaji_bersih || 0);
+      const tabungan = Number(d.potongan_tabungan || 0);
+      const potLain = Number(d.potongan_lain || 0);
+      const kotor = net + tabungan + potLain;
+
+      sheet2Rows.push([
+        idx + 1,
+        getDivisionCategory(d),
+        d.kode_karyawan,
+        d.snapshot_nama,
+        d.snapshot_departemen,
+        d.snapshot_jabatan,
+        d.hari_hadir,
+        d.hari_absen,
+        Number(d.gaji_pokok_harian_snapshot || 0),
+        Number(d.subtotal_gaji_pokok || 0),
+        Number(d.subtotal_lembur || 0),
+        Number(d.subtotal_lembur_pagi || 0),
+        Number(d.tunjangan_bonus || d.subtotal_bonus || 0),
+        Number(d.tunjangan_km || 0),
+        kotor,
+        tabungan,
+        potLain,
+        Number(d.potongan_terlambat || 0),
+        Number(d.total_potongan || 0),
+        net,
+      ]);
+    });
+
+    const ws2 = XLSX.utils.aoa_to_sheet(sheet2Rows);
+
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Rekap Payroll");
+    XLSX.utils.book_append_sheet(wb, ws1, "Ringkasan Approval");
+    XLSX.utils.book_append_sheet(wb, ws2, "Rincian Karyawan");
     XLSX.writeFile(wb, `Payroll_${p.nama_periode.replace(/\s+/g, "_")}.xlsx`);
+    toast.success("Excel ringkasan payroll 2-sheet berhasil diunduh!");
   };
 
   // Pagination calculation for details table
@@ -420,61 +691,121 @@ export default function RiwayatPayrollPage() {
           {/* Department Breakdown Widget for Finance Review */}
           {(() => {
             const details: any[] = selectedPayroll.details || [];
-            const deptMap: { [key: string]: { count: number; gajiPokok: number; lembur: number; bonus: number; potongan: number; gajiBersih: number } } = {};
-
-            details.forEach((d) => {
-              const deptName = d.snapshot_departemen || "Lainnya / Umum";
-              if (!deptMap[deptName]) {
-                deptMap[deptName] = { count: 0, gajiPokok: 0, lembur: 0, bonus: 0, potongan: 0, gajiBersih: 0 };
-              }
-              const lembur = Number(d.subtotal_lembur || 0) + Number(d.subtotal_lembur_pagi || 0);
-              const bonus = Number(d.tunjangan_bonus || d.subtotal_bonus || 0);
-              deptMap[deptName].count += 1;
-              deptMap[deptName].gajiPokok += Number(d.subtotal_gaji_pokok || 0);
-              deptMap[deptName].lembur += lembur;
-              deptMap[deptName].bonus += bonus;
-              deptMap[deptName].potongan += Number(d.total_potongan || 0);
-              deptMap[deptName].gajiBersih += Number(d.gaji_bersih || 0);
-            });
-
-            const deptList = Object.entries(deptMap).map(([name, val]) => ({ name, ...val }));
-            const totalNet = Number(selectedPayroll.total_gaji_bersih || 0);
-
-            const handleCopySummaryFinance = () => {
-              let text = `📌 *REKAP DANA PAYROLL ${selectedPayroll.tipe_payroll || "PEKANAN"}*\n`;
-              text += `Batch  : ${selectedPayroll.nama_periode}\n`;
-              if (selectedPayroll.tanggal_mulai && selectedPayroll.tanggal_selesai) {
-                text += `Rentang: ${selectedPayroll.tanggal_mulai} s/d ${selectedPayroll.tanggal_selesai}\n`;
-              }
-              text += `Status : ${selectedPayroll.status}\n`;
-              text += `----------------------------------------\n`;
-              text += `*Rincian Per Divisi:*\n`;
-              deptList.forEach((d) => {
-                const pct = totalNet > 0 ? ((d.gajiBersih / totalNet) * 100).toFixed(1) : "0";
-                text += `• ${d.name} (${d.count} orang): Rp ${d.gajiBersih.toLocaleString("id-ID")} (${pct}%)\n`;
-              });
-              text += `----------------------------------------\n`;
-              text += `*TOTAL BERSIH: Rp ${totalNet.toLocaleString("id-ID")}*\n`;
-              text += `Total: ${selectedPayroll.total_karyawan} orang\n`;
-
-              navigator.clipboard.writeText(text);
-              toast.success("Ringkasan alokasi divisi berhasil disalin ke clipboard!");
+            
+            // 6 standard division buckets
+            const divBuckets: { [key: string]: { name: string; count: number; subtotalKotor: number; net: number } } = {
+              "Gaji Produksi": { name: "Gaji Produksi", count: 0, subtotalKotor: 0, net: 0 },
+              "Gaji Driver": { name: "Gaji Driver", count: 0, subtotalKotor: 0, net: 0 },
+              "Gaji Siap Saji": { name: "Gaji Siap Saji", count: 0, subtotalKotor: 0, net: 0 },
+              "Gaji Freelance": { name: "Gaji Freelance", count: 0, subtotalKotor: 0, net: 0 },
+              "Gaji Office": { name: "Gaji Office", count: 0, subtotalKotor: 0, net: 0 },
+              "Gaji Office Siap Saji": { name: "Gaji Office Siap Saji", count: 0, subtotalKotor: 0, net: 0 },
             };
 
+            let sumGajiKotor = 0;
+            let sumTabungan = 0;
+            const iuranSummary: { [key: string]: number } = {};
+
+            details.forEach((d) => {
+              const cat = getDivisionCategory(d);
+              if (!divBuckets[cat]) {
+                divBuckets[cat] = { name: cat, count: 0, subtotalKotor: 0, net: 0 };
+              }
+              const net = Number(d.gaji_bersih || 0);
+              const tab = Number(d.potongan_tabungan || 0);
+              const potLain = Number(d.potongan_lain || 0);
+              const kotor = net + tab + potLain;
+
+              divBuckets[cat].count += 1;
+              divBuckets[cat].subtotalKotor += kotor;
+              divBuckets[cat].net += net;
+
+              sumGajiKotor += kotor;
+              sumTabungan += tab;
+
+              // Parse rincian potongan
+              let rincian: any[] = [];
+              if (Array.isArray(d.rincian_potongan)) {
+                rincian = d.rincian_potongan;
+              } else if (typeof d.rincian_potongan === "string") {
+                try {
+                  rincian = JSON.parse(d.rincian_potongan);
+                } catch (e) {
+                  rincian = [];
+                }
+              }
+
+              if (rincian.length > 0) {
+                rincian.forEach((item: any) => {
+                  const nm = item.nama || "Iuran Lain";
+                  iuranSummary[nm] = (iuranSummary[nm] || 0) + (Number(item.nominal) || 0);
+                });
+              } else if (potLain > 0) {
+                iuranSummary["Iuran Lainnya"] = (iuranSummary["Iuran Lainnya"] || 0) + potLain;
+              }
+            });
+
+            const totalIuran = Object.values(iuranSummary).reduce((a, b) => a + b, 0);
+            const subtotalSetelahTabungan = sumGajiKotor - sumTabungan;
+            const grandTotalApproval = subtotalSetelahTabungan - totalIuran;
+
+            const handleCopySummaryFinance = () => {
+              let text = `📌 *GAJI KARYAWAN*\n`;
+              text += `----------------------------------------\n`;
+              const divList = [
+                "Gaji Produksi",
+                "Gaji Driver",
+                "Gaji Siap Saji",
+                "Gaji Freelance",
+                "Gaji Office",
+                "Gaji Office Siap Saji",
+              ];
+              divList.forEach((key) => {
+                const b = divBuckets[key];
+                if (b && b.count > 0) {
+                  text += `${key.padEnd(22, " ")}: Rp ${b.subtotalKotor.toLocaleString("id-ID")}\n`;
+                }
+              });
+              text += `----------------------------------------\n`;
+              text += `*TOTAL*                 : Rp ${sumGajiKotor.toLocaleString("id-ID")}\n`;
+              if (sumTabungan > 0) {
+                text += `*TABUNGAN*              : -Rp ${sumTabungan.toLocaleString("id-ID")}\n`;
+                text += `Subtotal                : Rp ${subtotalSetelahTabungan.toLocaleString("id-ID")}\n`;
+              }
+              Object.entries(iuranSummary).forEach(([nm, val]) => {
+                text += `${nm.padEnd(24, " ")}: -Rp ${val.toLocaleString("id-ID")}\n`;
+              });
+              text += `========================================\n`;
+              text += `*GRAND TOTAL APPROVAL   : Rp ${grandTotalApproval.toLocaleString("id-ID")}*\n`;
+              text += `Total Karyawan          : ${details.length} orang\n`;
+
+              navigator.clipboard.writeText(text);
+              toast.success("Format Approval WA Finance berhasil disalin ke clipboard!");
+            };
+
+            const bucketDisplayList = [
+              "Gaji Produksi",
+              "Gaji Driver",
+              "Gaji Siap Saji",
+              "Gaji Freelance",
+              "Gaji Office",
+              "Gaji Office Siap Saji",
+            ];
+
             return (
-              <div style={{ margin: "14px 20px 0 20px", borderRadius: 12, border: "1px solid #f0abfc", background: "#fdf4ff", overflow: "hidden" }}>
-                <div style={{ padding: "10px 16px", background: "#fae8ff", borderBottom: "1px solid #f0abfc", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+              <div style={{ margin: "14px 20px 0 20px", borderRadius: 12, border: "1px solid #e9d5ff", background: "#faf5ff", overflow: "hidden" }}>
+                <div style={{ padding: "10px 16px", background: "#f3e8ff", borderBottom: "1px solid #e9d5ff", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <Building2 size={16} color="#86198f" />
-                    <span style={{ fontSize: 13, fontWeight: 800, color: "#86198f" }}>
-                      Ringkasan Alokasi Dana Per Divisi ({selectedPayroll.nama_periode})
+                    <Building2 size={16} color="#5005A6" />
+                    <span style={{ fontSize: 13, fontWeight: 800, color: "#5005A6" }}>
+                      Ringkasan Approval Payroll Keuangan ({selectedPayroll.nama_periode})
                     </span>
                   </div>
                   <button
                     onClick={handleCopySummaryFinance}
                     style={{
-                      padding: "4px 10px",
-                      background: "#86198f",
+                      padding: "5px 12px",
+                      background: "#5005A6",
                       color: "white",
                       border: "none",
                       borderRadius: 6,
@@ -483,29 +814,57 @@ export default function RiwayatPayrollPage() {
                       cursor: "pointer",
                       display: "inline-flex",
                       alignItems: "center",
-                      gap: 4,
+                      gap: 5,
                     }}
                   >
-                    <Copy size={12} /> Salin Format WA Finance
+                    <Copy size={13} /> Salin Format WA Finance
                   </button>
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 10, padding: 12 }}>
-                  {deptList.map((dept) => {
-                    const pct = totalNet > 0 ? ((dept.gajiBersih / totalNet) * 100).toFixed(1) : "0";
+                {/* Division Breakdown Cards */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10, padding: 12 }}>
+                  {bucketDisplayList.map((divName) => {
+                    const b = divBuckets[divName] || { count: 0, subtotalKotor: 0 };
                     return (
-                      <div key={dept.name} style={{ background: "white", borderRadius: 8, padding: "8px 12px", border: "1px solid #f5d0fe" }}>
+                      <div key={divName} style={{ background: "white", borderRadius: 8, padding: "8px 12px", border: "1px solid #e5e7eb" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: "#1f2937" }}>{dept.name}</span>
-                          <span style={{ fontSize: 10, fontWeight: 700, background: "#f3e8ff", color: "#7e22ce", padding: "1px 6px", borderRadius: 10 }}>{pct}%</span>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: "#1f2937" }}>{divName}</span>
+                          <span style={{ fontSize: 10, fontWeight: 700, background: "#f3f4f6", color: "#4b5563", padding: "1px 6px", borderRadius: 10 }}>
+                            {b.count} orang
+                          </span>
                         </div>
-                        <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>{dept.count} Karyawan</div>
                         <div style={{ fontSize: 14, fontWeight: 800, color: "#5005A6", marginTop: 4 }}>
-                          Rp {dept.gajiBersih.toLocaleString("id-ID")}
+                          Rp {b.subtotalKotor.toLocaleString("id-ID")}
                         </div>
                       </div>
                     );
                   })}
+                </div>
+
+                {/* Summary Totals Bar (Gambar 4 format) */}
+                <div style={{ padding: "10px 16px", background: "#fdf4ff", borderTop: "1px solid #e9d5ff", display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 12, fontSize: 12 }}>
+                  <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
+                    <div>
+                      <span style={{ color: "#6b7280" }}>TOTAL KOTOR: </span>
+                      <strong style={{ color: "#111827" }}>Rp {sumGajiKotor.toLocaleString("id-ID")}</strong>
+                    </div>
+                    {sumTabungan > 0 && (
+                      <div>
+                        <span style={{ color: "#b45309" }}>TABUNGAN: </span>
+                        <strong style={{ color: "#b45309" }}>-Rp {sumTabungan.toLocaleString("id-ID")}</strong>
+                      </div>
+                    )}
+                    {Object.entries(iuranSummary).map(([nm, val]) => (
+                      <div key={nm}>
+                        <span style={{ color: "#E24B4A" }}>{nm}: </span>
+                        <strong style={{ color: "#E24B4A" }}>-Rp {val.toLocaleString("id-ID")}</strong>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ background: "#5005A6", color: "white", padding: "4px 12px", borderRadius: 6, fontWeight: 800, fontSize: 13 }}>
+                    GRAND TOTAL APPROVAL: Rp {grandTotalApproval.toLocaleString("id-ID")}
+                  </div>
                 </div>
               </div>
             );
@@ -610,6 +969,16 @@ export default function RiwayatPayrollPage() {
                       </td>
                       <td style={{ textAlign: "right" }}>
                         <div style={{ display: "inline-flex", gap: 6 }}>
+                          {selectedPayroll.status !== "FINAL" && (
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => handleOpenEditDetail(d)}
+                              title="Edit Penyesuaian & Potongan"
+                              style={{ color: "#7e22ce", borderColor: "#e9d5ff" }}
+                            >
+                              <Edit size={13} /> Edit
+                            </button>
+                          )}
                           <button
                             className="btn btn-secondary btn-sm"
                             style={{
@@ -936,6 +1305,169 @@ export default function RiwayatPayrollPage() {
                 className="btn btn-primary"
               >
                 <Printer size={14} /> Cetak 1 Slip Penuh
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Modal Edit / Penyesuaian Potongan & Tunjangan */}
+      <Modal
+        show={isEditModalOpen && Boolean(editingDetail)}
+        onClose={() => setIsEditModalOpen(false)}
+        title={`Penyesuaian Gaji & Potongan — ${editingDetail?.snapshot_nama}`}
+        width={550}
+      >
+        {editingDetail && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ fontSize: 12, color: "#6b7280", background: "#f9fafb", padding: "8px 12px", borderRadius: 6, border: "1px solid #e5e7eb" }}>
+              <div>Karyawan: <strong>{editingDetail.snapshot_nama}</strong> ({editingDetail.kode_karyawan})</div>
+              <div>Jabatan: {editingDetail.snapshot_jabatan} — {getDivisionCategory(editingDetail)}</div>
+              <div>Gaji Pokok: Rp {Number(editingDetail.subtotal_gaji_pokok || 0).toLocaleString("id-ID")} ({editingDetail.hari_hadir} Hari)</div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>Lembur Pagi (Rp)</label>
+                <input
+                  type="number"
+                  className="erp-input"
+                  style={{ width: "100%", marginTop: 4 }}
+                  value={editForm.subtotal_lembur_pagi}
+                  onChange={(e) => setEditForm({ ...editForm, subtotal_lembur_pagi: Number(e.target.value) || 0 })}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>Bonus / Insentif (Rp)</label>
+                <input
+                  type="number"
+                  className="erp-input"
+                  style={{ width: "100%", marginTop: 4 }}
+                  value={editForm.tunjangan_bonus}
+                  onChange={(e) => setEditForm({ ...editForm, tunjangan_bonus: Number(e.target.value) || 0 })}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>Tunjangan KM Driver (Rp)</label>
+              <input
+                type="number"
+                className="erp-input"
+                style={{ width: "100%", marginTop: 4 }}
+                value={editForm.tunjangan_km}
+                onChange={(e) => setEditForm({ ...editForm, tunjangan_km: Number(e.target.value) || 0 })}
+              />
+            </div>
+
+            {/* Potongan Tabungan */}
+            <div style={{ background: "#fffbeb", border: "1px solid #fef3c7", padding: "10px 12px", borderRadius: 8 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: "#92400e" }}>Potongan Tabungan (Rp / Pekan)</label>
+              <input
+                type="number"
+                className="erp-input"
+                style={{ width: "100%", marginTop: 4 }}
+                value={editForm.potongan_tabungan}
+                onChange={(e) => setEditForm({ ...editForm, potongan_tabungan: Number(e.target.value) || 0 })}
+              />
+            </div>
+
+            {/* Potongan Iuran Dinamis */}
+            <div style={{ background: "#fdf2f8", border: "1px solid #fbcfe8", padding: "10px 12px", borderRadius: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <label style={{ fontSize: 12, fontWeight: 700, color: "#9d174d" }}>Potongan Iuran Dinamis</label>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  style={{ fontSize: 11, padding: "2px 8px" }}
+                  onClick={() => {
+                    setEditForm({
+                      ...editForm,
+                      rincian_potongan: [...editForm.rincian_potongan, { nama: "Iuran", nominal: 10000 }],
+                    });
+                  }}
+                >
+                  <Plus size={11} /> Tambah Iuran
+                </button>
+              </div>
+
+              {editForm.rincian_potongan.length === 0 ? (
+                <div style={{ fontSize: 11, color: "#9ca3af", fontStyle: "italic" }}>
+                  Belum ada potongan iuran untuk karyawan ini
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {editForm.rincian_potongan.map((item, idx) => (
+                    <div key={idx} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <input
+                        type="text"
+                        placeholder="Nama Iuran (mis: Iuran Azis)"
+                        className="erp-input"
+                        style={{ flex: 1, fontSize: 12 }}
+                        value={item.nama}
+                        onChange={(e) => {
+                          const updated = [...editForm.rincian_potongan];
+                          updated[idx].nama = e.target.value;
+                          setEditForm({ ...editForm, rincian_potongan: updated });
+                        }}
+                      />
+                      <input
+                        type="number"
+                        placeholder="Nominal (Rp)"
+                        className="erp-input"
+                        style={{ width: 110, fontSize: 12 }}
+                        value={item.nominal}
+                        onChange={(e) => {
+                          const updated = [...editForm.rincian_potongan];
+                          updated[idx].nominal = Number(e.target.value) || 0;
+                          setEditForm({ ...editForm, rincian_potongan: updated });
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = editForm.rincian_potongan.filter((_, i) => i !== idx);
+                          setEditForm({ ...editForm, rincian_potongan: updated });
+                        }}
+                        style={{ color: "#ef4444", background: "none", border: "none", cursor: "pointer", padding: 4 }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>Catatan Payroll</label>
+              <textarea
+                className="erp-input"
+                rows={2}
+                style={{ width: "100%", marginTop: 4, fontSize: 12 }}
+                value={editForm.catatan_payroll}
+                onChange={(e) => setEditForm({ ...editForm, catatan_payroll: e.target.value })}
+                placeholder="Misal: Penyesuaian lembur kirim batununggal"
+              />
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 10 }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setIsEditModalOpen(false)}
+                disabled={savingDetail}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleSaveEditDetail}
+                disabled={savingDetail}
+              >
+                {savingDetail ? "Menyimpan..." : "Simpan Perubahan"}
               </button>
             </div>
           </div>
