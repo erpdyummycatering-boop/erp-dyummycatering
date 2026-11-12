@@ -1,12 +1,17 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Users, Plus, Search, Edit, Trash2, CheckCircle, XCircle, FileSpreadsheet, Eye, FileText, ExternalLink } from "lucide-react";
+import { Users, Plus, Search, Edit, Trash2, CheckCircle, XCircle, FileSpreadsheet, Eye, FileText, ExternalLink, MinusCircle } from "lucide-react";
 import * as XLSX from "xlsx";
 import { PageHeader, FormRow, FormField } from "@/components/ui/PageHeader";
 import { Pagination } from "@/components/ui/Pagination";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
+
+interface PotonganDefaultItem {
+  nama: string;
+  nominal: number;
+}
 
 export default function KaryawanPage() {
   const [employees, setEmployees] = useState<any[]>([]);
@@ -43,11 +48,13 @@ export default function KaryawanPage() {
     email: "",
     tanggal_masuk: new Date().toISOString().substring(0, 10),
     gaji_pokok_harian: "60000",
+    gaji_pokok_bulanan: "",
     lembur_per_jam: "7000",
     tunjangan_km_tier1: "10000",
     tunjangan_km_tier2: "15000",
     tunjangan_km_tier3: "20000",
   });
+  const [defaultPotonganList, setDefaultPotonganList] = useState<PotonganDefaultItem[]>([]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -79,6 +86,11 @@ export default function KaryawanPage() {
   const handleOpenModal = (emp?: any) => {
     if (emp) {
       setEditingEmp(emp);
+      const isBulanan = emp.tipe_gaji === "BULANAN";
+      const gajiPokokVal = isBulanan
+        ? (emp.gaji_pokok_bulanan ? String(emp.gaji_pokok_bulanan) : (emp.gaji_pokok_harian ? String(Number(emp.gaji_pokok_harian) * 26) : "3000000"))
+        : (emp.gaji_pokok_harian ? String(emp.gaji_pokok_harian) : "60000");
+
       setFormData({
         nama_fingerprint: emp.nama_fingerprint || "",
         nama_lengkap: emp.nama_lengkap || "",
@@ -92,12 +104,27 @@ export default function KaryawanPage() {
         no_telepon: emp.no_telepon || "",
         email: emp.email || "",
         tanggal_masuk: emp.tanggal_masuk ? emp.tanggal_masuk.substring(0, 10) : new Date().toISOString().substring(0, 10),
-        gaji_pokok_harian: emp.gaji_pokok_harian ? String(emp.gaji_pokok_harian) : "60000",
+        gaji_pokok_harian: gajiPokokVal,
+        gaji_pokok_bulanan: emp.gaji_pokok_bulanan ? String(emp.gaji_pokok_bulanan) : "",
         lembur_per_jam: emp.lembur_per_jam ? String(emp.lembur_per_jam) : "7000",
         tunjangan_km_tier1: emp.tunjangan_km_tier1 ? String(emp.tunjangan_km_tier1) : "10000",
         tunjangan_km_tier2: emp.tunjangan_km_tier2 ? String(emp.tunjangan_km_tier2) : "15000",
         tunjangan_km_tier3: emp.tunjangan_km_tier3 ? String(emp.tunjangan_km_tier3) : "20000",
       });
+
+      let pots: PotonganDefaultItem[] = [];
+      if (emp.default_potongan) {
+        if (Array.isArray(emp.default_potongan)) {
+          pots = emp.default_potongan;
+        } else if (typeof emp.default_potongan === "string") {
+          try {
+            pots = JSON.parse(emp.default_potongan);
+          } catch (e) {
+            pots = [];
+          }
+        }
+      }
+      setDefaultPotonganList(Array.isArray(pots) ? pots : []);
     } else {
       setEditingEmp(null);
       setFormData({
@@ -114,13 +141,33 @@ export default function KaryawanPage() {
         email: "",
         tanggal_masuk: new Date().toISOString().substring(0, 10),
         gaji_pokok_harian: "60000",
+        gaji_pokok_bulanan: "",
         lembur_per_jam: "7000",
         tunjangan_km_tier1: "10000",
         tunjangan_km_tier2: "15000",
         tunjangan_km_tier3: "20000",
       });
+      setDefaultPotonganList([]);
     }
     setIsModalOpen(true);
+  };
+
+  const handleAddDefaultPotongan = () => {
+    setDefaultPotonganList([...defaultPotonganList, { nama: "Tabungan", nominal: 0 }]);
+  };
+
+  const handleRemoveDefaultPotongan = (index: number) => {
+    setDefaultPotonganList(defaultPotonganList.filter((_, idx) => idx !== index));
+  };
+
+  const handleDefaultPotonganChange = (index: number, field: "nama" | "nominal", val: any) => {
+    const updated = [...defaultPotonganList];
+    if (field === "nominal") {
+      updated[index].nominal = val === "" ? ("" as any) : Number(val);
+    } else {
+      updated[index].nama = val;
+    }
+    setDefaultPotonganList(updated);
   };
 
   const handleViewDetail = async (empId: number) => {
@@ -145,10 +192,19 @@ export default function KaryawanPage() {
     try {
       const url = editingEmp ? `/api/hr/employees/${editingEmp.id}` : "/api/hr/employees";
       const method = editingEmp ? "PUT" : "POST";
+      const isBulanan = formData.tipe_gaji === "BULANAN";
+
+      const payload = {
+        ...formData,
+        gaji_pokok_harian: isBulanan ? Math.round((Number(formData.gaji_pokok_harian) || 0) / 26) : Number(formData.gaji_pokok_harian),
+        gaji_pokok_bulanan: isBulanan ? Number(formData.gaji_pokok_harian) : null,
+        default_potongan: defaultPotonganList.filter((p) => p.nama.trim() !== "" && Number(p.nominal) > 0),
+      };
+
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
@@ -348,7 +404,24 @@ export default function KaryawanPage() {
                           </span>
                         </div>
                       </td>
-                      <td>Rp {Number(emp.gaji_pokok_harian || 0).toLocaleString("id-ID")}</td>
+                      <td>
+                        {emp.tipe_gaji === "BULANAN" ? (
+                          <div>
+                            <div style={{ fontWeight: 700, color: "#047857" }}>
+                              Rp {Number(emp.gaji_pokok_bulanan || (emp.gaji_pokok_harian ? Number(emp.gaji_pokok_harian) * 26 : 0)).toLocaleString("id-ID")}
+                              <span style={{ fontSize: 10, fontWeight: 500, color: "#6b7280", marginLeft: 3 }}>/bln</span>
+                            </div>
+                            <div style={{ fontSize: 11, color: "#6b7280" }}>
+                              ~ Rp {Number(emp.gaji_pokok_harian || 0).toLocaleString("id-ID")}/hari
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ fontWeight: 600, color: "#111827" }}>
+                            Rp {Number(emp.gaji_pokok_harian || 0).toLocaleString("id-ID")}
+                            <span style={{ fontSize: 10, fontWeight: 400, color: "#6b7280", marginLeft: 3 }}>/hari</span>
+                          </div>
+                        )}
+                      </td>
                       <td>
                         <Badge color={emp.status === "AKTIF" ? "green" : "red"}>
                           {emp.status === "AKTIF" ? "Aktif" : "Non-Aktif"}
@@ -571,6 +644,77 @@ export default function KaryawanPage() {
                     onChange={(e) => setFormData({ ...formData, tunjangan_km_tier3: e.target.value })}
                   />
                 </FormField>
+              </div>
+            )}
+          </div>
+
+          {/* Setting Potongan Default / Tetap (Tabungan, Iuran, dll) */}
+          <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: 14, marginTop: 4 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <div>
+                <h4 style={{ fontSize: 13, fontWeight: 700, color: "#b45309", margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                  Potongan Rutin / Default Pekanan
+                </h4>
+                <span style={{ fontSize: 11, color: "#6b7280" }}>
+                  Otomatis ditarik saat proses payroll pekanan (nama & nominal bebas, tetap bisa diedit tiap pekan)
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleAddDefaultPotongan}
+                style={{
+                  background: "#fef3c7",
+                  border: "1px solid #fde68a",
+                  color: "#92400e",
+                  padding: "4px 8px",
+                  borderRadius: 6,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                }}
+              >
+                <Plus size={12} /> Tambah Potongan
+              </button>
+            </div>
+
+            {defaultPotonganList.length === 0 ? (
+              <div style={{ padding: "10px 12px", background: "#f9fafb", borderRadius: 8, fontSize: 12, color: "#6b7280", fontStyle: "italic", border: "1px dashed #d1d5db" }}>
+                Belum ada potongan rutin/default (misal Tabungan atau Iuran). Klik Tambah Potongan jika ada potongan pekanan tetap.
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {defaultPotonganList.map((item, idx) => (
+                  <div key={idx} style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr auto", gap: 8, alignItems: "center" }}>
+                    <input
+                      type="text"
+                      placeholder="Nama Potongan (misal: Tabungan, Iuran Mak Iin, Iuran Azis)"
+                      value={item.nama}
+                      onChange={(e) => handleDefaultPotonganChange(idx, "nama", e.target.value)}
+                      style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #d1d5db", fontSize: 12 }}
+                    />
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <span style={{ fontSize: 11, color: "#6b7280" }}>Rp</span>
+                      <input
+                        type="number"
+                        placeholder="Nominal"
+                        value={item.nominal || ""}
+                        onChange={(e) => handleDefaultPotonganChange(idx, "nominal", e.target.value)}
+                        style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #d1d5db", fontSize: 12 }}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveDefaultPotongan(idx)}
+                      style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", padding: 4 }}
+                      title="Hapus baris"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </div>

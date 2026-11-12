@@ -113,7 +113,7 @@ export async function POST(req: Request) {
       LEFT JOIN LATERAL (
         SELECT * FROM hr_salary_structures ss
         WHERE ss.employee_id = e.id AND ss.effective_date <= $1::date
-        ORDER BY ss.effective_date DESC LIMIT 1
+        ORDER BY ss.effective_date DESC, ss.id DESC LIMIT 1
       ) s ON true
       WHERE e.status = 'AKTIF'
     `;
@@ -227,10 +227,12 @@ export async function POST(req: Request) {
         };
       });
 
+      const isDriver = emp.tipe_gaji === "HARIAN_DRIVER" || (emp.position_nama && emp.position_nama.toLowerCase().includes("driver"));
+
       // Lembur Calculation
       let totalLemburDiakui = totalLemburMenit;
       let lemburMelewatiBatas = false;
-      if (effectiveRule.lembur_maks_aktif && Number(effectiveRule.lembur_maks_jam_per_bulan) > 0) {
+      if (!isDriver && effectiveRule.lembur_maks_aktif && Number(effectiveRule.lembur_maks_jam_per_bulan) > 0) {
         const maxMenit = Number(effectiveRule.lembur_maks_jam_per_bulan) * 60;
         if (totalLemburMenit > maxMenit) {
           lemburMelewatiBatas = true;
@@ -240,9 +242,9 @@ export async function POST(req: Request) {
         }
       }
 
-      // Potongan Terlambat
+      // Potongan Terlambat: untuk driver TIDAK ADA potongan terlambat/kurang dari 8 jam
       let potonganTerlambat = 0;
-      if (effectiveRule.potongan_terlambat_aktif) {
+      if (!isDriver && effectiveRule.potongan_terlambat_aktif) {
         if (effectiveRule.potongan_mode === "PER_MENIT") {
           const menitNetto = Math.max(0, totalTerlambatMenit - (effectiveRule.potongan_toleransi_menit || 0));
           potonganTerlambat = menitNetto * Number(effectiveRule.potongan_tarif_per_menit || 0);
@@ -267,14 +269,68 @@ export async function POST(req: Request) {
         subtotalGajiPokok = gajiPokokHarian * hariHadir;
       }
 
-      const subtotalLembur = Math.round(lemburPerJam * (totalLemburDiakui / 60));
-      const subtotalLemburPagi = Math.round(lemburPerJam * (totalLemburPagiMenit / 60));
-      const subtotalBonus = totalBonusHarian;
+      // Lembur untuk driver: tidak dihitung lembur per jam biasa, melainkan dari trip/km dan insentif/custom
+      let subtotalLembur = isDriver ? 0 : Math.round(lemburPerJam * (totalLemburDiakui / 60));
+      let subtotalLemburPagi = isDriver ? 0 : Math.round(lemburPerJam * (totalLemburPagiMenit / 60));
+      let subtotalBonus = totalBonusHarian;
 
-      const totalPendapatan = subtotalGajiPokok + subtotalLembur + subtotalLemburPagi + subtotalBonus;
-      const totalPotonganEmp = potonganTerlambat;
+      // Ambil akumulasi trip driver & KM jika karyawan adalah driver
+      let tunjanganKmDriver = 0;
+      let insentifDriver = 0;
+      let totalKmDriver = 0;
+      if (isDriver) {
+        const tripRes = await client.query(
+          `SELECT 
+             COALESCE(SUM(tunjangan_km), 0) AS total_tunjangan_km,
+             COALESCE(SUM(insentif_trip), 0) AS total_insentif,
+             COALESCE(SUM(km), 0) AS total_km
+           FROM hr_driver_trips
+           WHERE employee_id = $1 AND tanggal >= $2::date AND tanggal <= $3::date`,
+          [emp.id, startDate, endDate]
+        );
+        if (tripRes.rows.length > 0) {
+          tunjanganKmDriver = Number(tripRes.rows[0].total_tunjangan_km || 0);
+          insentifDriver = Number(tripRes.rows[0].total_insentif || 0);
+          totalKmDriver = Number(tripRes.rows[0].total_km || 0);
+        }
+      }
+
+      const totalPendapatan = subtotalGajiPokok + subtotalLembur + subtotalLemburPagi + subtotalBonus + tunjanganKmDriver + insentifDriver;
+
+      // Default potongan (Tabungan, Iuran, dll) dari master karyawan
+      let defaultPotonganArr: any[] = [];
+      if (emp.default_potongan) {
+        if (Array.isArray(emp.default_potongan)) {
+          defaultPotonganArr = emp.default_potongan;
+        } else if (typeof emp.default_potongan === "string") {
+          try {
+            defaultPotonganArr = JSON.parse(emp.default_potongan);
+          } catch (e) {
+            defaultPotonganArr = [];
+          }
+        }
+      }
+
+      let potTabungan = 0;
+      let potLain = 0;
+      const rincianPotonganList: any[] = [];
+
+      defaultPotonganArr.forEach((p: any) => {
+        const pNama = (p.nama || "").trim();
+        const pNom = Number(p.nominal) || 0;
+        if (pNom > 0) {
+          rincianPotonganList.push({ nama: pNama || "Potongan Lain", nominal: pNom });
+          if (pNama.toLowerCase().includes("tabung")) {
+            potTabungan += pNom;
+          } else {
+            potLain += pNom;
+          }
+        }
+      });
+
+      const totalPotonganEmp = potonganTerlambat + potTabungan + potLain;
       const gajiKotor = totalPendapatan - potonganTerlambat;
-      const gajiBersih = gajiKotor;
+      const gajiBersih = gajiKotor - potTabungan - potLain;
 
       totalKaryawan++;
       totalGajiKotor += gajiKotor;
@@ -289,6 +345,8 @@ export async function POST(req: Request) {
           total_lembur_menit_aktual, total_lembur_menit_diakui, lembur_melewati_batas,
           gaji_pokok_harian_snapshot, lembur_per_jam_snapshot,
           subtotal_gaji_pokok, subtotal_lembur, subtotal_lembur_pagi, subtotal_bonus, tunjangan_bonus,
+          tunjangan_km, km_perjalanan,
+          potongan_tabungan, potongan_lain, rincian_potongan,
           total_pendapatan, potongan_terlambat, total_potongan, gaji_kotor, gaji_bersih,
           rules_snapshot, detail_harian
         ) VALUES (
@@ -298,8 +356,10 @@ export async function POST(req: Request) {
           $16, $17, $18,
           $19, $20,
           $21, $22, $23, $24, $25,
-          $26, $27, $28, $29, $30,
-          $31::jsonb, $32::jsonb
+          $26, $27,
+          $28, $29, $30::jsonb,
+          $31, $32, $33, $34, $35,
+          $36::jsonb, $37::jsonb
         )`,
         [
           payroll.id,
@@ -315,18 +375,23 @@ export async function POST(req: Request) {
           hariSakit,
           hariIzin,
           hariDinas,
-          totalTerlambatMenit,
+          isDriver ? 0 : totalTerlambatMenit,
           totalTidakScan,
-          totalLemburMenit,
-          totalLemburDiakui,
-          lemburMelewatiBatas,
+          isDriver ? 0 : totalLemburMenit,
+          isDriver ? 0 : totalLemburDiakui,
+          isDriver ? false : lemburMelewatiBatas,
           gajiPokokHarian,
           lemburPerJam,
           subtotalGajiPokok,
           subtotalLembur,
           subtotalLemburPagi,
           subtotalBonus,
-          subtotalBonus, // set initial tunjangan_bonus equal to subtotal_bonus
+          subtotalBonus + insentifDriver,
+          tunjanganKmDriver,
+          totalKmDriver,
+          potTabungan,
+          potLain,
+          JSON.stringify(rincianPotonganList),
           totalPendapatan,
           potonganTerlambat,
           totalPotonganEmp,

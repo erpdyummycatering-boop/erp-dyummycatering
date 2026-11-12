@@ -58,7 +58,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       "kode_karyawan", "nama_fingerprint", "nama_lengkap", "department_id", "position_id",
       "tipe_karyawan", "tipe_gaji", "tipe_periode_gaji", "no_fingerprint", "no_ktp", "email", "no_telepon",
       "npwp", "ptkp_status", "bpjs_ketenagakerjaan", "bpjs_kesehatan",
-      "tanggal_masuk", "tanggal_keluar", "status", "catatan"
+      "tanggal_masuk", "tanggal_keluar", "status", "catatan", "default_potongan"
     ];
 
     const updates: string[] = [];
@@ -66,13 +66,20 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     fields.forEach((field) => {
       if (body[field] !== undefined) {
-        values.push(body[field]);
-        updates.push(`${field} = $${values.length}`);
+        if (field === "default_potongan") {
+          const val = Array.isArray(body[field]) ? JSON.stringify(body[field]) : (typeof body[field] === "string" ? body[field] : "[]");
+          values.push(val);
+          updates.push(`${field} = $${values.length}::jsonb`);
+        } else {
+          values.push(body[field]);
+          updates.push(`${field} = $${values.length}`);
+        }
       }
     });
 
     const hasSalaryFields =
       body.gaji_pokok_harian !== undefined ||
+      body.gaji_pokok_bulanan !== undefined ||
       body.lembur_per_jam !== undefined ||
       body.tunjangan_km_tier1 !== undefined ||
       body.tunjangan_km_tier2 !== undefined ||
@@ -112,6 +119,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     // Update / insert salary structure if salary fields are present
     if (hasSalaryFields) {
       const gajiPokok = body.gaji_pokok_harian !== undefined ? Number(body.gaji_pokok_harian) : null;
+      const gajiBulanan = body.gaji_pokok_bulanan !== undefined ? (body.gaji_pokok_bulanan === "" || body.gaji_pokok_bulanan === null ? null : Number(body.gaji_pokok_bulanan)) : null;
       const lembur = body.lembur_per_jam !== undefined 
         ? Number(body.lembur_per_jam) 
         : (gajiPokok ? Math.round(gajiPokok / 8) : 0);
@@ -121,7 +129,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
       // Check if employee already has an active salary structure
       const existingSalaryRes = await client.query(
-        `SELECT id FROM hr_salary_structures WHERE employee_id = $1 ORDER BY effective_date DESC LIMIT 1`,
+        `SELECT id FROM hr_salary_structures WHERE employee_id = $1 ORDER BY effective_date DESC, id DESC LIMIT 1`,
         [id]
       );
 
@@ -133,17 +141,18 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
                lembur_per_jam = COALESCE($2, lembur_per_jam),
                tunjangan_km_tier1 = COALESCE($3, tunjangan_km_tier1),
                tunjangan_km_tier2 = COALESCE($4, tunjangan_km_tier2),
-               tunjangan_km_tier3 = COALESCE($5, tunjangan_km_tier3)
-           WHERE id = $6`,
-          [gajiPokok, lembur, tier1, tier2, tier3, salaryId]
+               tunjangan_km_tier3 = COALESCE($5, tunjangan_km_tier3),
+               gaji_pokok_bulanan = COALESCE($6, gaji_pokok_bulanan)
+           WHERE id = $7`,
+          [gajiPokok, lembur, tier1, tier2, tier3, gajiBulanan, salaryId]
         );
-      } else if (gajiPokok !== null) {
+      } else if (gajiPokok !== null || gajiBulanan !== null) {
         await client.query(
           `INSERT INTO hr_salary_structures (
             employee_id, effective_date, gaji_pokok_harian, lembur_per_jam,
-            tunjangan_km_tier1, tunjangan_km_tier2, tunjangan_km_tier3
-          ) VALUES ($1, CURRENT_DATE, $2, $3, $4, $5, $6)`,
-          [id, gajiPokok, lembur, tier1, tier2, tier3]
+            tunjangan_km_tier1, tunjangan_km_tier2, tunjangan_km_tier3, gaji_pokok_bulanan
+          ) VALUES ($1, CURRENT_DATE, $2, $3, $4, $5, $6, $7)`,
+          [id, gajiPokok || 0, lembur, tier1, tier2, tier3, gajiBulanan]
         );
       }
     }

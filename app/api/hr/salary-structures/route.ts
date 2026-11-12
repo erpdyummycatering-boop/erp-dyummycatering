@@ -122,6 +122,14 @@ export async function POST(req: Request) {
       rows = res.rows;
     }
 
+    // Auto-update tipe_gaji & touch updated_at pada hr_employees jika tipe_gaji ditentukan
+    if (finalGajiBulanan && finalGajiBulanan > 0) {
+      await pool.query(
+        `UPDATE hr_employees SET tipe_periode_gaji = 'BULANAN', updated_at = NOW() WHERE id = $1 AND tipe_periode_gaji != 'BULANAN'`,
+        [employee_id]
+      ).catch(() => {});
+    }
+
     return NextResponse.json(rows[0], { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

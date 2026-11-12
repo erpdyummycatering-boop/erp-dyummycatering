@@ -21,7 +21,7 @@ export async function GET(req: Request) {
       LEFT JOIN LATERAL (
         SELECT * FROM hr_salary_structures ss
         WHERE ss.employee_id = e.id
-        ORDER BY ss.effective_date DESC
+        ORDER BY ss.effective_date DESC, ss.id DESC
         LIMIT 1
       ) s ON true
       WHERE 1=1
@@ -83,8 +83,10 @@ export async function POST(req: Request) {
       status,
       catatan,
       tipe_periode_gaji,
+      default_potongan,
       // Gaji Pokok awal
       gaji_pokok_harian,
+      gaji_pokok_bulanan,
       lembur_per_jam,
       tunjangan_km_tier1,
       tunjangan_km_tier2,
@@ -102,12 +104,14 @@ export async function POST(req: Request) {
     const nextNum = parseInt(countRes.rows[0].count, 10) + 1;
     const autoKode = `EMP-${String(nextNum).padStart(3, "0")}`;
 
+    const defaultPotonganVal = Array.isArray(default_potongan) ? JSON.stringify(default_potongan) : (typeof default_potongan === "string" ? default_potongan : "[]");
+
     const empRes = await client.query(
       `INSERT INTO hr_employees (
         kode_karyawan, nama_fingerprint, nama_lengkap, department_id, position_id,
         tipe_karyawan, tipe_gaji, tipe_periode_gaji, no_fingerprint, no_ktp, email, no_telepon,
-        npwp, ptkp_status, tanggal_masuk, status, catatan
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+        npwp, ptkp_status, tanggal_masuk, status, catatan, default_potongan
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18::jsonb)
       RETURNING *`,
       [
         autoKode,
@@ -127,26 +131,34 @@ export async function POST(req: Request) {
         tanggal_masuk,
         status || "AKTIF",
         catatan || null,
+        defaultPotonganVal,
       ]
     );
 
     const employee = empRes.rows[0];
 
     // Auto-create initial salary structure if provided
-    if (gaji_pokok_harian !== undefined && gaji_pokok_harian !== null) {
+    if (gaji_pokok_harian !== undefined || gaji_pokok_bulanan !== undefined) {
+      const gHarian = Number(gaji_pokok_harian || 0);
+      const gBulanan = gaji_pokok_bulanan !== undefined && gaji_pokok_bulanan !== null ? Number(gaji_pokok_bulanan) : null;
+      const lembur = lembur_per_jam !== undefined && lembur_per_jam !== null && lembur_per_jam !== ""
+        ? Number(lembur_per_jam)
+        : Math.round(gHarian / 8);
+
       await client.query(
         `INSERT INTO hr_salary_structures (
           employee_id, effective_date, gaji_pokok_harian, lembur_per_jam,
-          tunjangan_km_tier1, tunjangan_km_tier2, tunjangan_km_tier3
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          tunjangan_km_tier1, tunjangan_km_tier2, tunjangan_km_tier3, gaji_pokok_bulanan
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
         [
           employee.id,
           tanggal_masuk || new Date().toISOString().substring(0, 10),
-          gaji_pokok_harian,
-          lembur_per_jam || Math.round(gaji_pokok_harian / 8),
+          gHarian,
+          lembur,
           tunjangan_km_tier1 || null,
           tunjangan_km_tier2 || null,
           tunjangan_km_tier3 || null,
+          gBulanan,
         ]
       );
     }
