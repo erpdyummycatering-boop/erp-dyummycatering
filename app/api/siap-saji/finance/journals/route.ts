@@ -309,10 +309,22 @@ export async function PATCH(req: NextRequest) {
       }
 
       // 2. Rollback linked kas_mutasi and kas_bank saldo_kini
-      const mutasiRes = await client.query(
-        "SELECT * FROM kas_mutasi WHERE ref_type IN ('koreksi', 'biaya', 'pembelian') AND ref_id = $1",
-        [journalId]
-      );
+      const mutasiQuery =
+        journal.ref_type === "transfer" && journal.ref_id
+          ? {
+              select:
+                "SELECT * FROM kas_mutasi WHERE ref_type = 'transfer' AND (id = $1 OR ref_id = $1)",
+              del: "DELETE FROM kas_mutasi WHERE ref_type = 'transfer' AND (id = $1 OR ref_id = $1)",
+              param: journal.ref_id,
+            }
+          : {
+              select:
+                "SELECT * FROM kas_mutasi WHERE ref_type IN ('koreksi', 'biaya', 'pembelian') AND ref_id = $1",
+              del: "DELETE FROM kas_mutasi WHERE ref_type IN ('koreksi', 'biaya', 'pembelian') AND ref_id = $1",
+              param: journalId,
+            };
+
+      const mutasiRes = await client.query(mutasiQuery.select, [mutasiQuery.param]);
       for (const m of mutasiRes.rows) {
         if (m.jenis === "Masuk") {
           await client.query(
@@ -326,10 +338,7 @@ export async function PATCH(req: NextRequest) {
           );
         }
       }
-      await client.query(
-        "DELETE FROM kas_mutasi WHERE ref_type IN ('koreksi', 'biaya', 'pembelian') AND ref_id = $1",
-        [journalId]
-      );
+      await client.query(mutasiQuery.del, [mutasiQuery.param]);
 
       // 3. Mark journal as cancelled and save cancel_reason
       const updatedRes = await client.query(
